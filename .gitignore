@@ -1,0 +1,19 @@
+## git
+*.swp
+*.swo
+
+## Sublime Text
+*.sublime-workspace
+
+## Python
+## Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+## Mac stuff
+.DS_store
+
+## C compiler files
+*.o
+*.a
