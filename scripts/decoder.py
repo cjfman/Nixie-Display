@@ -2,10 +2,10 @@ NOCODE = 0x3FFF
 
 ## Array of ascii codes decoded into 14-segments
 ## Stats at ascii code 0x20. Ends at 0x7F inclusive
-## TODO Fix V
+## TODO Fix V, v, $
 codes = (
     0x0000, 0x4880, 0x0082, NOCODE, ## ' ', !, ", #
-    0x2A9D, 0x1124, NOCODE, 0x0100, ##    $, %, %, '
+    0x2AAD, 0x1124, NOCODE, 0x0100, ##    $, %, %, '
     NOCODE, NOCODE, 0x3FC0, 0x2A80, ##    (, ), *, +
     0x1000, 0x2200, 0x0010, 0x1100, ## ',', -, ., /
     0x113F, 0x0106, 0x221B, 0x050D, ##   0, 1, 2, 3
@@ -31,11 +31,11 @@ codes = (
 )
 
 def decodeChar(c):
-    c = ord(c) - 0x20
+    c = ord(c)
     if c < 0x20 or 0x7f < c:
         return NOCODE ## Non-printable code
 
-    return codes[c]
+    return codes[c - 0x20]
 
 
 ##  ___   Line 0
@@ -99,11 +99,27 @@ def bitmapToLines(bitmap):
 
     return lines
 
-def bitmapToStr(bitmap):
+
+def bitmapToDecodedChar(bitmap):
     return "\n".join(bitmapToLines(bitmap)) + "\n"
+
+def strToDecodedStr(s):
+    bitmaps = [decodeChar(c) for c in s]
+    bitmap_lines = [bitmapToLines(b) for b in bitmaps]
+    out_lines = [""] * 5
+    for lines in bitmap_lines:
+        for i, line in enumerate(lines):
+            out_lines[i] += line + "    "
+
+    for i, line in enumerate(out_lines):
+        out_lines[i] += "\n"
+
+    return "\n".join(out_lines) + "\n"
+
 
 def printBitmap(bitmap):
     print(bitmapToStr(bitmap))
 
+
 def printChar(c):
-    print(bitmapToStr(decodeChar(c)))
+    print(bitmapToDecodedChar(decodeChar(c)))
