@@ -135,19 +135,14 @@ void testLoop() {
 
 void printError(int errcode) {
     newline();
-    switch (errcode) {
-    case TUBE_ERR_CMD_TOO_LONG:
-        Serial.print("NAK: Command too long\n");
-        break;
-    case TUBE_ERR_BAD_CMD:
-        Serial.print("NAK: Unknown command\n");
-    default:
-        Serial.print("NAK: Unknown error\n");
-    }
+    Serial.print("NAK: ");
+    Serial.print(tubeErrToText(errcode));
+    Serial.write('\n');
 }
 
 void tubeManagerLoop(void) {
-    char cmd_buf[CMD_BUF_SIZE];
+    char cmd_buf[CMD_BUF_SIZE + 1];
+    memset(cmd_buf, '\0', CMD_BUF_SIZE + 1);
 
     int read_len = Serial.available();
     if (read_len == 0) return;
@@ -170,7 +165,10 @@ void tubeManagerLoop(void) {
         return;
     }
 
-    Serial.print(String("\nBuf len: ") + intToString(cmdBufLen()) + "\n");
+    // Check for full command
+    if (!commandComplete()) {
+        return;
+    }
 
     // Check for noop command
     if (noopCommand()) {
@@ -179,21 +177,30 @@ void tubeManagerLoop(void) {
         return;
     }
 
-    // Check for full command
-    if (!commandSize()) {
-        return;
-    }
+    // Read load command
     errcode = getCmd(cmd_buf, CMD_BUF_SIZE);
     if (errcode) {
         printError(errcode);
         printPrompt();
         return;
     }
-    char* cmd_args = cmd_buf + cmdArgStart(cmd_buf, CMD_BUF_SIZE);
+//    Serial.print("Read cmd: ");
+//    Serial.print(cmd_buf);
+//    Serial.write('\n');
+    int args_pos = cmdArgStart(cmd_buf, CMD_BUF_SIZE);
+    if (args_pos < 0) {
+        printError(args_pos);
+        printPrompt();
+        return;
+    }
+    char* cmd_args = cmd_buf + args_pos;
+    Serial.print("Print: '");
+    Serial.print(cmd_args);
+    Serial.print("'\n");
     uint16_t tube_bitmaps[NUM_TUBES];
-    cmdDecodePrint(cmd_args, cmd_args - cmd_buf, tube_bitmaps, NUM_TUBES);
+    cmdDecodePrint(cmd_args, cmd_args - cmd_buf - 1, tube_bitmaps, NUM_TUBES);
     setTubes(tube_bitmaps, NUM_TUBES);
-    Serial.print("> ");
+    printPrompt();
     return;
 }
 

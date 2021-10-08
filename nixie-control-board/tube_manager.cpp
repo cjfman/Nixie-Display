@@ -33,27 +33,37 @@ int lookForChar(char c) {
     return -1;
 }
 
+void shiftBuf(int len) {
+    // Don't do anything if the shift amount is too much
+    if (len > cmd_buf_len) return;
+
+    int i;
+    for (i = 0; i < len; i++) {
+        cmd_buf[i] = cmd_buf[i + len];
+    }
+    cmd_buf_len -= len;
+
+}
+
 int trimCrlf(void) {
     if (cmd_buf_len == 0) return 0;
 
-    // Look for crlf
-    char c = cmd_buf[cmd_buf_head];
-    if (c == '\r' || c == '\n') {
-        cmd_buf_head = (cmd_buf_head + 1) % CMD_BUF_SIZE;
-        cmd_buf_len--;
+    char c;
+    int shift_len = 0;
+    // Check first byte
+    if (cmd_buf_len >= 1) {
+         c = cmd_buf[0];
+        if (c == '\r' || c == '\n') shift_len++;
+    }
+    // Check second byte
+    if (cmd_buf_len >= 2) {
+         c = cmd_buf[1];
+        if (c == '\r' || c == '\n') shift_len++;
     }
 
-    // Do it again
-    if (cmd_buf_len == 0) return 1;
+    if (shift_len) shiftBuf(shift_len);
 
-    // Look for crlf
-    c = cmd_buf[cmd_buf_head];
-    if (c == '\r' || c == '\n') {
-        cmd_buf_head = (cmd_buf_head + 1) % CMD_BUF_SIZE;
-        cmd_buf_len--;
-    }
-
-    return 2;
+    return shift_len;
 }
 
 int crlfPos(void) {
@@ -76,14 +86,18 @@ int crlfPos(void) {
 }
 
 int commandSize(void) {
-    int pos = lenToCrlf();
-    return (pos != -1) ? pos - 1 : 0;
+    int pos = crlfPos();
+    return (pos != -1) ? pos : 0;
 }
 
 int noopCommand(void) {
-    if (crlf() == -1) return 0;
+    if (crlfPos() == -1) return 0;
 
     return trimCrlf();
+}
+
+int commandComplete(void) {
+    return (crlfPos() != -1);
 }
 
 int cmdBufLen(void) {
@@ -91,9 +105,13 @@ int cmdBufLen(void) {
 }
 
 int getCmd(char* buf, int buf_len) {
+    if (crlfPos() == -1) return 0;
+
     int cmd_len = commandSize();
-    if (!cmd_len) {
-        return 0;
+    if (cmd_len == 0) {
+        // This was a noop command
+        trimCrlf();
+        return TUBE_ERR_CMD_NOOP;
     }
 
     // Buffer size safety check
@@ -101,25 +119,12 @@ int getCmd(char* buf, int buf_len) {
         return TUBE_ERR_BUF_OVERRUN;
     }
 
-    int i;
-    if (cmd_buf_head < cmd_buf_tail) {
-        // Command is continuous
-        memcpy(buf, &cmd_buf[cmd_buf_head], cmd_len);
-        cmd_buf_head += cmd_len;
-    }
-    else {
-        // Command wraps around buffer
-        int to_end = CMD_BUF_SIZE - cmd_buf_len;
-        memcpy(buf, &cmd_buf[cmd_buf_head], to_end);
-        int remaining = cmd_len - to_end;
-        memcpy(&buf[to_end], cmd_buf, remaining);
-        cmd_buf_head = remaining;
-    }
-
-    cmd_buf_len -= cmd_len;
+    // Copy command
+    memcpy(buf, cmd_buf, cmd_len);
+    shiftBuf(cmd_len);
     trimCrlf();
 
-    return cmd_len;
+    return 0;
 }
 
 int cmdType(char* buf) {
@@ -145,7 +150,26 @@ int cmdDecodePrint(char* buf, int buf_len, uint16_t* tube_bitmap, int bitmap_len
     uint16_t space_bitmap = decodeChar(' ');
     for (i = 0; i < bitmap_len; i++) {
         // If command shorter than tube array, fill rest with spaces
-        tube_bitmap[i] = (i < buf_len) ? buf[i] : space_bitmap;
+        tube_bitmap[i] = (i < buf_len) ? decodeChar(buf[i]) : space_bitmap;
     }
     return TUBE_OK;
+}
+
+const char* tubeErrToText(int errcode) {
+    switch (errcode) {
+    case TUBE_OK:
+        return "No error";
+    case TUBE_ERROR_OTHER:
+        return "Other tube error";
+    case TUBE_ERR_BUF_OVERRUN:
+        return "Buffer overrun";
+    case TUBE_ERR_BAD_CMD:
+        return "Unknown command";
+    case TUBE_ERR_CMD_TOO_LONG:
+        return "Command too long";
+    case TUBE_ERR_CMD_NOOP:
+        return "Noop command not handled";
+    default:
+        return "Unknown tube error";
+    }
 }
