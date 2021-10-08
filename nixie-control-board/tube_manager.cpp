@@ -10,8 +10,6 @@ const char tube_cmd_print[] = "print:";
 
 // Ring buffer
 char cmd_buf[CMD_BUF_SIZE];
-int cmd_buf_head = 0;
-int cmd_buf_tail = 0;
 int cmd_buf_len = 0;
 
 int buildCmd(char* new_cmd, int len) {
@@ -19,71 +17,19 @@ int buildCmd(char* new_cmd, int len) {
     if (len + cmd_buf_len > CMD_BUF_SIZE) {
         // Buffer overrun
         // Reset buffer
-        cmd_buf_head = 0;
-        cmd_buf_tail = 0;
         cmd_buf_len = 0;
         return TUBE_ERR_CMD_TOO_LONG;
     }
-
-    // Copy command section into ring buffer
-    if (cmd_buf_tail + len <= CMD_BUF_SIZE) {
-        // Segment fits in remainder of buffer
-        memcpy(&cmd_buf[cmd_buf_tail], new_cmd, len);
-        cmd_buf_tail += len;
-    }
-    else {
-        // New command section wraps around buffer
-        int to_end = CMD_BUF_SIZE - cmd_buf_tail;
-        memcpy(&cmd_buf[cmd_buf_tail], new_cmd, to_end);
-        memcpy(cmd_buf, &new_cmd[to_end], len - to_end);
-        cmd_buf_tail = len - to_end;
-    }
+    memcpy(&cmd_buf[cmd_buf_len], new_cmd, len);
     cmd_buf_len += len;
     return TUBE_OK;
 }
 
 int lookForChar(char c) {
     int i;
-    if (cmd_buf_head < cmd_buf_tail) {
-        // Potential command is continuous
-        for (i = cmd_buf_head; i < cmd_buf_tail; i++) {
-            if (cmd_buf[i] == c) return i;
-        }
+    for (i = 0; i < cmd_buf_len; i++) {
+        if (cmd_buf[i] == c) return i;
     }
-    else {
-        // Potential command wraps around buffer
-        // Check to end of buffer
-        for (i = cmd_buf_head; i < CMD_BUF_SIZE; i++) {
-            if (cmd_buf[i] == c) return i;
-        }
-        // Check from start of buffer
-        for (i = 0; i < cmd_buf_tail; i++) {
-            if (cmd_buf[i] == c) return i;
-        }
-    }
-    return -1;
-}
-
-int lenToChar(char c) {
-    int i;
-    if (cmd_buf_head < cmd_buf_tail) {
-        // Potential command is continuous
-        for (i = cmd_buf_head; i < cmd_buf_tail; i++) {
-            if (cmd_buf[i] == c) return i - cmd_buf_head;
-        }
-    }
-    else {
-        // Potential command wraps around buffer
-        // Check to end of buffer
-        for (i = cmd_buf_head; i < CMD_BUF_SIZE; i++) {
-            if (cmd_buf[i] == c) return i - cmd_buf_head;
-        }
-        // Check from start of buffer
-        for (i = 0; i < cmd_buf_tail; i++) {
-            if (cmd_buf[i] == c) return CMD_BUF_SIZE - cmd_buf_head + i;
-        }
-    }
-
     return -1;
 }
 
@@ -110,7 +56,7 @@ int trimCrlf(void) {
     return 2;
 }
 
-int lenToCrlf(void) {
+int crlfPos(void) {
     if (!cmd_buf_len) return 0;
 
     int cr_pos = lookForChar('\r');
@@ -120,15 +66,13 @@ int lenToCrlf(void) {
     if (cr_pos == -1 && lf_pos == -1) return -1;
 
     // There is a \r but not an \n
-    if (cr_pos != -1 && lf_pos == -1) return lenToChar('\r');
+    if (cr_pos != -1 && lf_pos == -1) return cr_pos;
 
     // There is an \n but not an \r
-    if (cr_pos == 1 && lf_pos != -1) return lenToChar('\n');
+    if (cr_pos == 1 && lf_pos != -1) return lf_pos;
 
     // Return the first one
-    int to_cr = lenToChar('\r');
-    int to_lf = lenToChar('\n');
-    return (to_cr < to_lf) ? to_cr : to_lf;
+    return (cr_pos < lf_pos) ? cr_pos : lf_pos;
 }
 
 int commandSize(void) {
@@ -137,7 +81,7 @@ int commandSize(void) {
 }
 
 int noopCommand(void) {
-    if (lenToCrlf() == -1) return 0;
+    if (crlf() == -1) return 0;
 
     return trimCrlf();
 }
