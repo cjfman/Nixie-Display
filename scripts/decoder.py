@@ -2,13 +2,13 @@ NOCODE = 0x3FFF
 
 ## Array of ascii codes decoded into 14-segments
 ## Stats at ascii code 0x20. Ends at 0x7F inclusive
-## TODO Fix V, v, $
+## TODO Fix V, v, $, 3
 codes = (
     0x0000, 0x4880, 0x0082, NOCODE, ## ' ', !, ", #
     0x2AAD, 0x1124, NOCODE, 0x0100, ##    $, %, %, '
     NOCODE, NOCODE, 0x3FC0, 0x2A80, ##    (, ), *, +
     0x1000, 0x2200, 0x0010, 0x1100, ## ',', -, ., /
-    0x113F, 0x0106, 0x221B, 0x050D, ##   0, 1, 2, 3
+    0x113F, 0x0106, 0x221B, 0x030D, ##   0, 1, 2, 3
     0x2226, 0x2429, 0x223D, 0x1101, ##   4, 5, 6, 7
     0x223F, 0x2227, NOCODE, NOCODE, ##   8, 9, :, ;
     0x0500, NOCODE, 0x1040, NOCODE, ##   <, =, >, ?
