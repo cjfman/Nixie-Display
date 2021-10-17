@@ -56,11 +56,11 @@ void disableTube() {
 void setTube(uint16_t val) {
     disableTube();
     SPI.beginTransaction(SPISettings(100000, MSBFIRST, SPI_MODE2));
-    SPI.transfer(val >> 8);
-    SPI.transfer(val & 0xFF);
-    // Do it twice for the LEDs
-    SPI.transfer(val >> 8);
-    SPI.transfer(val & 0xFF);
+    int i;
+    for (i = 0; i < 4; i++) {
+        SPI.transfer(val >> 8);
+        SPI.transfer(val & 0xFF);
+    }
     SPI.endTransaction();
     enableTube();
 }
@@ -205,6 +205,8 @@ void tubeManagerLoop(void) {
 }
 
 void loop() {
-    tubeManagerLoop();
+    //assignLoop();
+    //tubeManagerLoop();
+    testLoop();
     delay(1);
 }
