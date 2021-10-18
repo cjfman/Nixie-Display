@@ -180,35 +180,18 @@ void tubeManagerLoop(void) {
         return;
     }
 
-    // Read load command
+    // Load command
     errcode = getCmd(cmd_buf, CMD_BUF_SIZE);
     if (errcode) {
         printError(errcode);
         printPrompt();
         return;
     }
-//    Serial.print("Read cmd: ");
-//    Serial.print(cmd_buf);
-//    Serial.write('\n');
-    /*
-    int args_pos = cmdArgStart(cmd_buf, CMD_BUF_SIZE);
-    if (args_pos < 0) {
-        printError(args_pos);
-        printPrompt();
-        return;
-    }
-    char* cmd_args = cmd_buf + args_pos;
-    */
+
+    // Parse command
     Command cmd;
     errcode = cmdParse(&cmd, cmd_buf, CMD_BUF_SIZE);
-    if (errcode == TUBE_ERR_BAD_CMD) {
-        Serial.print("Unkown command: ");
-        Serial.print(cmd.buf);
-        Serial.write('\n');
-        printPrompt();
-        return;
-    }
-    else if (errcode) {
+    if (errcode) {
         printError(errcode);
         printPrompt();
         return;

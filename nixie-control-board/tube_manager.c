@@ -131,24 +131,6 @@ int getCmd(char* buf, int buf_len) {
     return 0;
 }
 
-int cmdType(char* buf) {
-    // There is only one command right now
-    // Check "print"
-    if (memcmp(tube_cmd_print, buf, strlen(tube_cmd_print)) == 0) {
-        return TUBE_CMD_PRINT;
-    }
-
-    return TUBE_ERR_BAD_CMD;
-}
-
-int cmdArgStart(char* buf, int len) {
-    int i;
-    for (i = 0; i < len; i++) {
-        if (buf[i] == ':') return i + 1;
-    }
-    return TUBE_ERR_BAD_CMD;
-}
-
 int cmdParse(Command* cmd, char* buf, int len) {
     // Loop over cmd string and find each ':'
     int count = 0;

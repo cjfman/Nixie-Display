@@ -35,8 +35,6 @@ int noopCommand(void);
 int commandComplete(void);
 int cmdBufLen(void);
 int getCmd(char* buf, int buf_len);
-int cmdType(char* buf);
-int cmdArgStart(char* buf, int len);
 int cmdParse(Command* cmd, char* buf, int len);
 int cmdDecodePrint(char* buf, uint16_t* tube_bitmap, int bitmap_len);
 const char* tubeErrToText(int errcode);
