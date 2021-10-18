@@ -123,7 +123,7 @@ void spin() {
     uint16_t val = 1;
     clearTube();
     delay(125);
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < NUM_TUBES; i++) {
         setTube(val);
         val <<= 1;
         delay(125);
@@ -136,10 +136,16 @@ void testLoop() {
     delay(1000);
 }
 
-void printError(int errcode) {
+void printErrorCode(int errcode) {
     newline();
     Serial.print("NAK: ");
     Serial.print(tubeErrToText(errcode));
+    Serial.write('\n');
+}
+
+void printError(char* msg) {
+    Serial.print("NAK: ");
+    Serial.print(msg);
     Serial.write('\n');
 }
 
@@ -163,7 +169,7 @@ void tubeManagerLoop(void) {
     // Build command
     int errcode = buildCmd(cmd_buf, read_len);
     if (errcode) {
-        printError(errcode);
+        printErrorCode(errcode);
         printPrompt();
         return;
     }
@@ -183,7 +189,7 @@ void tubeManagerLoop(void) {
     // Load command
     errcode = getCmd(cmd_buf, CMD_BUF_SIZE);
     if (errcode) {
-        printError(errcode);
+        printErrorCode(errcode);
         printPrompt();
         return;
     }
@@ -192,13 +198,12 @@ void tubeManagerLoop(void) {
     Command cmd;
     errcode = cmdParse(&cmd, cmd_buf, CMD_BUF_SIZE);
     if (errcode) {
-        printError(errcode);
+        printErrorCode(errcode);
         printPrompt();
         return;
     }
     if (cmd.type != Print) {
-       clearCache();
-       Serial.print("Unsupported command\n");
+       printError("Unsupported command\n");
        printPrompt();
        return;
     }
@@ -214,7 +219,7 @@ void tubeManagerLoop(void) {
 
 void loop() {
     //assignLoop();
-    tubeManagerLoop();
-    //testLoop();
+    //tubeManagerLoop();
+    testLoop();
     delay(1);
 }
