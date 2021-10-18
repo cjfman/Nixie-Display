@@ -6,18 +6,22 @@
 #include "tube_manager.h"
 
 // cmd prefixes
-const char tube_cmd_print[] = "print:";
+const char tube_cmd_print[] = "print";
 
 // Ring buffer
 char cmd_buf[CMD_BUF_SIZE];
 int cmd_buf_len = 0;
 
+void clearCache(void) {
+    cmd_buf_len = 0;
+}
+
 int buildCmd(char* new_cmd, int len) {
     // Check size
-    if (len + cmd_buf_len > CMD_BUF_SIZE) {
+    if (len + cmd_buf_len > CMD_BUF_SIZE - 1) {
         // Buffer overrun
         // Reset buffer
-        cmd_buf_len = 0;
+        clearCache();
         return TUBE_ERR_CMD_TOO_LONG;
     }
     memcpy(&cmd_buf[cmd_buf_len], new_cmd, len);
@@ -145,12 +149,54 @@ int cmdArgStart(char* buf, int len) {
     return TUBE_ERR_BAD_CMD;
 }
 
-int cmdDecodePrint(char* buf, int buf_len, uint16_t* tube_bitmap, int bitmap_len) {
+int cmdParse(Command* cmd, char* buf, int len) {
+    // Loop over cmd string and find each ':'
+    int count = 0;
     int i;
+    for (i = 0; i < len; i++) {
+        if (buf[i] == ':') {
+            if (count == CMD_MAX_NUM_ARGS) return TUBE_ERR_TOO_MANY_ARGS;
+            buf[i] = '\0'; // Replace with null char
+            // Pointer to argument
+            cmd->args[count++] = &buf[++i];
+        }
+    }
+    if (!count) return TUBE_ERR_WRONG_NUM_ARGS;
+
+    buf[i] == '\0'; // Mark end of last arg
+    cmd->buf = buf;
+    cmd->numargs = count;
+
+    // Get cmd type
+    // Check print
+    if (strcmp(tube_cmd_print, buf) == 0) {
+        cmd->type = Print;
+    }
+    else {
+        return TUBE_ERR_BAD_CMD;
+    }
+
+    return 0;
+}
+
+int cmdDecodePrint(char* buf, uint16_t* tube_bitmap, int bitmap_len) {
+    int i;
+    int space_rest = 0;
     uint16_t space_bitmap = decodeChar(' ');
     for (i = 0; i < bitmap_len; i++) {
-        // If command shorter than tube array, fill rest with spaces
-        tube_bitmap[i] = (i < buf_len) ? decodeChar(buf[i]) : space_bitmap;
+        if (space_rest) {
+            // Set space
+            tube_bitmap[i] = space_bitmap;
+        }
+        else if (buf[i] == '\0') {
+            // Reacehd end of buf
+            space_rest = 1;
+            tube_bitmap[i] = space_bitmap;
+        }
+        else {
+            // Decode and set char
+            tube_bitmap[i] = decodeChar(buf[i]);
+        }
     }
     return TUBE_OK;
 }
@@ -169,6 +215,10 @@ const char* tubeErrToText(int errcode) {
         return "Command too long";
     case TUBE_ERR_CMD_NOOP:
         return "Noop command not handled";
+    case CMD_MAX_NUM_ARGS:
+        return "Too marny arguments";
+    case TUBE_ERR_WRONG_NUM_ARGS:
+        return "Wrong number of arguments";
     default:
         return "Unknown tube error";
     }

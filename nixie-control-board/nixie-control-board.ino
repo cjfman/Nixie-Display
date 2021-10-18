@@ -1,7 +1,10 @@
 #include <SPI.h>
 
-#include "decoder.h"
-#include "tube_manager.h"
+extern "C" {
+    #include "decoder.h"
+    #include "tube_manager.h"
+}
+
 
 #define STROBE_PIN 2
 #define OE_PIN 4
@@ -141,8 +144,8 @@ void printError(int errcode) {
 }
 
 void tubeManagerLoop(void) {
-    char cmd_buf[CMD_BUF_SIZE + 1];
-    memset(cmd_buf, '\0', CMD_BUF_SIZE + 1);
+    char cmd_buf[CMD_BUF_SIZE];
+    memset(cmd_buf, '\0', CMD_BUF_SIZE);
 
     int read_len = Serial.available();
     if (read_len == 0) return;
@@ -187,6 +190,7 @@ void tubeManagerLoop(void) {
 //    Serial.print("Read cmd: ");
 //    Serial.print(cmd_buf);
 //    Serial.write('\n');
+    /*
     int args_pos = cmdArgStart(cmd_buf, CMD_BUF_SIZE);
     if (args_pos < 0) {
         printError(args_pos);
@@ -194,11 +198,32 @@ void tubeManagerLoop(void) {
         return;
     }
     char* cmd_args = cmd_buf + args_pos;
+    */
+    Command cmd;
+    errcode = cmdParse(&cmd, cmd_buf, CMD_BUF_SIZE);
+    if (errcode == TUBE_ERR_BAD_CMD) {
+        Serial.print("Unkown command: ");
+        Serial.print(cmd.buf);
+        Serial.write('\n');
+        printPrompt();
+        return;
+    }
+    else if (errcode) {
+        printError(errcode);
+        printPrompt();
+        return;
+    }
+    if (cmd.type != Print) {
+       clearCache();
+       Serial.print("Unsupported command\n");
+       printPrompt();
+       return;
+    }
     Serial.print("Print: '");
-    Serial.print(cmd_args);
+    Serial.print(cmd.args[0]);
     Serial.print("'\n");
     uint16_t tube_bitmaps[NUM_TUBES];
-    cmdDecodePrint(cmd_args, cmd_args - cmd_buf - 1, tube_bitmaps, NUM_TUBES);
+    cmdDecodePrint(cmd.args[0], tube_bitmaps, NUM_TUBES);
     setTubes(tube_bitmaps, NUM_TUBES);
     printPrompt();
     return;
@@ -206,7 +231,7 @@ void tubeManagerLoop(void) {
 
 void loop() {
     //assignLoop();
-    //tubeManagerLoop();
-    testLoop();
+    tubeManagerLoop();
+    //testLoop();
     delay(1);
 }

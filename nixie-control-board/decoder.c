@@ -7,7 +7,7 @@
 // Array of ascii codes decoded into 14-segments
 // Stats at ascii code 0x20. Ends at 0x7F inclusive
 uint16_t codes[] = {
-    0x0000, 0x4880, 0x0082, NOCODE, // ' ', !, ", #
+    0x0000, NOCODE, 0x0082, NOCODE, // ' ', !, ", #
     0x2AAD, 0x1124, NOCODE, 0x0100, //    $, %, %, '
     NOCODE, NOCODE, 0x3FC0, 0x2A80, //    (, ), *, +
     0x1000, 0x2200, 0x0010, 0x1100, // ',', -, ., /
