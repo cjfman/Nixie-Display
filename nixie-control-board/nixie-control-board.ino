@@ -136,6 +136,20 @@ void testLoop() {
     delay(1000);
 }
 
+
+void fillLoop() {
+    int i;
+    int x = 0;
+    for (i = 0; i < 16; i++) {
+        setTube(x);
+        x <<= 1;
+        x |= 0x01;
+        delay(125);
+    }
+    delay(1000);
+    clearTube();
+}
+
 void printErrorCode(int errcode) {
     newline();
     Serial.print("NAK: ");
@@ -220,6 +234,7 @@ void tubeManagerLoop(void) {
 void loop() {
     //assignLoop();
     //tubeManagerLoop();
-    testLoop();
+    //testLoop();
+    fillLoop();
     delay(1);
 }
