@@ -162,24 +162,20 @@ int cmdParse(Command* cmd, char* buf, int len) {
 }
 
 int cmdDecodePrint(char* buf, uint16_t* tube_bitmap, int bitmap_len) {
-    int i;
-    int space_rest = 0;
+    int buf_i = 0;
+    int bit_i = 0;
     uint16_t space_bitmap = decodeChar(' ');
-    for (i = 0; i < bitmap_len; i++) {
-        if (space_rest) {
-            // Set space
-            tube_bitmap[i] = space_bitmap;
-        }
-        else if (buf[i] == '\0') {
-            // Reacehd end of buf
-            space_rest = 1;
-            tube_bitmap[i] = space_bitmap;
-        }
-        else {
-            // Decode and set char
-            tube_bitmap[i] = decodeChar(buf[i]);
-        }
+    // Decode buffer
+    while (buf[buf_i] != '\0' && bit_i < bitmap_len) {
+        // Decode and set char
+        tube_bitmap[bit_i++] = decodeChar(buf[buf_i++]);
     }
+
+    // Blank out remaining bitmaps
+    while (bit_i < bitmap_len) {
+        tube_bitmap[bit_i++] = space_bitmap;
+    }
+
     return TUBE_OK;
 }
 
