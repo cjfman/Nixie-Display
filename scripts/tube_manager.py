@@ -45,9 +45,9 @@ def cmdDecodePrint(cmd):
             if c != '}':
                 token += c
                 state = 'token'
-                continue
-
-            out.append(cmdDecodeToken(token))
+            else:
+                out.append(cmdDecodeToken(token))
+                state = 'idle'
         elif state == 'underline':
             if c == '}':
                 state = 'idle'
