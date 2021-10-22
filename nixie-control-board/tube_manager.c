@@ -162,13 +162,85 @@ int cmdParse(Command* cmd, char* buf, int len) {
 }
 
 int cmdDecodePrint(char* buf, uint16_t* tube_bitmap, int bitmap_len) {
+    CommandParseState state = Start;
     int buf_i = 0;
     int bit_i = 0;
+    int token_i = 0;
     uint16_t space_bitmap = decodeChar(' ');
+    char token_buf[CMD_MAX_TOKEN + 1];
+    int buflen = strlen(buf);
     // Decode buffer
-    while (buf[buf_i] != '\0' && bit_i < bitmap_len) {
-        // Decode and set char
-        tube_bitmap[bit_i++] = decodeChar(buf[buf_i++]);
+    while (buf[buf_i] != '\0' && bit_i < bitmap_len && buf_i < buflen) {
+        char c = buf[buf_i];
+        switch (state) {
+        case Start:
+            // First character must be printable or token start
+            if (c == '{') {
+                state = TokenStart;
+                break;
+            }
+
+            if (!isPrintable(c)) return TUBE_ERR_PARSE;
+
+            // Decode and set char
+            tube_bitmap[bit_i++] = decodeChar(buf[buf_i]);
+            state = Idle;
+            break;
+        case Idle:
+            if (c == '{') {
+                // Start token
+                state = TokenStart;
+            }
+            else if (c == '!') {
+                // Underline previous character
+                tube_bitmap[bit_i - 1] =                 underlineCode(tube_bitmap[bit_i - 1]);
+                bit_i++;
+                state = Idle;
+            }
+            else {
+                // Decode and set char
+                tube_bitmap[bit_i++] = decodeChar(buf[buf_i]);
+                state = Idle;
+            }
+            break;
+        case TokenStart:
+            if (c == '!') {
+                // Underline all characters
+                state = Underline;
+                break;
+            }
+            token_i = 0;
+        case Token:
+            // Add to token buf
+            if (c != '}') {
+                if (token_i == CMD_MAX_TOKEN) {
+                    // Run out of space in the buffer
+                    return TUBE_ERR_PARSE;
+                }
+                token_buf[token_i++] = c;
+                state = Token;
+                break;
+            }
+
+            token_buf[token_i++] = '\0';
+            int err = cmdDecodeToken(token_buf, &tube_bitmap[bit_i++]);
+            if (err != TUBE_OK) {
+                return err;
+            }
+
+            state = Idle;
+        case Underline:
+            // Underline all new characters
+            if (c == '}') {
+                state = Idle;
+            }
+            else {
+                tube_bitmap[bit_i++] = decodeAndUnderline(c);
+                state = Underline;
+            }
+            break;
+        }
+        buf_i++;
     }
 
     // Blank out remaining bitmaps
@@ -177,6 +249,48 @@ int cmdDecodePrint(char* buf, uint16_t* tube_bitmap, int bitmap_len) {
     }
 
     return TUBE_OK;
+}
+
+int cmdDecodeToken(char* buf, uint16_t* bitmap) {
+    if (strcmp("0x", buf) == 0) {
+        // Decode hex
+        *bitmap = tokenDecodeHex(buf);
+    }
+    else if (strcmp("0X", buf) == 0) {
+        // Decode hex
+        *bitmap = tokenDecodeHex(buf);
+    }
+    else if (strcmp("0b", buf) == 0) {
+        // Decode binary
+        *bitmap = tokenDecodeBinary(buf);
+    }
+    else if (strcmp("0B", buf) == 0) {
+        // Decode binary
+        *bitmap = tokenDecodeBinary(buf);
+    }
+    else {
+        return TUBE_ERR_TOKEN;
+    }
+
+    return TUBE_OK;
+}
+
+uint16_t tokenDecodeHex(char* buf) {
+    // Decode hex token
+    int len = strlen(buf);
+    return (uint16_t)(0xFFFF & strtol(buf, buf + len, 0));
+}
+
+uint16_t tokenDecodeBinary(char* buf) {
+    int i;
+    uint16_t bitmap = 0;
+    for (i = 0; buf[i] != '\0'; i++) {
+        char c = buf[i];
+        if (buf != '0' || buf != '1') return NOCODE;
+
+        bitmap = (bitmap << 1) | (c - '0');
+    }
+    return bitmap;
 }
 
 const char* tubeErrToText(int errcode) {
@@ -197,6 +311,10 @@ const char* tubeErrToText(int errcode) {
         return "Too marny arguments";
     case TUBE_ERR_WRONG_NUM_ARGS:
         return "Wrong number of arguments";
+    case TUBE_ERR_PARSE:
+        return "Parse error";
+    case TUBE_ERR_TOKEN:
+        return "Token error";
     default:
         return "Unknown tube error";
     }

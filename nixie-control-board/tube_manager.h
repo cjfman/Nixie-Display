@@ -4,6 +4,7 @@
 #define NUM_TUBES 12
 #define CMD_BUF_SIZE 128
 #define CMD_MAX_NUM_ARGS 10
+#define CMD_MAX_TOKEN 16
 
 #define TUBE_OK 0
 #define TUBE_ERROR_OTHER -1
@@ -13,6 +14,8 @@
 #define TUBE_ERR_CMD_NOOP -5
 #define TUBE_ERR_TOO_MANY_ARGS -6
 #define TUBE_ERR_WRONG_NUM_ARGS -7
+#define TUBE_ERR_PARSE -8
+#define TUBE_ERR_TOKEN -9
 
 #define TUBE_CMD_PRINT 1
 
@@ -20,6 +23,14 @@ typedef enum CommandType {
     Print,
     Noop
 } CommandType;
+
+typedef enum CommandParseState {
+    Start,
+    Idle,
+    TokenStart,
+    Token,
+    Underline
+} CommandParseState;
 
 typedef struct Command {
     char* buf;
@@ -37,6 +48,9 @@ int cmdBufLen(void);
 int getCmd(char* buf, int buf_len);
 int cmdParse(Command* cmd, char* buf, int len);
 int cmdDecodePrint(char* buf, uint16_t* tube_bitmap, int bitmap_len);
+int cmdDecodeToken(char* buf, uint16_t* bitmap);
+uint16_t tokenDecodeHex(char* buf);
+uint16_t tokenDecodeBinary(char* buf);
 const char* tubeErrToText(int errcode);
 
 

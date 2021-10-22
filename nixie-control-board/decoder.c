@@ -1,5 +1,3 @@
-#define NOCODE 0x3FFF
-
 #include <inttypes.h>
 
 #include "decoder.h"
@@ -39,3 +37,15 @@ uint16_t decodeChar(char c) {
     }
     return codes[c - 0x20];
 };
+
+int isPrintable(char c) {
+    return (decodeChar(c) != NOCODE);
+}
+
+uint16_t underlineCode(uint16_t code) {
+    return code | 0x8000;
+}
+
+uint16_t decodeAndUnderline(char c) {
+    return underlineCode(decodeChar(c));
+}
