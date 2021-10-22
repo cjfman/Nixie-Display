@@ -123,7 +123,7 @@ void spin() {
     uint16_t val = 1;
     clearTube();
     delay(125);
-    for (int i = 0; i < NUM_TUBES; i++) {
+    for (int i = 0; i < 16; i++) {
         setTube(val);
         val <<= 1;
         delay(125);
