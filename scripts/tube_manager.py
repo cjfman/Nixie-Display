@@ -27,6 +27,9 @@ def cmdDecodePrint(cmd):
             elif c == '!':
                 out[-1] = decoder.underlineCode(out[-1])
                 state = 'idle'
+            elif c == ':':
+                out[-1] = decoder.colonCode(out[-1])
+                state = 'idle'
             else:
                 ## Decode and set char
                 out.append(decoder.decodeChar(c))

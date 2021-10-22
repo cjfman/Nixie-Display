@@ -43,7 +43,12 @@ def decodeChar(c):
 ## |/|\|  Line 3
 ##  ___   Line 4
 
-upperline = bytes([0x3E, 0x20]).decode('utf-16')
+def decodeUtf16(num):
+    return bytes([num & 0xFF, (num >> 8) & 0xFF]).decode('utf-16')
+
+
+upperline = decodeUtf16(0x203E)
+dot = decodeUtf16(0x2022)
 
 
 def bitmapToLines(bitmap):
@@ -105,6 +110,15 @@ def bitmapToLines(bitmap):
         line = "_" * 5
     lines.append(line)
 
+    ## Colon
+    if bitmap & 0x8000:
+        lines[0] += '   '
+        lines[1] += ' ' + dot + ' '
+        lines[2] += '   '
+        lines[3] += ' ' + dot + ' '
+        lines[4] += '   '
+        lines[5] += '   '
+
     return lines
 
 
@@ -117,7 +131,9 @@ def bitmapsToDecodedStr(bitmaps):
     out_lines = [""] * 6
     for lines in bitmap_lines:
         for i, line in enumerate(lines):
-            out_lines[i] += line + "    "
+            out_lines[i] += line
+            if len(line) <= 5:
+               out_lines[i] += "   "
 
     return "\n".join(out_lines) + "\n"
 
@@ -140,6 +156,10 @@ def isPrintable(c):
 
 def underlineCode(code):
     return code | 0x4000
+
+
+def colonCode(code):
+    return code | 0x8000
 
 
 def decodeAndUnderline(c):
