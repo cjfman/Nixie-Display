@@ -225,7 +225,12 @@ void tubeManagerLoop(void) {
     Serial.print(cmd.args[0]);
     Serial.print("'\n");
     uint16_t tube_bitmaps[NUM_TUBES];
-    cmdDecodePrint(cmd.args[0], tube_bitmaps, NUM_TUBES);
+    errcode = cmdDecodePrint(cmd.args[0], tube_bitmaps, NUM_TUBES);
+    if (errcode) {
+        printErrorCode(errcode);
+        printPrompt();
+        return;
+    }
     setTubes(tube_bitmaps, NUM_TUBES);
     printPrompt();
     return;

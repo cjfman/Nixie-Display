@@ -194,7 +194,6 @@ int cmdDecodePrint(char* buf, uint16_t* tube_bitmap, int bitmap_len) {
             else if (c == '!') {
                 // Underline previous character
                 tube_bitmap[bit_i - 1] =                 underlineCode(tube_bitmap[bit_i - 1]);
-                bit_i++;
                 state = Idle;
             }
             else {
@@ -252,19 +251,19 @@ int cmdDecodePrint(char* buf, uint16_t* tube_bitmap, int bitmap_len) {
 }
 
 int cmdDecodeToken(char* buf, uint16_t* bitmap) {
-    if (strcmp("0x", buf) == 0) {
+    if (strncmp("0x", buf, 2) == 0) {
         // Decode hex
         *bitmap = tokenDecodeHex(buf);
     }
-    else if (strcmp("0X", buf) == 0) {
+    else if (strncmp("0X", buf, 2) == 0) {
         // Decode hex
         *bitmap = tokenDecodeHex(buf);
     }
-    else if (strcmp("0b", buf) == 0) {
+    else if (strncmp("0b", buf, 2) == 0) {
         // Decode binary
         *bitmap = tokenDecodeBinary(buf);
     }
-    else if (strcmp("0B", buf) == 0) {
+    else if (strncmp("0B", buf, 2) == 0) {
         // Decode binary
         *bitmap = tokenDecodeBinary(buf);
     }
