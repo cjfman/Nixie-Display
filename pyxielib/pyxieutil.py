@@ -1,0 +1,3 @@
+class PyxieError(Exception):
+    pass
+
