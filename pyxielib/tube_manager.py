@@ -1,6 +1,9 @@
-import decoder
+from pyxielib import decoder
+from pyxielib.pyxieutil import PyxieError
 
-class DecodeError(Exception):
+
+
+class DecodeError(PyxieError):
     pass
 
 

@@ -2,7 +2,7 @@ import time
 
 from typing import List, Sequence, Tuple
 
-from .pyxieutil import PyxieError
+from pyxielib.pyxieutil import PyxieError
 
 
 class PixieAnimationError(PyxieError):
