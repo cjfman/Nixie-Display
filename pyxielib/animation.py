@@ -48,15 +48,8 @@ TimeFrame = Tuple[float, Frame]
 class TubeAnimation:
     def __init__(self, frames: Sequence[TimeFrame]=None):
         self.start_time: float = time.time()
-        self.frames: List[TimeFrame] = []
+        self.frames: List[TimeFrame] = list(frames or []) ## Make Copy
         self.frame_index = 0
-
-        ## Calculate time passed
-        frames = frames or []
-        time_passed = 0
-        for time_offset, frame in frames:
-            self.frames.append((time_passed, frame))
-            time_passed += time_offset
 
     def resetTime(self):
         """Reset the start time of the first frame"""
@@ -124,6 +117,22 @@ class TubeAnimation:
 
     def __repr__(self):
         return str(self)
+
+
+class TimedTubeAnimation(TubeAnimation):
+    def __init__(self, frames: Frame, rate: int=1, *, delay: float=0):
+        ## Delay overrides rate
+        if not delay:
+            delay = 1 / rate
+
+        ## Calculate time passed
+        time_frames: List[TimeFrame] = []
+        time_passed = 0
+        for frame in frames:
+            time_frames.append((time_passed, frame))
+            time_passed += delay
+
+        TubeAnimation.__init__(self, time_frames)
 
 
 class AnimationSet:
@@ -196,7 +205,7 @@ class TextAnimation(AnimationSet):
 
 
 class SpinAnimation(AnimationSet):
-    def __init__(self, *, speed=0.5, num_tubes=1):
-        frames = [(speed, HexFrame(0x1 << x)) for x in range(7, 14)] + [(speed, HexFrame(0x1 << 6))]
-        animations = [TubeAnimation(frames) for x in range(num_tubes)]
+    def __init__(self, *, rate=3, num_tubes=1):
+        frames = [HexFrame(0x1 << x) for x in range(7, 14)] + [HexFrame(0x1 << 6)]
+        animations = [TimedTubeAnimation(frames, rate) for x in range(num_tubes)]
         AnimationSet.__init__(self, animations)
