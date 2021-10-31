@@ -10,31 +10,36 @@ class PixieAnimationError(PyxieError):
 
 
 class Frame:
-    def __init__(self):
-        pass
+    def __init__(self, code=' '):
+        self.code = code
 
     def getCode(self):
-        return ' '
+        return self.code
+
+    def __str__(self):
+        return self.code
+
+    def __repr__(self):
+        return self.code
+
+
+class HexFrame(Frame):
+    def __init__(self, hex_code=0x0):
+        Frame.__init__(self, '{' + hex(0xFFFF & hex_code) + '}')
 
 
 class TextFrame(Frame):
     def __init__(self, text, colon=False, underline=False):
-        self.text       = text
-        self.colon      = colon
-        self.underline = underline
-        if not self.text:
-            self.text = ' '
-        elif len(self.text) > 1:
+        if len(text) > 1:
             raise PixieAnimationError("TextFrame cannot only take string length 1")
 
-    def getCode(self):
-        code = self.text[0]
-        if self.colon:
-            text += ':'
-        if self.underline:
-            text += '!'
+        code = text[0]
+        if colon:
+            code += ':'
+        if underline:
+            code += '!'
 
-        return code
+        Frame.__init__(self,code)
 
 
 TimeFrame = Tuple[float, Frame]
@@ -65,7 +70,7 @@ class TubeAnimation:
         ## Get first frame that hasn't passed
         ## Frames should be in order
         for f_time, frame in self.frames[self.frame_index:]:
-            if f_time > now:
+            if f_time + self.start_time > now:
                 return (f_time, frame)
 
         return None
@@ -80,7 +85,7 @@ class TubeAnimation:
 
     def nextTime(self):
         """Time of next frame"""
-        time_frame = nextTimeFrame()
+        time_frame = self.nextTimeFrame()
         if time_frame is None:
             return None
 
@@ -98,15 +103,20 @@ class TubeAnimation:
         ## Frames should be in order
         for i, time_frame in list(enumerate(self.frames))[self.frame_index:]:
             next_frame_index = i + 1
-            if time_frame[0] <= now:
+            if time_frame[0] + self.start_time <= now:
                 next_frame = time_frame[1]
-            else:
                 break
 
-        if next_frame_index is not None:
+        if next_frame is not None and next_frame_index is not None:
             self.frame_index = next_frame_index
 
         return next_frame
+
+    def __str__(self):
+        return f"Start time {self.start_time}: " + str(self.frames)
+
+    def __repr__(self):
+        return str(self)
 
 
 class AnimationSet:
@@ -121,7 +131,7 @@ class AnimationSet:
 
     def tubeCount(self):
         """Get the number of tubes supported by this animation set"""
-        return len(self.current_set)
+        return len(self.current_frame_set)
 
     def currentFrameSet(self) -> Sequence[Frame]:
         """Get the currently assembled frame"""
@@ -150,3 +160,12 @@ class AnimationSet:
 class TextAnimation(AnimationSet):
     def __init__(self, text):
         AnimationSet.__init__(self, [TubeAnimation([(0, TextFrame(x))]) for x in text])
+
+
+class SpinAnimation(AnimationSet):
+    def __init__(self, *, speed=0.5, num_tubes=1):
+        frames = [HexFrame(0x1 << x) for x in range(7, 14)] + [HexFrame(0x1 << 6)]
+        times = [speed*x for x in range(len(frames))]
+        time_frames = list(zip(times, frames))
+        animations = [TubeAnimation(time_frames) for x in range(num_tubes)]
+        AnimationSet.__init__(self, animations)

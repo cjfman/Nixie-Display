@@ -25,6 +25,12 @@ class Assembler:
         self.cv.notify_all()
         self.cv.release()
 
+    def rerun(self):
+        self.cv.acquire()
+        self.animation.resetTime()
+        self.cv.notify_all()
+        self.cv.release()
+
     def handler(self):
         self.cv.acquire()
         print("Starting assembler thread")
@@ -32,7 +38,7 @@ class Assembler:
             if self.animation is not None and self.animation.updateFrameSet():
                 self.controller.send(self.animation.getCode())
 
-            self.cv.wait(0.1)
+            self.cv.wait(0.01)
 
         self.cv.release()
         print("Exiting assembler thread")
@@ -44,8 +50,16 @@ class Assembler:
         self.running = True
         self.thread.start()
 
-    def shutdown(self):
+    def stop(self):
+        if not self.running:
+            return
+
         self.running = False
+        self.cv.acquire()
         self.cv.notify_all()
+        self.cv.release()
         self.thread.join()
         self.shutdown = True
+
+    def __del__(self):
+        self.stop()
