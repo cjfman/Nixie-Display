@@ -55,6 +55,7 @@ class TubeAnimation:
 
     @classmethod
     def makeBlank(cls, length: float=0):
+        """Make a blank tube animation of a certain length"""
         return cls([(length, Frame())])
 
     def resetTime(self):
@@ -63,6 +64,7 @@ class TubeAnimation:
         self.frame_index = 0
 
     def reset(self):
+        """Reset the animation"""
         self.resetTime()
 
     def frameCount(self):
@@ -74,6 +76,7 @@ class TubeAnimation:
         return max(0, len(self.frames) - self.frame_index)
 
     def length(self):
+        """Time length of animation"""
         delay = 0
         frames_len = len(self.frames)
         if frames_len >= 2:
@@ -200,6 +203,7 @@ class AnimationSet:
             animation.resetTime()
 
     def length(self):
+        """Time length of the animation set. Equal to the lonest animation"""
         return max(map(lambda x: x.length(), self.animations))
 
     def tubeCount(self):
@@ -211,11 +215,13 @@ class AnimationSet:
         return list(self.current_frame_set)
 
     def getCode(self):
+        """Get the code to send to the decoder"""
         frames = self.currentFrameSet()
         return ''. join([frame.getCode() for frame in frames])
 
     @staticmethod
     def equalize(animations):
+        """Make all animations the same length"""
         longest = max(map(lambda x: x.length(), animations))
         for animation in animations:
             diff = longest - animation.length()
@@ -238,6 +244,7 @@ class AnimationSet:
         return list(self.current_frame_set) ## Make copy
 
     def done(self):
+        """The last frame as loaded"""
         for tube in self.animations:
             if tube.remainingFrames():
                 return False
@@ -286,12 +293,15 @@ class LoopAnimationSet(AnimationSet):
         self.last_update = time.time()
 
     def done(self):
+        """The last frame has loaded. Always false for LoopAnimationSet"""
         return False
 
     def loopOver(self):
+        """Reached the last frame of the loop"""
         return AnimationSet.done(self)
 
     def updateFrameSet(self):
+        """Update the frame set based upon the current time. Return True if updated"""
         update = AnimationSet.updateFrameSet(self)
         if update:
             self.last_update = time.time()
@@ -305,10 +315,12 @@ class LoopAnimationSet(AnimationSet):
 
 
 def makeTextAnimation(text):
+    """Create an animation set from a text string"""
     return AnimationSet([TubeAnimation([(0, TextFrame(x))]) for x in text])
 
 
 def makeSpinAnimation(*, rate=3, num_tubes=1, loop=True):
+    """Create a spin animation"""
     frames = [HexFrame(0x1 << x) for x in range(7, 14)] + [HexFrame(0x1 << 6)]
     animations = [TimedTubeAnimation(frames, rate) for x in range(num_tubes)]
     if loop:
