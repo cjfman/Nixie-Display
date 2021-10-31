@@ -30,7 +30,9 @@ class HexFrame(Frame):
 
 class TextFrame(Frame):
     def __init__(self, text, colon=False, underline=False):
-        if len(text) > 1:
+        if len(text) == 2 and text[1] == ':':
+            colon = True
+        elif len(text) > 1:
             raise PixieAnimationError("TextFrame cannot only take string length 1")
 
         code = text[0]
