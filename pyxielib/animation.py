@@ -48,8 +48,15 @@ TimeFrame = Tuple[float, Frame]
 class TubeAnimation:
     def __init__(self, frames: Sequence[TimeFrame]=None):
         self.start_time: float = time.time()
-        self.frames: List[TimeFrame] = list(frames or []) ## Make a copy
+        self.frames: List[TimeFrame] = []
         self.frame_index = 0
+
+        ## Calculate time passed
+        frames = frames or []
+        time_passed = 0
+        for time_offset, frame in frames:
+            self.frames.append((time_passed, frame))
+            time_passed += time_offset
 
     def resetTime(self):
         """Reset the start time of the first frame"""
@@ -157,6 +164,32 @@ class AnimationSet:
         return list(self.current_frame_set) ## Make copy
 
 
+class LoopAnimationSet(AnimationSet):
+    def __init__(self, animations: Sequence[TubeAnimation], delay: float=1):
+        AnimationSet.__init__(self, animations)
+        self.delay = delay
+        self.last_update = time.time()
+
+    def framesRemaining(self):
+        total = 0
+        for tube in self.animations:
+            total += tube.remainingFrames()
+
+        return total
+
+    def updateFrameSet(self):
+        update = AnimationSet.updateFrameSet(self)
+        if update:
+            self.last_update = time.time()
+            return update
+
+        if self.last_update + self.delay < time.time():
+            self.resetTime()
+            return AnimationSet.updateFrameSet(self)
+
+        return None
+
+
 class TextAnimation(AnimationSet):
     def __init__(self, text):
         AnimationSet.__init__(self, [TubeAnimation([(0, TextFrame(x))]) for x in text])
@@ -164,8 +197,6 @@ class TextAnimation(AnimationSet):
 
 class SpinAnimation(AnimationSet):
     def __init__(self, *, speed=0.5, num_tubes=1):
-        frames = [HexFrame(0x1 << x) for x in range(7, 14)] + [HexFrame(0x1 << 6)]
-        times = [speed*x for x in range(len(frames))]
-        time_frames = list(zip(times, frames))
-        animations = [TubeAnimation(time_frames) for x in range(num_tubes)]
+        frames = [(speed, HexFrame(0x1 << x)) for x in range(7, 14)] + [(speed, HexFrame(0x1 << 6))]
+        animations = [TubeAnimation(frames) for x in range(num_tubes)]
         AnimationSet.__init__(self, animations)
