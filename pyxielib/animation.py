@@ -256,7 +256,7 @@ class AnimationSet:
             a1 += [TubeAnimation.makeBlank(longest) for x in range(diff)]
         elif len(a1) > len(a2):
             diff = len(a1) - len(a2)
-            longest = max(map(lambda x: x.length(), a2.animations))
+            longest = max(map(lambda x: x.length(), a2))
             a2 += [TubeAnimation()]*diff
 
         new_a = [x + y for x, y in zip(a1, a2)]
