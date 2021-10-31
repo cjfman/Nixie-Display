@@ -9,14 +9,16 @@ from pyxielib import animation, assembler, controller, decoder, tube_manager
 
 
 c = controller.TerminalController(clear_screen=True)
-a = assembler.Assembler(controller=c)
-a.start()
-a.setAnimation(animation.makeSpinAnimation(num_tubes=3, rate=10, loop=True))
+a1 = animation.makeSpinAnimation(num_tubes=3, rate=10, loop=False)
+a2 = animation.makeTextAnimation("Done")
+asmlr = assembler.Assembler(controller=c)
+asmlr.start()
+asmlr.setAnimation(a1 + a2)
 
 try:
-    while not a.animationDone():
+    while not asmlr.animationDone():
         time.sleep(0.1)
 except KeyboardInterrupt:
     print("User required exit")
 
-a.stop()
+asmlr.stop()

@@ -58,6 +58,9 @@ class TubeAnimation:
         self.start_time = time.time()
         self.frame_index = 0
 
+    def reset(self):
+        self.resetTime()
+
     def frameCount(self):
         """Total frame count"""
         return len(self.frames)
@@ -114,6 +117,41 @@ class TubeAnimation:
 
         return next_frame
 
+    def __add__(self, other):
+        ## Make copies
+        frames1 = list(self.frames)
+
+        ## Get difference between last two frames. Default to 1
+        delay = 0
+        if len(self.frames) >= 2:
+            delay = self.frames[-1][0] - self.frames[-2][0]
+
+        ## Change time offsets
+        offset = 0
+        if len(self.frames):
+            offset = self.frames[-1][0] + delay
+
+        frames2 = [(x + offset, y) for x, y in other.frames]
+        return TubeAnimation(frames1 + frames2)
+
+    def __iadd__(self, other):
+        ## Get difference between last two frames. Default to 1
+        delay = 1
+        if len(self.frames) >= 2:
+            delay = self.frames[-1][0] - self.frames[-2][0]
+
+        ## Change time offsets
+        offset = 0
+        if len(self.frames):
+            offset = self.frames[-1][0] + delay
+
+        new_frames = [(x + offset, y) for x, y in other.frames]
+
+        ## Add frames
+        self.frames += new_frames
+        self.reset()
+        return self
+
     def __str__(self):
         return f"Start time {self.start_time}: " + str(self.frames)
 
@@ -140,7 +178,7 @@ class TimedTubeAnimation(TubeAnimation):
 class AnimationSet:
     def __init__(self, animations: Sequence[TubeAnimation]):
         self.animations: Sequence[TubeAnimation] = animations
-        self.current_frame_set: List[TubeAnimation] = [Frame()]*len(animations)
+        self.current_frame_set: List[Frame] = [Frame()]*len(animations)
 
     def resetTime(self):
         """Reset the start time of the first frame"""
@@ -180,6 +218,35 @@ class AnimationSet:
                 return False
 
         return True
+
+    def __add__(self, other):
+        ## Make copies
+        a1 = list(self.animations)
+        a2 = list(other.animations)
+        ## Fix difference in number of tubes
+        if len(a2) > len(a1):
+            diff = len(a2) - len(a1)
+            a1 += [TubeAnimation()]*diff
+        elif len(a1) > len(a2):
+            diff = len(a1) - len(a2)
+            a2 += [TubeAnimation()]*diff
+
+        new_a = [x + y for x, y in zip(a1, a2)]
+
+        return AnimationSet(new_a)
+
+    def __iadd__(self, other):
+        ## Fix difference in number of tubes
+        animations = list(other.animations) ## make copy
+        if len(animations) > len(self.animations):
+            diff = len(animations) - len(self.animations)
+            self.animations += [TubeAnimation()]*diff
+        elif len(self.animations) > len(animations):
+            diff = len(self.animations) - len(animations)
+            animations += [TubeAnimation()]*diff
+
+        for i, x in enumerate(animations):
+            self.animations[i] += x
 
 
 class LoopAnimationSet(AnimationSet):
