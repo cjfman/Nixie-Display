@@ -53,6 +53,10 @@ class TubeAnimation:
         self.frames: List[TimeFrame] = list(frames or []) ## Make Copy
         self.frame_index = 0
 
+    @classmethod
+    def makeBlank(cls, length: float=0):
+        return cls([(length, Frame())])
+
     def resetTime(self):
         """Reset the start time of the first frame"""
         self.start_time = time.time()
@@ -68,6 +72,16 @@ class TubeAnimation:
     def remainingFrames(self):
         """Number of frames from now to end"""
         return max(0, len(self.frames) - self.frame_index)
+
+    def length(self):
+        delay = 0
+        frames_len = len(self.frames)
+        if frames_len >= 2:
+            delay = self.frames[-1][0] - self.frames[-2][0]
+        elif not frames_len:
+            return 0
+
+        return delay + self.frames[-1][0]
 
     def nextTimeFrame(self) -> TimeFrame:
         """Next time and frame"""
@@ -128,7 +142,7 @@ class TubeAnimation:
 
         ## Change time offsets
         offset = 0
-        if len(self.frames):
+        if self.frames:
             offset = self.frames[-1][0] + delay
 
         frames2 = [(x + offset, y) for x, y in other.frames]
@@ -142,7 +156,7 @@ class TubeAnimation:
 
         ## Change time offsets
         offset = 0
-        if len(self.frames):
+        if self.frames:
             offset = self.frames[-1][0] + delay
 
         new_frames = [(x + offset, y) for x, y in other.frames]
@@ -185,6 +199,9 @@ class AnimationSet:
         for animation in self.animations:
             animation.resetTime()
 
+    def length(self):
+        return max(map(lambda x: x.length(), self.animations))
+
     def tubeCount(self):
         """Get the number of tubes supported by this animation set"""
         return len(self.current_frame_set)
@@ -196,6 +213,14 @@ class AnimationSet:
     def getCode(self):
         frames = self.currentFrameSet()
         return ''. join([frame.getCode() for frame in frames])
+
+    @staticmethod
+    def equalize(animations):
+        longest = max(map(lambda x: x.length(), animations))
+        for animation in animations:
+            diff = longest - animation.length()
+            if diff:
+                animation += TubeAnimation.makeBlank(diff)
 
     def updateFrameSet(self):
         """Update the frame set based upon the current time. Return True if updated"""
@@ -223,27 +248,32 @@ class AnimationSet:
         ## Make copies
         a1 = list(self.animations)
         a2 = list(other.animations)
+        self.equalize(a1)
         ## Fix difference in number of tubes
         if len(a2) > len(a1):
             diff = len(a2) - len(a1)
-            a1 += [TubeAnimation()]*diff
+            longest = max(map(lambda x: x.length(), self.animations))
+            a1 += [TubeAnimation.makeBlank(longest) for x in range(diff)]
         elif len(a1) > len(a2):
             diff = len(a1) - len(a2)
+            longest = max(map(lambda x: x.length(), a2.animations))
             a2 += [TubeAnimation()]*diff
 
         new_a = [x + y for x, y in zip(a1, a2)]
-
         return AnimationSet(new_a)
 
     def __iadd__(self, other):
         ## Fix difference in number of tubes
+        self.equalize(self.animations)
         animations = list(other.animations) ## make copy
         if len(animations) > len(self.animations):
             diff = len(animations) - len(self.animations)
-            self.animations += [TubeAnimation()]*diff
+            longest = max(map(lambda x: x.length(), self.animations))
+            self.animations += [TubeAnimation.makeBlank(longest)]*diff
         elif len(self.animations) > len(animations):
             diff = len(self.animations) - len(animations)
-            animations += [TubeAnimation()]*diff
+            longest = max(map(lambda x: x.length(), animations))
+            animations += [TubeAnimation(longest)]*diff
 
         for i, x in enumerate(animations):
             self.animations[i] += x
