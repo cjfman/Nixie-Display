@@ -11,7 +11,12 @@ from pyxielib import animation, assembler, controller, decoder, tube_manager
 c = controller.TerminalController(clear_screen=True)
 a = assembler.Assembler(controller=c)
 a.start()
-a.setAnimation(animation.SpinAnimation(num_tubes=3, rate=10))
+a.setAnimation(animation.makeSpinAnimation(num_tubes=3, rate=10, loop=True))
 
-time.sleep(3)
+try:
+    while not a.animationDone():
+        time.sleep(0.1)
+except KeyboardInterrupt:
+    print("User required exit")
+
 a.stop()

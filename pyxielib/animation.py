@@ -172,6 +172,13 @@ class AnimationSet:
 
         return list(self.current_frame_set) ## Make copy
 
+    def done(self):
+        for tube in self.animations:
+            if tube.remainingFrames():
+                return False
+
+        return True
+
 
 class LoopAnimationSet(AnimationSet):
     def __init__(self, animations: Sequence[TubeAnimation], delay: float=1):
@@ -179,12 +186,11 @@ class LoopAnimationSet(AnimationSet):
         self.delay = delay
         self.last_update = time.time()
 
-    def framesRemaining(self):
-        total = 0
-        for tube in self.animations:
-            total += tube.remainingFrames()
+    def done(self):
+        return False
 
-        return total
+    def loopOver(self):
+        return AnimationSet.done(self)
 
     def updateFrameSet(self):
         update = AnimationSet.updateFrameSet(self)
@@ -192,20 +198,21 @@ class LoopAnimationSet(AnimationSet):
             self.last_update = time.time()
             return update
 
-        if self.last_update + self.delay < time.time():
+        if self.loopOver() and self.last_update + self.delay < time.time():
             self.resetTime()
             return AnimationSet.updateFrameSet(self)
 
         return None
 
 
-class TextAnimation(AnimationSet):
-    def __init__(self, text):
-        AnimationSet.__init__(self, [TubeAnimation([(0, TextFrame(x))]) for x in text])
+def makeTextAnimation(text):
+    return AnimationSet([TubeAnimation([(0, TextFrame(x))]) for x in text])
 
 
-class SpinAnimation(AnimationSet):
-    def __init__(self, *, rate=3, num_tubes=1):
-        frames = [HexFrame(0x1 << x) for x in range(7, 14)] + [HexFrame(0x1 << 6)]
-        animations = [TimedTubeAnimation(frames, rate) for x in range(num_tubes)]
-        AnimationSet.__init__(self, animations)
+def makeSpinAnimation(*, rate=3, num_tubes=1, loop=True):
+    frames = [HexFrame(0x1 << x) for x in range(7, 14)] + [HexFrame(0x1 << 6)]
+    animations = [TimedTubeAnimation(frames, rate) for x in range(num_tubes)]
+    if loop:
+        return LoopAnimationSet(animations, 1/rate)
+
+    return AnimationSet(animations)

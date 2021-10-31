@@ -43,6 +43,9 @@ class Assembler:
         self.cv.release()
         print("Exiting assembler thread")
 
+    def animationDone(self):
+        return self.animation.done()
+
     def start(self):
         if self.animation is not None:
             self.animation.resetTime()
