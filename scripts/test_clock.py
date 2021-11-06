@@ -18,7 +18,7 @@ from pyxielib import assembler, controller, program
 
 ctrl = controller.TerminalController(clear_screen=True)
 asmlr = assembler.Assembler(controller=ctrl)
-prgm = program.ClockProgram(asmlr)
+prgm = program.ClockProgram(asmlr, flash=True)
 prgm.run()
 asmlr.start()
 

@@ -1,5 +1,6 @@
 import datetime
 import threading
+import time
 import traceback
 
 import pyxielib.animation as animation
@@ -58,7 +59,7 @@ class Program:
 
                 self.cv.wait(self.delay)
         except Exception as e:
-            print(f"Fatal error in {self.name} program")
+            print(f"Fatal error in {self.name} program: ", e)
             traceback.print_exc()
 
         self.cv.release()
@@ -82,7 +83,15 @@ class ClockProgram(Program):
             self.am_pm_code = ''
 
     def getAnimation(self):
-        return animation.makeTextAnimation(self.getTimeCode())
+        code = self.getTimeCode()
+        if self.flash:
+            ## Show colons for first half of second
+            now = time.time()
+            #if (now - int(now)) > 0.5:
+            if (int(now) % 2) == 0:
+                code = code.replace(':', '')
+
+        return animation.makeTextAnimation(code)
 
     def getTimeCode(self):
         if self.full_date:
