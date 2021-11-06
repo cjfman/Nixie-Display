@@ -1,9 +1,9 @@
 import datetime
 import threading
+import traceback
 
 import pyxielib.animation as animation
 from pyxielib.assembler import Assembler
-
 from pyxielib.animation import Animation
 
 
@@ -58,7 +58,8 @@ class Program:
 
                 self.cv.wait(self.delay)
         except Exception as e:
-            print(e)
+            print(f"Fatal error in {self.name} program")
+            traceback.print_exc()
 
         self.cv.release()
         print(f"Exiting {self.name} program thread")
@@ -69,11 +70,12 @@ class Program:
 
 
 class ClockProgram(Program):
-    def __init__(self, *args, use_24h=False, full_date=False, **kwargs):
+    def __init__(self, *args, use_24h=False, full_date=False, flash=False, **kwargs):
         super().__init__("Clock", *args, delay=0.1, **kwargs)
         self.full_date = full_date
         self.use_24h = use_24h
         self.hour_code = "%I"
+        self.flash = flash
         self.am_pm_code = " %p"
         if use_24h:
             self.hour_code = "%k"

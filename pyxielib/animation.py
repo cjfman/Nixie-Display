@@ -206,9 +206,25 @@ class TimedAnimation(Animation):
 
 
 class AnimationSet:
-    def __init__(self, animations: Sequence[Animation]):
+    def __init__(self, animations: Sequence[Animation], repeat=False):
         self.animations: Sequence[Animation] = animations
         self.current_frame_set: List[Frame] = [Frame()]*len(animations)
+        self.repeat = repeat
+
+    @classmethod
+    def makeFromFullFrames(cls, full_frames: Sequence[Sequence[Frame]], delay: float, *args, **kwargs):
+        """Take full frames and convert them to animations"""
+        num_frames = len(full_frames[0])
+        transposed = [list() for x in range(num_frames)]
+        for full_frame in full_frames:
+            if len(full_frame) != num_frames:
+                raise PixieAnimationError("Number of tubes in all full frame not equal. Cannot transpose")
+
+            for i, frame in enumerate(full_frame):
+                transposed[i].append(frame)
+
+        animations = [TimedAnimation(x, delay) for x in transposed]
+        return cls(animations, *args, **kwargs)
 
     def resetTime(self):
         """Reset the start time of the first frame"""
@@ -222,6 +238,9 @@ class AnimationSet:
     def tubeCount(self):
         """Get the number of tubes supported by this animation set"""
         return len(self.current_frame_set)
+
+    def shouldRepeat(self):
+        return self.repeat
 
     def currentFrameSet(self) -> Sequence[Frame]:
         """Get the currently assembled frame"""
@@ -336,6 +355,11 @@ class LoopAnimationSet(AnimationSet):
 def makeTextAnimation(text):
     """Create an animation set from a text string"""
     return AnimationSet([Animation([(0, TextFrame(x))]) for x in text])
+
+def makeTextSequence(msgs: Sequence[str], delay: float):
+    """Create an animation set from a text strings"""
+    full_frames = [[Frame(x) for x in msg] for msg in msgs]
+    return AnimationSet.makeFromFullFrames(full_frames, delay)
 
 
 def makeSpinAnimation(*, rate=3, num_tubes=1, loop=True):

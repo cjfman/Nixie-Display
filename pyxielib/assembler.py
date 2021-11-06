@@ -1,4 +1,5 @@
 import threading
+import traceback
 
 from pyxielib.controller import Controller, TerminalController
 from pyxielib.animation import Animation
@@ -32,17 +33,25 @@ class Assembler:
         self.cv.notify_all()
         self.cv.release()
 
+    def doAnimation(self):
+        if self.animation.updateFrameSet():
+            self.controller.send(self.animation.getCode())
+
+        if self.animation.done() and self.animation.shouldRepeat():
+            self.animation.resetTime()
+
     def handler(self):
         self.cv.acquire()
         print("Starting assembler thread")
         try:
             while self.running:
-                if self.animation is not None and self.animation.updateFrameSet():
-                    self.controller.send(self.animation.getCode())
+                if self.animation:
+                    self.doAnimation()
 
                 self.cv.wait(0.01)
         except Exception as e:
-            print(e)
+            print("Fatal error in assembler thread: ", e)
+            traceback.print_exc()
 
         self.cv.release()
         print("Exiting assembler thread")
