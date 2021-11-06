@@ -22,6 +22,9 @@ class Frame:
     def __repr__(self):
         return self.code
 
+    def __eq__(self, other):
+        return (self.code == other.code)
+
 
 class HexFrame(Frame):
     def __init__(self, hex_code=0x0):
@@ -43,11 +46,17 @@ class TextFrame(Frame):
 
         Frame.__init__(self,code)
 
+    def setColon(self):
+        self.code += ':'
+
+    def setUnderline(self):
+        self.code += '!'
+
 
 TimeFrame = Tuple[float, Frame]
 
 
-class TubeAnimation:
+class Animation:
     def __init__(self, frames: Sequence[TimeFrame]=None):
         self.start_time: float = time.time()
         self.frames: List[TimeFrame] = list(frames or []) ## Make Copy
@@ -149,7 +158,7 @@ class TubeAnimation:
             offset = self.frames[-1][0] + delay
 
         frames2 = [(x + offset, y) for x, y in other.frames]
-        return TubeAnimation(frames1 + frames2)
+        return Animation(frames1 + frames2)
 
     def __iadd__(self, other):
         ## Get difference between last two frames. Default to 1
@@ -169,6 +178,10 @@ class TubeAnimation:
         self.reset()
         return self
 
+    def __eq__(self, other):
+        """Equals boolean. Only considers frames and time diffs"""
+        return (self.frames == other.frames)
+
     def __str__(self):
         return f"Start time {self.start_time}: " + str(self.frames)
 
@@ -176,7 +189,7 @@ class TubeAnimation:
         return str(self)
 
 
-class TimedTubeAnimation(TubeAnimation):
+class TimedAnimation(Animation):
     def __init__(self, frames: Frame, rate: int=1, *, delay: float=0):
         ## Delay overrides rate
         if not delay:
@@ -189,12 +202,12 @@ class TimedTubeAnimation(TubeAnimation):
             time_frames.append((time_passed, frame))
             time_passed += delay
 
-        TubeAnimation.__init__(self, time_frames)
+        Animation.__init__(self, time_frames)
 
 
 class AnimationSet:
-    def __init__(self, animations: Sequence[TubeAnimation]):
-        self.animations: Sequence[TubeAnimation] = animations
+    def __init__(self, animations: Sequence[Animation]):
+        self.animations: Sequence[Animation] = animations
         self.current_frame_set: List[Frame] = [Frame()]*len(animations)
 
     def resetTime(self):
@@ -226,7 +239,7 @@ class AnimationSet:
         for animation in animations:
             diff = longest - animation.length()
             if diff:
-                animation += TubeAnimation.makeBlank(diff)
+                animation += Animation.makeBlank(diff)
 
     def updateFrameSet(self):
         """Update the frame set based upon the current time. Return True if updated"""
@@ -260,11 +273,11 @@ class AnimationSet:
         if len(a2) > len(a1):
             diff = len(a2) - len(a1)
             longest = max(map(lambda x: x.length(), self.animations))
-            a1 += [TubeAnimation.makeBlank(longest) for x in range(diff)]
+            a1 += [Animation.makeBlank(longest) for x in range(diff)]
         elif len(a1) > len(a2):
             diff = len(a1) - len(a2)
             longest = max(map(lambda x: x.length(), a2))
-            a2 += [TubeAnimation()]*diff
+            a2 += [Animation()]*diff
 
         new_a = [x + y for x, y in zip(a1, a2)]
         return AnimationSet(new_a)
@@ -276,18 +289,24 @@ class AnimationSet:
         if len(animations) > len(self.animations):
             diff = len(animations) - len(self.animations)
             longest = max(map(lambda x: x.length(), self.animations))
-            self.animations += [TubeAnimation.makeBlank(longest)]*diff
+            self.animations += [Animation.makeBlank(longest)]*diff
         elif len(self.animations) > len(animations):
             diff = len(self.animations) - len(animations)
             longest = max(map(lambda x: x.length(), animations))
-            animations += [TubeAnimation(longest)]*diff
+            animations += [Animation(longest)]*diff
 
         for i, x in enumerate(animations):
             self.animations[i] += x
 
+    def __eq__(self, other):
+        if other is None:
+            return False
+
+        return (self.animations == other.animations)
+
 
 class LoopAnimationSet(AnimationSet):
-    def __init__(self, animations: Sequence[TubeAnimation], delay: float=1):
+    def __init__(self, animations: Sequence[Animation], delay: float=1):
         AnimationSet.__init__(self, animations)
         self.delay = delay
         self.last_update = time.time()
@@ -316,13 +335,13 @@ class LoopAnimationSet(AnimationSet):
 
 def makeTextAnimation(text):
     """Create an animation set from a text string"""
-    return AnimationSet([TubeAnimation([(0, TextFrame(x))]) for x in text])
+    return AnimationSet([Animation([(0, TextFrame(x))]) for x in text])
 
 
 def makeSpinAnimation(*, rate=3, num_tubes=1, loop=True):
     """Create a spin animation"""
     frames = [HexFrame(0x1 << x) for x in range(7, 14)] + [HexFrame(0x1 << 6)]
-    animations = [TimedTubeAnimation(frames, rate) for x in range(num_tubes)]
+    animations = [TimedAnimation(frames, rate) for x in range(num_tubes)]
     if loop:
         return LoopAnimationSet(animations, 1/rate)
 

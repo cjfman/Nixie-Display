@@ -1,19 +1,20 @@
 import threading
 
-from pyxielib.controller import TerminalController
+from pyxielib.controller import Controller, TerminalController
+from pyxielib.animation import Animation
 
 class Assembler:
-    def __init__(self, *, controller=None, animation=None):
+    def __init__(self, *, controller: Controller=None, animation: Animation=None):
         self.running    = False
         self.shutdown   = False
         self.thread     = threading.Thread(target=self.handler)
         self.lock       = threading.Lock()
         self.cv         = threading.Condition(lock=self.lock)
-        self.animation  = animation
-        self.controller = controller or TerminalController()
+        self.animation : Animation  = animation
+        self.controller: Controller     = controller or TerminalController()
 
     def isRunning(self):
-        return self.running
+        return (self.running and self.thread.is_alive())
 
     def isShutdown(self):
         return self.shutdown
@@ -34,14 +35,18 @@ class Assembler:
     def handler(self):
         self.cv.acquire()
         print("Starting assembler thread")
-        while self.running:
-            if self.animation is not None and self.animation.updateFrameSet():
-                self.controller.send(self.animation.getCode())
+        try:
+            while self.running:
+                if self.animation is not None and self.animation.updateFrameSet():
+                    self.controller.send(self.animation.getCode())
 
-            self.cv.wait(0.01)
+                self.cv.wait(0.01)
+        except Exception as e:
+            print(e)
 
         self.cv.release()
         print("Exiting assembler thread")
+        self.shutdown = True
 
     def animationDone(self):
         return self.animation.done()
@@ -49,6 +54,9 @@ class Assembler:
     def start(self):
         if self.animation is not None:
             self.animation.resetTime()
+
+        if self.isRunning():
+            return
 
         self.running = True
         self.thread.start()

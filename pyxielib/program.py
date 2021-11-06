@@ -1,13 +1,76 @@
 import datetime
+import threading
+
+import pyxielib.animation as animation
+from pyxielib.assembler import Assembler
+
+from pyxielib.animation import Animation
+
 
 class Program:
-    def __init__(self):
-        pass
+    def __init__(self, name, assembler:Assembler, delay: float=1):
+        self.name         = name
+        self.assembler    = assembler
+        self.delay: float = delay
+        self.running      = False
+        self.shutdown     = False
+        self.thread       = threading.Thread(target=self.handler)
+        self.lock         = threading.Lock()
+        self.cv           = threading.Condition(lock=self.lock)
+        self.old_animation: Animation = None
+
+    def isRunning(self):
+        return self.running
+
+    def isShutdown(self):
+        return (self.shutdown or self.thread.is_alive())
+
+    def run(self):
+        if self.isRunning():
+            return
+
+        self.running = True
+        self.thread.start()
+
+    def stop(self):
+        if not self.running:
+            return
+
+        self.running = False
+        self.cv.acquire()
+        self.cv.notify_all()
+        self.cv.release()
+        self.thread.join()
+        self.shutdown = True
+
+    def getAnimation(self):
+        return self.old_animation
+
+    def handler(self):
+        self.cv.acquire()
+        print(f"Starting {self.name} program thread")
+        try:
+            while self.running:
+                new_animation = self.getAnimation()
+                if self.old_animation != new_animation:
+                    self.assembler.setAnimation(new_animation)
+                    self.old_animation = new_animation
+
+                self.cv.wait(self.delay)
+        except Exception as e:
+            print(e)
+
+        self.cv.release()
+        print(f"Exiting {self.name} program thread")
+        self.shutdown = True
+
+    def __del__(self):
+        self.stop()
 
 
 class ClockProgram(Program):
-    def __init__(self, *, use_24h=False, full_date=False):
-        super().__init__()
+    def __init__(self, *args, use_24h=False, full_date=False, **kwargs):
+        super().__init__("Clock", *args, delay=0.1, **kwargs)
         self.full_date = full_date
         self.use_24h = use_24h
         self.hour_code = "%I"
@@ -15,6 +78,9 @@ class ClockProgram(Program):
         if use_24h:
             self.hour_code = "%k"
             self.am_pm_code = ''
+
+    def getAnimation(self):
+        return animation.makeTextAnimation(self.getTimeCode())
 
     def getTimeCode(self):
         if self.full_date:
