@@ -2,7 +2,7 @@ import time
 
 from typing import List, Sequence, Tuple
 
-from pyxielib.pyxieutil import PyxieError
+from pyxielib.pyxieutil import PyxieError, PyxieUnimplementedError
 
 
 class PixieAnimationError(PyxieError):
@@ -10,6 +10,7 @@ class PixieAnimationError(PyxieError):
 
 
 class Frame:
+    """A representation of a tube at a single point in time"""
     def __init__(self, code=' '):
         self.code = code
 
@@ -27,11 +28,18 @@ class Frame:
 
 
 class HexFrame(Frame):
+    """A frame from a hex code"""
     def __init__(self, hex_code=0x0):
         Frame.__init__(self, '{' + hex(0xFFFF & hex_code) + '}')
 
 
 class TextFrame(Frame):
+    """
+    A frame from a printable character
+    Must either be a single character, optionally followed by a ':' or '!'
+    ':' for colon
+    '!' for underline
+    """
     def __init__(self, text, colon=False, underline=False):
         if len(text) == 2 and text[1] == ':':
             colon = True
@@ -53,10 +61,26 @@ class TextFrame(Frame):
         self.code += '!'
 
 
+class FullFrame():
+    """A representation of a tube array at a single point in time"""
+    def __init__(self, frames: Sequence[Frame]):
+        self.frames = list(frames)
+
+    def tubeCount(self):
+        """Number of tubes in this frame"""
+        return len(self.frames)
+
+    def getFrames(self):
+        """Get the frames"""
+        return list(self.frames) ## Make copy
+
+
 TimeFrame = Tuple[float, Frame]
+TimeFullFrame = Tuple[float, FullFrame]
 
 
-class Animation:
+class TubeAnimation:
+    """A sequence of timed frames for a single tube"""
     def __init__(self, frames: Sequence[TimeFrame]=None):
         self.start_time: float = time.time()
         self.frames: List[TimeFrame] = list(frames or []) ## Make Copy
@@ -158,7 +182,7 @@ class Animation:
             offset = self.frames[-1][0] + delay
 
         frames2 = [(x + offset, y) for x, y in other.frames]
-        return Animation(frames1 + frames2)
+        return TubeAnimation(frames1 + frames2)
 
     def __iadd__(self, other):
         ## Get difference between last two frames. Default to 1
@@ -189,7 +213,8 @@ class Animation:
         return str(self)
 
 
-class TimedAnimation(Animation):
+class TimedTubeAnimation(TubeAnimation):
+    """A tube animation with a set time between the frames"""
     def __init__(self, frames: Frame, rate: int=1, *, delay: float=0):
         ## Delay overrides rate
         if not delay:
@@ -202,29 +227,46 @@ class TimedAnimation(Animation):
             time_frames.append((time_passed, frame))
             time_passed += delay
 
-        Animation.__init__(self, time_frames)
+        TubeAnimation.__init__(self, time_frames)
 
 
-class AnimationSet:
-    def __init__(self, animations: Sequence[Animation], repeat=False):
-        self.animations: Sequence[Animation] = animations
-        self.current_frame_set: List[Frame] = [Frame()]*len(animations)
+class DisplayAnimation:
+    def __init__(self, repeat=False):
         self.repeat = repeat
 
-    @classmethod
-    def makeFromFullFrames(cls, full_frames: Sequence[Sequence[Frame]], delay: float, *args, **kwargs):
-        """Take full frames and convert them to animations"""
-        num_frames = len(full_frames[0])
-        transposed = [list() for x in range(num_frames)]
-        for full_frame in full_frames:
-            if len(full_frame) != num_frames:
-                raise PixieAnimationError("Number of tubes in all full frame not equal. Cannot transpose")
+    def shouldRepeat(self):
+        return self.repeat
 
-            for i, frame in enumerate(full_frame):
-                transposed[i].append(frame)
+    def resetTime(self):
+        """Reset the start time of the first frame"""
+        raise PyxieUnimplementedError(self)
 
-        animations = [TimedAnimation(x, delay) for x in transposed]
-        return cls(animations, *args, **kwargs)
+    def length(self):
+        """Time length of the animation set"""
+        raise PyxieUnimplementedError(self)
+
+    def tubeCount(self):
+        """Get the number of tubes supported by this animation"""
+        raise PyxieUnimplementedError(self)
+
+    def getCode(self):
+        """Get the code to send to the decoder"""
+        raise PyxieUnimplementedError(self)
+
+    def updateFrameSet(self):
+        """Update the frame set based upon the current time. Return True if updated"""
+        raise PyxieUnimplementedError(self)
+
+    def done(self):
+        """The last frame as loaded"""
+        raise PyxieUnimplementedError(self)
+
+
+class TubeAnimationSet(DisplayAnimation):
+    def __init__(self, animations: Sequence[TubeAnimation], *args, **kwargs):
+        DisplayAnimation.__init__(self, *args, **kwargs)
+        self.animations: Sequence[TubeAnimation] = animations
+        self.current_frame_set: List[Frame] = [Frame()]*len(animations)
 
     def resetTime(self):
         """Reset the start time of the first frame"""
@@ -232,15 +274,12 @@ class AnimationSet:
             animation.resetTime()
 
     def length(self):
-        """Time length of the animation set. Equal to the lonest animation"""
+        """Time length of the animation set. Equal to the longest animation"""
         return max(map(lambda x: x.length(), self.animations))
 
     def tubeCount(self):
         """Get the number of tubes supported by this animation set"""
         return len(self.current_frame_set)
-
-    def shouldRepeat(self):
-        return self.repeat
 
     def currentFrameSet(self) -> Sequence[Frame]:
         """Get the currently assembled frame"""
@@ -258,7 +297,7 @@ class AnimationSet:
         for animation in animations:
             diff = longest - animation.length()
             if diff:
-                animation += Animation.makeBlank(diff)
+                animation += TubeAnimation.makeBlank(diff)
 
     def updateFrameSet(self):
         """Update the frame set based upon the current time. Return True if updated"""
@@ -292,14 +331,14 @@ class AnimationSet:
         if len(a2) > len(a1):
             diff = len(a2) - len(a1)
             longest = max(map(lambda x: x.length(), self.animations))
-            a1 += [Animation.makeBlank(longest) for x in range(diff)]
+            a1 += [TubeAnimation.makeBlank(longest) for x in range(diff)]
         elif len(a1) > len(a2):
             diff = len(a1) - len(a2)
             longest = max(map(lambda x: x.length(), a2))
-            a2 += [Animation()]*diff
+            a2 += [TubeAnimation()]*diff
 
         new_a = [x + y for x, y in zip(a1, a2)]
-        return AnimationSet(new_a)
+        return TubeAnimationSet(new_a)
 
     def __iadd__(self, other):
         ## Fix difference in number of tubes
@@ -308,11 +347,11 @@ class AnimationSet:
         if len(animations) > len(self.animations):
             diff = len(animations) - len(self.animations)
             longest = max(map(lambda x: x.length(), self.animations))
-            self.animations += [Animation.makeBlank(longest)]*diff
+            self.animations += [TubeAnimation.makeBlank(longest)]*diff
         elif len(self.animations) > len(animations):
             diff = len(self.animations) - len(animations)
             longest = max(map(lambda x: x.length(), animations))
-            animations += [Animation(longest)]*diff
+            animations += [TubeAnimation(longest)]*diff
 
         for i, x in enumerate(animations):
             self.animations[i] += x
@@ -324,9 +363,74 @@ class AnimationSet:
         return (self.animations == other.animations)
 
 
-class LoopAnimationSet(AnimationSet):
-    def __init__(self, animations: Sequence[Animation], delay: float=1):
-        AnimationSet.__init__(self, animations)
+class FullFrameAnimationSet(DisplayAnimation):
+    def __init__(self, frames:Sequence[TimeFullFrame] = None, **kwargs):
+        """A sequence of timed full frames"""
+        DisplayAnimation.__init__(self, **kwargs)
+        self.frames: Sequence[TimeFullFrame] = frames or [(0, [])]
+        self.start_time: float = time.time()
+        self.frame_index = 0
+        self.num_tubes = max(map(lambda x: len(x[1]), self.frames))
+
+    def resetTime(self):
+        """Reset the start time of the first frame"""
+        self.start_time = time.time()
+        self.frame_index = 0
+
+    def reset(self):
+        """Reset the animation"""
+        self.resetTime()
+
+    def frameCount(self):
+        """Total frame count"""
+        return len(self.frames)
+
+    def length(self):
+        """Time length of the animation set"""
+        return self.frames[0]
+
+    def tubeCount(self):
+        """Get the number of tubes supported by this animation"""
+        return self.num_tubes
+
+    def currentFrame(self) -> Sequence[FullFrame]:
+        """Get the current frame"""
+        if self.done():
+            return list(self.frames[-1][1])
+
+        return list(self.frames[self.frame_index][1])
+
+    def getCode(self):
+        """Get the code to send to the decoder"""
+        frames = self.currentFrame()
+        return ''. join([frame.getCode() for frame in frames])
+
+    def updateFrameSet(self):
+        """Update the frame set based upon the current time. Return True if updated"""
+        now = time.time()
+        next_frame_index = None
+        next_frame = None
+        ## Get frame that just passed
+        ## Frames should be in order
+        for i, time_frame in list(enumerate(self.frames))[self.frame_index:]:
+            next_frame_index = i + 1
+            if time_frame[0] + self.start_time <= now:
+                next_frame = time_frame[1]
+                break
+
+        if next_frame is not None and next_frame_index is not None:
+            self.frame_index = next_frame_index
+            return True
+
+        return False
+
+    def done(self):
+        return (self.frame_index == len(self.frames))
+
+
+class LoopAnimationSet(TubeAnimationSet):
+    def __init__(self, animations: Sequence[TubeAnimation], delay: float=1):
+        TubeAnimationSet.__init__(self, animations)
         self.delay = delay
         self.last_update = time.time()
 
@@ -336,37 +440,32 @@ class LoopAnimationSet(AnimationSet):
 
     def loopOver(self):
         """Reached the last frame of the loop"""
-        return AnimationSet.done(self)
+        return TubeAnimationSet.done(self)
 
     def updateFrameSet(self):
         """Update the frame set based upon the current time. Return True if updated"""
-        update = AnimationSet.updateFrameSet(self)
+        update = TubeAnimationSet.updateFrameSet(self)
         if update:
             self.last_update = time.time()
             return update
 
         if self.loopOver() and self.last_update + self.delay < time.time():
             self.resetTime()
-            return AnimationSet.updateFrameSet(self)
+            return TubeAnimationSet.updateFrameSet(self)
 
         return None
 
 
 def makeTextAnimation(text):
     """Create an animation set from a text string"""
-    return AnimationSet([Animation([(0, TextFrame(x))]) for x in text])
-
-def makeTextSequence(msgs: Sequence[str], delay: float):
-    """Create an animation set from a text strings"""
-    full_frames = [[Frame(x) for x in msg] for msg in msgs]
-    return AnimationSet.makeFromFullFrames(full_frames, delay)
+    return FullFrameAnimationSet([(0, [TextFrame(x) for x in text])])
 
 
 def makeSpinAnimation(*, rate=3, num_tubes=1, loop=True):
     """Create a spin animation"""
     frames = [HexFrame(0x1 << x) for x in range(7, 14)] + [HexFrame(0x1 << 6)]
-    animations = [TimedAnimation(frames, rate) for x in range(num_tubes)]
+    animations = [TimedTubeAnimation(frames, rate) for x in range(num_tubes)]
     if loop:
         return LoopAnimationSet(animations, 1/rate)
 
-    return AnimationSet(animations)
+    return TubeAnimationSet(animations)

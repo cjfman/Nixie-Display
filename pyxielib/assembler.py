@@ -2,17 +2,17 @@ import threading
 import traceback
 
 from pyxielib.controller import Controller, TerminalController
-from pyxielib.animation import Animation
+from pyxielib.animation import DisplayAnimation
 
 class Assembler:
-    def __init__(self, *, controller: Controller=None, animation: Animation=None):
+    def __init__(self, *, controller: Controller=None, animation: DisplayAnimation=None):
         self.running    = False
         self.shutdown   = False
         self.thread     = threading.Thread(target=self.handler)
         self.lock       = threading.Lock()
         self.cv         = threading.Condition(lock=self.lock)
-        self.animation : Animation  = animation
-        self.controller: Controller     = controller or TerminalController()
+        self.animation : DisplayAnimation = animation
+        self.controller: Controller   = controller or TerminalController()
 
     def isRunning(self):
         return (self.running and self.thread.is_alive())

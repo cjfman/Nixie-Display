@@ -5,7 +5,7 @@ import traceback
 
 import pyxielib.animation as animation
 from pyxielib.assembler import Assembler
-from pyxielib.animation import Animation
+from pyxielib.animation import DisplayAnimation
 
 
 class Program:
@@ -18,7 +18,7 @@ class Program:
         self.thread       = threading.Thread(target=self.handler)
         self.lock         = threading.Lock()
         self.cv           = threading.Condition(lock=self.lock)
-        self.old_animation: Animation = None
+        self.old_animation: DisplayAnimation = None
 
     def isRunning(self):
         return self.running
