@@ -9,11 +9,11 @@ from pyxielib import animation, assembler, controller, decoder, tube_manager
 
 
 c = controller.TerminalController(clear_screen=True)
-a1 = animation.makeSpinAnimation(num_tubes=3, rate=10, loop=False)
-a2 = animation.makeTextAnimation("Done")
+a1 = animation.makeSpinAnimation(num_tubes=3, rate=10, loop=True)
+#a2 = animation.makeTextAnimation("Done")
 asmlr = assembler.Assembler(controller=c)
 asmlr.start()
-asmlr.setAnimation(a1 + a2)
+asmlr.setAnimation(a1)
 
 try:
     while not asmlr.animationDone():

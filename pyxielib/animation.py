@@ -74,6 +74,9 @@ class FullFrame():
         """Get the frames"""
         return list(self.frames) ## Make copy
 
+    def __eq__(self, other):
+        return (self.frames == other.frames)
+
 
 TimeFrame = Tuple[float, Frame]
 TimeFullFrame = Tuple[float, FullFrame]
@@ -90,6 +93,21 @@ class TubeAnimation:
     def makeBlank(cls, length: float=0):
         """Make a blank tube animation of a certain length"""
         return cls([(length, Frame())])
+
+    @classmethod
+    def makeTimed(cls, frames: Frame, rate: int=1, *, delay: float=0, **kwargs):
+        ## Delay overrides rate
+        if not delay:
+            delay = 1 / rate
+
+        ## Calculate time passed
+        time_frames: List[TimeFrame] = []
+        time_passed = 0
+        for frame in frames:
+            time_frames.append((time_passed, frame))
+            time_passed += delay
+
+        return cls(time_frames, **kwargs)
 
     def resetTime(self):
         """Reset the start time of the first frame"""
@@ -211,23 +229,6 @@ class TubeAnimation:
 
     def __repr__(self):
         return str(self)
-
-
-class TimedTubeAnimation(TubeAnimation):
-    """A tube animation with a set time between the frames"""
-    def __init__(self, frames: Frame, rate: int=1, *, delay: float=0):
-        ## Delay overrides rate
-        if not delay:
-            delay = 1 / rate
-
-        ## Calculate time passed
-        time_frames: List[TimeFrame] = []
-        time_passed = 0
-        for frame in frames:
-            time_frames.append((time_passed, frame))
-            time_passed += delay
-
-        TubeAnimation.__init__(self, time_frames)
 
 
 class DisplayAnimation:
@@ -360,14 +361,30 @@ class TubeAnimationSet(DisplayAnimation):
         return (self.animations == other.animations)
 
 
-class FullFrameAnimationSet(DisplayAnimation):
+class FullFrameAnimation(DisplayAnimation):
     def __init__(self, frames:Sequence[TimeFullFrame] = None, **kwargs):
         """A sequence of timed full frames"""
         DisplayAnimation.__init__(self, **kwargs)
         self.frames: Sequence[TimeFullFrame] = frames or [(0, [])]
         self.start_time: float = time.time()
         self.frame_index = 0
-        self.num_tubes = max(map(lambda x: len(x[1]), self.frames))
+        self.current_frame = self.frames[0]
+        self.num_tubes = max(map(lambda x: x[1].tubeCount(), self.frames))
+
+    @classmethod
+    def makeTimed(cls, frames: FullFrame, rate: int=1, *, delay: float=0, **kwargs):
+        ## Delay overrides rate
+        if not delay:
+            delay = 1 / rate
+
+        ## Calculate time passed
+        time_frames: List[TimeFullFrame] = []
+        time_passed = 0
+        for frame in frames:
+            time_frames.append((time_passed, frame))
+            time_passed += delay
+
+        return cls(time_frames, **kwargs)
 
     def resetTime(self):
         """Reset the start time of the first frame"""
@@ -392,10 +409,7 @@ class FullFrameAnimationSet(DisplayAnimation):
 
     def currentFrame(self) -> Sequence[FullFrame]:
         """Get the current frame"""
-        if self.done():
-            return list(self.frames[-1][1])
-
-        return list(self.frames[self.frame_index][1])
+        return list(self.current_frame.getFrames())
 
     def getCode(self):
         """Get the code to send to the decoder"""
@@ -410,19 +424,24 @@ class FullFrameAnimationSet(DisplayAnimation):
         ## Get frame that just passed
         ## Frames should be in order
         for i, time_frame in list(enumerate(self.frames))[self.frame_index:]:
-            next_frame_index = i + 1
-            if time_frame[0] + self.start_time <= now:
-                next_frame = time_frame[1]
+            if time_frame[0] + self.start_time < now:
+                next_frame_index = i + 1
                 break
 
-        if next_frame is not None and next_frame_index is not None:
+        if next_frame_index is not None:
+            self.current_frame = self.frames[self.frame_index][1]
             self.frame_index = next_frame_index
-            return True
 
-        return False
+        return (next_frame_index is not None)
 
     def done(self):
         return (self.frame_index == len(self.frames))
+
+    def __eq__(self, other):
+        if other is None:
+            return False
+
+        return (self.frames == other.frames)
 
 
 class LoopAnimationSet(TubeAnimationSet):
@@ -455,13 +474,19 @@ class LoopAnimationSet(TubeAnimationSet):
 
 def makeTextAnimation(text):
     """Create an animation set from a text string"""
-    return FullFrameAnimationSet([(0, [TextFrame(x) for x in text])])
+    return FullFrameAnimation([(0, [TextFrame(x) for x in text])])
+
+
+def makeTextSequence(msgs, delay:float):
+    """Create an animation set from a text string"""
+    frames = [FullFrame([TextFrame(x) for x in msg]) for msg in msgs]
+    return FullFrameAnimation.makeTimed(frames, delay=delay)
 
 
 def makeSpinAnimation(*, rate=3, num_tubes=1, loop=True):
     """Create a spin animation"""
     frames = [HexFrame(0x1 << x) for x in range(7, 14)] + [HexFrame(0x1 << 6)]
-    animations = [TimedTubeAnimation(frames, rate) for x in range(num_tubes)]
+    animations = [TubeAnimation.makeTimed(frames, rate) for x in range(num_tubes)]
     if loop:
         return LoopAnimationSet(animations, 1/rate)
 
