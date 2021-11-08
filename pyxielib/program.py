@@ -92,7 +92,7 @@ class ClockProgram(Program):
 #
 #        return animation.makeTextAnimation(code)
         codes = [code, code.replace(':', '')]
-        return animation.makeTextSequence(codes, 0.5)
+        return animation.makeTextSequence(codes, 0.5, looped=True)
 
     def getTimeCode(self):
         if self.full_date:
