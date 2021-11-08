@@ -231,11 +231,8 @@ class TimedTubeAnimation(TubeAnimation):
 
 
 class DisplayAnimation:
-    def __init__(self, repeat=False):
-        self.repeat = repeat
-
-    def shouldRepeat(self):
-        return self.repeat
+    def __init__(self):
+        pass
 
     def resetTime(self):
         """Reset the start time of the first frame"""

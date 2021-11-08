@@ -33,20 +33,13 @@ class Assembler:
         self.cv.notify_all()
         self.cv.release()
 
-    def doAnimation(self):
-        if self.animation.updateFrameSet():
-            self.controller.send(self.animation.getCode())
-
-        if self.animation.done() and self.animation.shouldRepeat():
-            self.animation.resetTime()
-
     def handler(self):
         self.cv.acquire()
         print("Starting assembler thread")
         try:
             while self.running:
-                if self.animation:
-                    self.doAnimation()
+                if self.animation and self.animation.updateFrameSet():
+                    self.controller.send(self.animation.getCode())
 
                 self.cv.wait(0.01)
         except Exception as e:
