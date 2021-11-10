@@ -6,11 +6,12 @@ import time
 sys.path.append("/home/charles/Projects/nixie")
 
 from pyxielib import animation, assembler, controller, decoder, tube_manager
+from pyxielib import animation_library as animationlib
 
 
 c = controller.TerminalController(clear_screen=True)
-a1 = animation.makeSpinAnimation(num_tubes=3, rate=10, loop=True)
-#a2 = animation.makeTextAnimation("Done")
+a1 = animationlib.makeSpinAnimation(num_tubes=3, rate=10, loop=True)
+#a2 = animationlib.makeTextAnimation("Done")
 asmlr = assembler.Assembler(controller=c)
 asmlr.start()
 asmlr.setAnimation(a1)

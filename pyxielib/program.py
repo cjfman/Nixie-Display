@@ -3,7 +3,7 @@ import threading
 import time
 import traceback
 
-import pyxielib.animation as animation
+import pyxielib.animation_library as animationlib
 from pyxielib.assembler import Assembler
 from pyxielib.animation import Animation
 
@@ -85,7 +85,7 @@ class ClockProgram(Program):
     def getAnimation(self):
         code = self.getTimeCode()
         codes = [code, code.replace(':', '')]
-        return animation.makeTextSequence(codes, 1, looped=True)
+        return animationlib.makeTextSequence(codes, 1, looped=True)
 
     def getTimeCode(self):
         if self.full_date:
