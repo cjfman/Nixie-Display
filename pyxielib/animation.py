@@ -102,6 +102,10 @@ class TubeSequence:
 
     @classmethod
     def makeTimed(cls, frames:Sequence[Frame], rate: int=1, *, delay: float=0, **kwargs):
+        """Make an animation with evenly spaced frames"""
+        if not frames:
+            raise PixieAnimationError("Cannot make a timed animation without at least one frame")
+
         ## Delay overrides rate
         if not delay:
             delay = 1 / rate
@@ -385,6 +389,10 @@ class FullFrameAnimation(Animation):
 
     @classmethod
     def makeTimed(cls, frames: Sequence[FullFrame], rate: int=1, *, delay: float=0, **kwargs):
+        """Make an animation with evenly spaced frames"""
+        if not frames:
+            raise PixieAnimationError("Cannot make a timed animation without at least one frame")
+
         ## Delay overrides rate
         if not delay:
             delay = 1 / rate
@@ -466,6 +474,10 @@ class LoopedFullFrameAnimation(FullFrameAnimation):
 
     @classmethod
     def makeTimed(cls, frames: Sequence[FullFrame], rate: int=1, *, delay: float=0, **kwargs):
+        """Make an animation with evenly spaced frames"""
+        if not frames:
+            raise PixieAnimationError("Cannot make a timed animation without at least one frame")
+
         ## Delay overrides rate
         if not delay:
             delay = 1 / rate
