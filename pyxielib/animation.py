@@ -74,8 +74,17 @@ class FullFrame():
         """Get the frames"""
         return list(self.frames) ## Make copy
 
+    def clone(self):
+        return FullFrame(self.frames[:])
+
     def __eq__(self, other):
         return (self.frames == other.frames)
+
+    def __copy__(self):
+        return self.clone()
+
+    def __deepcopy__(self, memo):
+        return self.clone()
 
 
 TimeFrame = Tuple[float, Frame]
@@ -211,6 +220,9 @@ class TubeSequence:
         self.reset()
         return self
 
+    def clone(self):
+        return TubeSequence(self.frames[:])
+
     def __eq__(self, other):
         """Equals boolean. Only considers frames and time diffs"""
         return (self.frames == other.frames)
@@ -220,6 +232,12 @@ class TubeSequence:
 
     def __repr__(self):
         return str(self)
+
+    def __copy__(self):
+        return self.clone()
+
+    def __deepcopy__(self, memo):
+        return self.clone()
 
 
 class Animation:
@@ -252,8 +270,8 @@ class Animation:
 
 
 class TubeAnimation(Animation):
-    def __init__(self, animations: Sequence[TubeSequence], *args, **kwargs):
-        Animation.__init__(self, *args, **kwargs)
+    def __init__(self, animations: Sequence[TubeSequence]):
+        Animation.__init__(self)
         self.animations: Sequence[TubeSequence] = animations
         self.current_frame_set: List[Frame] = [Frame()]*len(animations)
 
@@ -307,6 +325,9 @@ class TubeAnimation(Animation):
         """The last frame as loaded"""
         return all([tube.done() for tube in self.animations])
 
+    def clone(self):
+        return TubeAnimation(self.animations[:])
+
     def __add__(self, other):
         ## Make copies
         a1 = list(self.animations)
@@ -347,6 +368,12 @@ class TubeAnimation(Animation):
 
         return (self.animations == other.animations)
 
+    def __copy__(self):
+        return self.clone()
+
+    def __deepcopy__(self, memo):
+        return self.clone()
+
 
 class LoopedTubeAnimation(TubeAnimation):
     def __init__(self, animations: Sequence[TubeSequence], delay: float=0):
@@ -376,11 +403,20 @@ class LoopedTubeAnimation(TubeAnimation):
 
         return None
 
+    def clone(self):
+        return LoopedTubeAnimation(self.animations[:], self.delay)
+
+    def __copy__(self):
+        return self.clone()
+
+    def __deepcopy__(self, memo):
+        return self.clone()
+
 
 class FullFrameAnimation(Animation):
-    def __init__(self, frames:Sequence[TimeFullFrame] = None, **kwargs):
+    def __init__(self, frames:Sequence[TimeFullFrame] = None):
         """A sequence of timed full frames"""
-        Animation.__init__(self, **kwargs)
+        Animation.__init__(self)
         self.frames: Sequence[TimeFullFrame] = list(frames or [(0, [])])
         self.start_time: float = time.time()
         self.frame_index = 0
@@ -459,15 +495,25 @@ class FullFrameAnimation(Animation):
     def done(self):
         return (self.frame_index == len(self.frames))
 
+    def clone(self):
+        return FullFrameAnimation(self.frames[:])
+
+
     def __eq__(self, other):
         if other is None:
             return False
 
         return (self.frames == other.frames)
 
+    def __copy__(self):
+        return self.clone()
+
+    def __deepcopy__(self, memo):
+        return self.clone()
+
 
 class LoopedFullFrameAnimation(FullFrameAnimation):
-    def __init__(self, frames:Sequence[TimeFullFrame], delay: float=1):
+    def __init__(self, frames:Sequence[TimeFullFrame], delay: float=0):
         FullFrameAnimation.__init__(self, frames)
         self.delay = delay
         self.last_update = time.time()
@@ -514,14 +560,17 @@ class LoopedFullFrameAnimation(FullFrameAnimation):
 
         return None
 
+    def clone(self):
+        return LoopedFullFrameAnimation(self.frames[:], self.delay)
+
 
 def makeTextAnimation(text):
     """Create an animation set from a text string"""
     return FullFrameAnimation([(0, [TextFrame(x) for x in text])])
 
 
-def makeTextSequence(msgs, delay:float, *, looped=False):
-    """Create an animation set from a text string"""
+def makeTextSequence(msgs:Sequence[str], delay:float, *, looped=False):
+    """Create an animation set from multiple text strings"""
     frames = [FullFrame([TextFrame(x) for x in msg]) for msg in msgs]
     if looped:
         return LoopedFullFrameAnimation.makeTimed(frames, delay=delay)
