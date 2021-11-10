@@ -84,15 +84,8 @@ class ClockProgram(Program):
 
     def getAnimation(self):
         code = self.getTimeCode()
-#        if self.flash:
-#            ## Show colons for first half of second
-#            now = time.time()
-#            if (int(now) % 2) == 0:
-#                code = code.replace(':', '')
-#
-#        return animation.makeTextAnimation(code)
         codes = [code, code.replace(':', '')]
-        return animation.makeTextSequence(codes, 0.5, looped=True)
+        return animation.makeTextSequence(codes, 1, looped=True)
 
     def getTimeCode(self):
         if self.full_date:
