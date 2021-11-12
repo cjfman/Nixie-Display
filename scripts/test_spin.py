@@ -10,11 +10,13 @@ from pyxielib import animation_library as animationlib
 
 
 c = controller.TerminalController(clear_screen=True)
-a1 = animationlib.makeSpinAnimation(num_tubes=3, rate=10, loop=True)
+#a1 = animationlib.makeSpinAnimation(num_tubes=3, rate=10, loop=True)
 #a2 = animationlib.makeTextAnimation("Done")
+#aa = animation.LoopedTubeAnimation([animationlib.makeDoubleSpinTubeSequence(10, offset=x) for x in range(12)])
+aa = animation.LoopedTubeAnimation([animationlib.makeSpinTubeSequence(10, reverse=(x%2), offset=(x%2)) for x in range(12)])
 asmlr = assembler.Assembler(controller=c)
 asmlr.start()
-asmlr.setAnimation(a1)
+asmlr.setAnimation(aa)
 
 try:
     while not asmlr.animationDone():

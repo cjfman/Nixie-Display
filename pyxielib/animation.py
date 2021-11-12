@@ -186,7 +186,7 @@ class TubeSequence:
         return next_frame
 
     def __add__(self, other):
-        ## Make copies
+        ## Make copy
         frames1 = list(self.frames)
 
         ## Get difference between last two frames. Default to 1
@@ -351,10 +351,12 @@ class TubeAnimation(Animation):
         self.equalize(self.animations)
         animations = list(other.animations) ## make copy
         if len(animations) > len(self.animations):
+            ## "other" has more tubes
             diff = len(animations) - len(self.animations)
             longest = max(map(lambda x: x.length(), self.animations))
             self.animations += [TubeSequence.makeBlank(longest)]*diff
         elif len(self.animations) > len(animations):
+            ## "self" has more tubes
             diff = len(self.animations) - len(animations)
             longest = max(map(lambda x: x.length(), animations))
             animations += [TubeSequence(longest)]*diff
@@ -498,12 +500,46 @@ class FullFrameAnimation(Animation):
     def clone(self):
         return FullFrameAnimation(self.frames[:])
 
-
     def __eq__(self, other):
         if other is None:
             return False
 
         return (self.frames == other.frames)
+
+    def __add__(self, other):
+        ## Make copy
+        frames1 = list(self.frames)
+
+        ## Get difference between last two frames. Default to 1
+        delay = 0
+        if len(self.frames) >= 2:
+            delay = self.frames[-1][0] - self.frames[-2][0]
+
+        ## Change time offsets
+        offset = 0
+        if self.frames:
+            offset = self.frames[-1][0] + delay
+
+        frames2 = [(x + offset, y) for x, y in other.frames]
+        return FullFrameAnimation(frames1 + frames2)
+
+    def __iadd__(self, other):
+        ## Get difference between last two frames. Default to 1
+        delay = 1
+        if len(self.frames) >= 2:
+            delay = self.frames[-1][0] - self.frames[-2][0]
+
+        ## Change time offsets
+        offset = 0
+        if self.frames:
+            offset = self.frames[-1][0] + delay
+
+        new_frames = [(x + offset, y) for x, y in other.frames]
+
+        ## Add frames
+        self.frames += new_frames
+        self.reset()
+        return self
 
     def __copy__(self):
         return self.clone()
