@@ -23,9 +23,9 @@ def _textToFrames(text):
     return frames
 
 
-def makeTextAnimation(text):
+def makeTextAnimation(text, length=1):
     """Create an animation set from a text string"""
-    return FullFrameAnimation([(0, _textToFrames(text))])
+    return FullFrameAnimation([(length, _textToFrames(text))])
 
 
 def makeTextSequence(msgs:Sequence[str], delay:float, *, looped=False):

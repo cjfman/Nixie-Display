@@ -23,13 +23,13 @@ class Assembler:
     def setAnimation(self, animation):
         self.cv.acquire()
         self.animation = animation
-        self.animation.resetTime()
+        self.animation.reset()
         self.cv.notify_all()
         self.cv.release()
 
     def rerun(self):
         self.cv.acquire()
-        self.animation.resetTime()
+        self.animation.reset()
         self.cv.notify_all()
         self.cv.release()
 
@@ -55,7 +55,7 @@ class Assembler:
 
     def start(self):
         if self.animation is not None:
-            self.animation.resetTime()
+            self.animation.reset()
 
         if self.isRunning():
             return

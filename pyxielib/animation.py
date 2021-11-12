@@ -82,7 +82,7 @@ class FullFrame():
 
     def getFrames(self):
         """Get the frames"""
-        return list(self.frames) ## Make copy
+        return self.frames[:] ## Make copy
 
     def clone(self):
         return FullFrame(self.frames[:])
@@ -111,6 +111,7 @@ class TubeSequence:
     Ex: (<endtime as float>, Frame())
     """
     def __init__(self, frames: Sequence[TimeFrame]=None):
+        self.started = False
         self.start_time: float = time.time()
         self.frames: List[TimeFrame] = list(frames or []) ## Make Copy
         self.frame_index = 0
@@ -130,104 +131,77 @@ class TubeSequence:
         if not delay:
             delay = 1 / rate
 
-        ## Calculate time passed
-        time_frames: List[TimeFrame] = []
-        time_passed = 0
-        for frame in frames:
-            time_frames.append((time_passed, frame))
-            time_passed += delay
-
-        ## Add one blank frame
-        time_frames.append((time_passed, Frame()))
-
+        time_frames: List[TimeFrame] = [(delay, frame) for frame in frames]
         return cls(time_frames, **kwargs)
-
-    def resetTime(self):
-        """Reset the start time of the first frame"""
-        self.start_time = time.time()
-        self.frame_index = 0
 
     def reset(self):
         """Reset the animation"""
-        self.resetTime()
+        self.frame_index = 0
+        self.started = False
 
-    def frameCount(self):
+    def frameCount(self) -> int:
         """Total frame count"""
         return len(self.frames)
 
-    def remainingFrames(self):
+    def remainingFrames(self) -> int:
         """Number of frames from now to end"""
         return max(0, len(self.frames) - self.frame_index)
 
-    def done(self):
+    def done(self) -> bool:
         if not self.frames:
             return True
-        elif self.remainingFrames():
-            return False
 
-        now = time.time()
-        return (self.start_time + self.frames[-1][0] < now)
+        return not self.remainingFrames()
 
-    def length(self):
+    def length(self) -> float:
         """Time length of animation"""
         if not self.frames:
             return 0
 
-        return self.frames[-1][0]
+        return sum(map(lambda x: x[0], self.frames))
 
-    def popFrame(self):
+    def currentFrame(self):
+        if not self.remainingFrames():
+            return None
+
+        return self.frames[self.frame_index][1]
+
+    def popFrame(self) -> Frame:
         """Get the next frame and adjust index"""
         if not self.remainingFrames():
             return None
 
         now = time.time()
-        next_frame_index = None
-        next_frame = None
-        ## Get first frame that hasn't passed
-        ## Frames should be in order
-        for i, time_frame in list(enumerate(self.frames))[self.frame_index:]:
-            next_frame_index = i + 1
-            if time_frame[0] + self.start_time <= now:
-                next_frame = time_frame[1]
-                break
+        ## If not started, set start time and return first frame
+        if not self.started:
+            self.started = True
+            self.start_time = now
+            return self.frames[0][1]
 
-        if next_frame is not None and next_frame_index is not None:
-            self.frame_index = next_frame_index
+        ## Check to see if current frame has passed
+        length, _ = self.frames[self.frame_index]
+        if now < self.start_time + length:
+            return None
 
-        return next_frame
+        ## Get next frame
+        self.frame_index += 1
+        if len(self.frames) <= self.frame_index:
+            return None
+
+        self.start_time = now
+        return self.frames[self.frame_index][1]
+
+    def expand(self, times):
+        for _ in range(times):
+            self += self
+
+        return self
 
     def __add__(self, other):
-        ## Make copy
-        frames1 = list(self.frames)
-
-        ## Get difference between last two frames. Default to 1
-        delay = 0
-        if len(self.frames) >= 2:
-            delay = self.frames[-1][0] - self.frames[-2][0]
-
-        ## Change time offsets
-        offset = 0
-        if self.frames:
-            offset = self.frames[-1][0] + delay
-
-        frames2 = [(x + offset, y) for x, y in other.frames]
-        return TubeSequence(frames1 + frames2)
+        return TubeSequence(self.frames + other.frames)
 
     def __iadd__(self, other):
-        ## Get difference between last two frames. Default to 1
-        delay = 1
-        if len(self.frames) >= 2:
-            delay = self.frames[-1][0] - self.frames[-2][0]
-
-        ## Change time offsets
-        offset = 0
-        if self.frames:
-            offset = self.frames[-1][0] + delay
-
-        new_frames = [(x + offset, y) for x, y in other.frames]
-
-        ## Add frames
-        self.frames += new_frames
+        self.frames += other.frames
         self.reset()
         return self
 
@@ -255,7 +229,7 @@ class Animation:
     def __init__(self):
         pass
 
-    def resetTime(self):
+    def reset(self):
         """Reset the start time of the first frame"""
         raise PyxieUnimplementedError(self)
 
@@ -286,10 +260,10 @@ class TubeAnimation(Animation):
         self.animations: Sequence[TubeSequence] = animations
         self.current_frame_set: List[Frame] = [Frame()]*len(animations)
 
-    def resetTime(self):
+    def reset(self):
         """Reset the start time of the first frame"""
         for animation in self.animations:
-            animation.resetTime()
+            animation.reset()
 
     def length(self):
         """Time length of the animation set. Equal to the longest animation"""
@@ -301,7 +275,7 @@ class TubeAnimation(Animation):
 
     def currentFrameSet(self) -> Sequence[Frame]:
         """Get the currently assembled frame"""
-        return list(self.current_frame_set)
+        return self.current_frame_set[:]
 
     def getCode(self):
         """Get the code to send to the decoder"""
@@ -330,7 +304,7 @@ class TubeAnimation(Animation):
         if not updated:
             return None
 
-        return list(self.current_frame_set) ## Make copy
+        return self.current_frame_set[:] ## Make copy
 
     def done(self):
         """The last frame as loaded"""
@@ -341,8 +315,8 @@ class TubeAnimation(Animation):
 
     def __add__(self, other):
         ## Make copies
-        a1 = list(self.animations)
-        a2 = list(other.animations)
+        a1 = self.animations[:]
+        a2 = other.animations[:]
         self.equalize(a1)
         ## Fix difference in number of tubes
         if len(a2) > len(a1):
@@ -360,7 +334,7 @@ class TubeAnimation(Animation):
     def __iadd__(self, other):
         ## Fix difference in number of tubes
         self.equalize(self.animations)
-        animations = list(other.animations) ## make copy
+        animations = other.animations[:] ## make copy
         if len(animations) > len(self.animations):
             ## "other" has more tubes
             diff = len(animations) - len(self.animations)
@@ -392,7 +366,6 @@ class LoopedTubeAnimation(TubeAnimation):
     def __init__(self, animations: Sequence[TubeSequence], delay: float=0):
         TubeAnimation.__init__(self, animations)
         self.delay = delay
-        self.last_update = time.time()
 
     def done(self):
         """The last frame has loaded. Always false for LoopedTubeAnimation"""
@@ -406,12 +379,10 @@ class LoopedTubeAnimation(TubeAnimation):
         """Update the frame set based upon the current time. Return True if updated"""
         update = TubeAnimation.updateFrameSet(self)
         if update:
-            self.last_update = time.time()
             return update
 
-        now = time.time()
-        if self.loopOver() and self.last_update + self.delay < now:
-            self.resetTime()
+        if self.loopOver():
+            self.reset()
             return TubeAnimation.updateFrameSet(self)
 
         return None
@@ -433,6 +404,7 @@ class FullFrameAnimation(Animation):
         self.frames: Sequence[TimeFullFrame] = list(frames or [(0, [])])
         self.start_time: float = time.time()
         self.frame_index = 0
+        self.started = False
         self.current_frame = self.frames[0]
         self.num_tubes = max(map(lambda x: x[1].tubeCount(), self.frames))
 
@@ -447,25 +419,14 @@ class FullFrameAnimation(Animation):
             delay = 1 / rate
 
         ## Calculate time passed
-        time_frames: List[TimeFullFrame] = []
-        time_passed = 0
-        for frame in frames:
-            time_frames.append((time_passed, frame))
-            time_passed += delay
-
-        ## Add one blank frame
-        time_frames.append((time_passed, FullFrame()))
-
+        time_frames: List[TimeFullFrame] = [(delay, frame) for frame in frames]
         return cls(time_frames, **kwargs)
-
-    def resetTime(self):
-        """Reset the start time of the first frame"""
-        self.start_time = time.time()
-        self.frame_index = 0
 
     def reset(self):
         """Reset the animation"""
-        self.resetTime()
+        self.started = False
+        self.frame_index = 0
+        self.start_time = time.time()
 
     def frameCount(self):
         """Total frame count"""
@@ -491,19 +452,24 @@ class FullFrameAnimation(Animation):
     def updateFrameSet(self):
         """Update the frame set based upon the current time. Return True if updated"""
         now = time.time()
-        next_frame_index = None
-        ## Get frame that just passed
-        ## Frames should be in order
-        for i, time_frame in list(enumerate(self.frames))[self.frame_index:]:
-            if time_frame[0] + self.start_time < now:
-                next_frame_index = i + 1
-                break
+        if not self.started:
+            self.started = True
+            self.start_time = now
+            self.current_frame = self.frames[0][1]
+            return True
 
-        if next_frame_index is not None:
-            self.current_frame = self.frames[self.frame_index][1]
-            self.frame_index = next_frame_index
+        ## See if current frame has passed
+        length, _ = self.frames[self.frame_index]
+        if now < self.start_time + length:
+            return False
 
-        return (next_frame_index is not None)
+        self.frame_index += 1
+        self.start_time = now
+        if self.frame_index >= len(self.frames):
+            return False
+
+        self.current_frame = self.frames[self.frame_index][1]
+        return True
 
     def done(self):
         return (self.frame_index == len(self.frames))
@@ -576,14 +542,7 @@ class LoopedFullFrameAnimation(FullFrameAnimation):
             delay = 1 / rate
 
         ## Calculate time passed
-        time_frames: List[TimeFullFrame] = []
-        time_passed = 0
-        for frame in frames:
-            time_frames.append((time_passed, frame))
-            time_passed += delay
-
-        ## Don't add a blank one since we're looping
-
+        time_frames: List[TimeFullFrame] = [(delay, frame) for frame in frames]
         return cls(time_frames, delay, **kwargs)
 
     def done(self):
@@ -602,7 +561,7 @@ class LoopedFullFrameAnimation(FullFrameAnimation):
             return update
 
         if self.loopOver() and self.last_update + self.delay < time.time():
-            self.resetTime()
+            self.reset()
             return FullFrameAnimation.updateFrameSet(self)
 
         return None
