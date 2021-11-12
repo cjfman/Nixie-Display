@@ -441,12 +441,7 @@ class LoopedTubeAnimation(TubeAnimation):
     def makeAndNormalize(cls, tubes: Sequence[TubeSequence]):
         """Make a TubeAnimation and make all tube sequences loop at the same time"""
         ## Normalize with a time precision of 100ms
-        times = list(map(lambda x: x.length(), tubes))
-        x100 = list(map(lambda x: int(x*10), times))
-        coef100 = lcm(x100)
-        coef = coef100 / 10
-        print(times, x100, coef100, coef)
-        #coef = lcm(list(map(lambda x: int(x.length()*100), tubes)))/100
+        coef = lcm(list(map(lambda x: int(x.length()*10), tubes)))/10
         return cls([x*coef for x in tubes])
 
     def reset(self):
