@@ -166,6 +166,17 @@ class TubeSequence:
 
         return self.frames[self.frame_index][1]
 
+    def framesThroughTime(self, length:float):
+        """Return all the frames that would display in 'length' time"""
+        lapsed = 0
+        index = 0
+        for t, _ in self.frames:
+            if lapsed <= length:
+                lapsed += t
+                index += 1
+
+        return self.frames[:index + 1]
+
     def popFrame(self) -> Frame:
         """Get the next frame and adjust index"""
         if not self.remainingFrames():
@@ -191,17 +202,40 @@ class TubeSequence:
         self.start_time = now
         return self.frames[self.frame_index][1]
 
-    def expand(self, times):
-        for _ in range(times):
-            self += self
-
-        return self
-
     def __add__(self, other):
         return TubeSequence(self.frames + other.frames)
 
     def __iadd__(self, other):
         self.frames += other.frames
+        self.reset()
+        return self
+
+    def _mul_helper(self, x:int):
+        frames = None
+        if isinstance(x, int):
+            ## Multiply list
+            frames = self.frames*x
+            return TubeSequence(self.frames*x)
+        elif isinstance(x, float):
+            ## Mulitply list by integer part
+            frames = self.frames*int(x)
+            f = x - int(x)
+            frames += self.framesThroughTime(f*self.length())
+        else:
+            name = self.__class__.__name__
+            raise PixieAnimationError(f"{name} must be multiplied by int")
+
+        return frames
+
+    def __mul__(self, x:int):
+        return TubeSequence(self._mul_helper(x))
+
+    def __imul__(self, x:int):
+        if not isinstance(x, int):
+            name = self.__class__.__name__
+            raise PixieAnimationError(f"{name} must be multiplied by int")
+
+        self.frames = self._mul_helper(x)
         self.reset()
         return self
 
@@ -255,19 +289,19 @@ class Animation:
 
 
 class TubeAnimation(Animation):
-    def __init__(self, animations: Sequence[TubeSequence]):
+    def __init__(self, tubes: Sequence[TubeSequence]):
         Animation.__init__(self)
-        self.animations: Sequence[TubeSequence] = animations
-        self.current_frame_set: List[Frame] = [Frame()]*len(animations)
+        self.tubes: Sequence[TubeSequence] = tubes
+        self.current_frame_set: List[Frame] = [Frame()]*len(tubes)
 
     def reset(self):
         """Reset the start time of the first frame"""
-        for animation in self.animations:
+        for animation in self.tubes:
             animation.reset()
 
     def length(self):
         """Time length of the animation set. Equal to the longest animation"""
-        return max(map(lambda x: x.length(), self.animations))
+        return max(map(lambda x: x.length(), self.tubes))
 
     def tubeCount(self):
         """Get the number of tubes supported by this animation set"""
@@ -283,10 +317,10 @@ class TubeAnimation(Animation):
         return ''. join([frame.getCode() for frame in frames])
 
     @staticmethod
-    def equalize(animations):
-        """Make all animations the same length"""
-        longest = max(map(lambda x: x.length(), animations))
-        for animation in animations:
+    def equalize(tubes):
+        """Make all tubes the same length"""
+        longest = max(map(lambda x: x.length(), tubes))
+        for animation in tubes:
             diff = longest - animation.length()
             if diff:
                 animation += TubeSequence.makeBlank(diff)
@@ -295,7 +329,7 @@ class TubeAnimation(Animation):
         """Update the frame set based upon the current time. Return True if updated"""
         updated = False
         ## Iterate over each tube animation and check for an update
-        for i, animation in enumerate(self.animations):
+        for i, animation in enumerate(self.tubes):
             frame = animation.popFrame()
             if frame is not None:
                 self.current_frame_set[i] = frame
@@ -308,20 +342,20 @@ class TubeAnimation(Animation):
 
     def done(self):
         """The last frame as loaded"""
-        return all([tube.done() for tube in self.animations])
+        return all([tube.done() for tube in self.tubes])
 
     def clone(self):
-        return TubeAnimation(self.animations[:])
+        return TubeAnimation(self.tubes[:])
 
     def __add__(self, other):
         ## Make copies
-        a1 = self.animations[:]
-        a2 = other.animations[:]
+        a1 = self.tubes[:]
+        a2 = other.tubes[:]
         self.equalize(a1)
         ## Fix difference in number of tubes
         if len(a2) > len(a1):
             diff = len(a2) - len(a1)
-            longest = max(map(lambda x: x.length(), self.animations))
+            longest = max(map(lambda x: x.length(), self.tubes))
             a1 += [TubeSequence.makeBlank(longest) for x in range(diff)]
         elif len(a1) > len(a2):
             diff = len(a1) - len(a2)
@@ -333,27 +367,27 @@ class TubeAnimation(Animation):
 
     def __iadd__(self, other):
         ## Fix difference in number of tubes
-        self.equalize(self.animations)
-        animations = other.animations[:] ## make copy
-        if len(animations) > len(self.animations):
+        self.equalize(self.tubes)
+        tubes = other.tubes[:] ## make copy
+        if len(tubes) > len(self.tubes):
             ## "other" has more tubes
-            diff = len(animations) - len(self.animations)
-            longest = max(map(lambda x: x.length(), self.animations))
-            self.animations += [TubeSequence.makeBlank(longest)]*diff
-        elif len(self.animations) > len(animations):
+            diff = len(tubes) - len(self.tubes)
+            longest = max(map(lambda x: x.length(), self.tubes))
+            self.tubes += [TubeSequence.makeBlank(longest)]*diff
+        elif len(self.tubes) > len(tubes):
             ## "self" has more tubes
-            diff = len(self.animations) - len(animations)
-            longest = max(map(lambda x: x.length(), animations))
-            animations += [TubeSequence(longest)]*diff
+            diff = len(self.tubes) - len(tubes)
+            longest = max(map(lambda x: x.length(), tubes))
+            tubes += [TubeSequence(longest)]*diff
 
-        for i, x in enumerate(animations):
-            self.animations[i] += x
+        for i, x in enumerate(tubes):
+            self.tubes[i] += x
 
     def __eq__(self, other):
         if other is None:
             return False
 
-        return (self.animations == other.animations)
+        return (self.tubes == other.tubes)
 
     def __copy__(self):
         return self.clone()
@@ -388,7 +422,7 @@ class LoopedTubeAnimation(TubeAnimation):
         return None
 
     def clone(self):
-        return LoopedTubeAnimation(self.animations[:], self.delay)
+        return LoopedTubeAnimation(self.tubes[:], self.delay)
 
     def __copy__(self):
         return self.clone()
@@ -448,6 +482,17 @@ class FullFrameAnimation(Animation):
         """Get the code to send to the decoder"""
         frames = self.currentFrame()
         return ''. join([frame.getCode() for frame in frames])
+
+    def framesThroughTime(self, length:float):
+        """Return all the frames that would display in 'length' time"""
+        lapsed = 0
+        index = 0
+        for t, _ in self.frames:
+            if lapsed <= length:
+                lapsed += t
+                index += 1
+
+        return self.frames[:index + 1]
 
     def updateFrameSet(self):
         """Update the frame set based upon the current time. Return True if updated"""
@@ -515,6 +560,35 @@ class FullFrameAnimation(Animation):
 
         ## Add frames
         self.frames += new_frames
+        self.reset()
+        return self
+
+    def _mul_helper(self, x:int):
+        frames = None
+        if isinstance(x, int):
+            ## Multiply list
+            frames = self.frames*x
+            return TubeSequence(self.frames*x)
+        elif isinstance(x, float):
+            ## Mulitply list by integer part
+            frames = self.frames*int(x)
+            f = x - int(x)
+            frames += self.framesThroughTime(f*self.length())
+        else:
+            name = self.__class__.__name__
+            raise PixieAnimationError(f"{name} must be multiplied by int")
+
+        return frames
+
+    def __mul__(self, x:int):
+        return TubeSequence(self._mul_helper(x))
+
+    def __imul__(self, x:int):
+        if not isinstance(x, int):
+            name = self.__class__.__name__
+            raise PixieAnimationError(f"{name} must be multiplied by int")
+
+        self.frames = self._mul_helper(x)
         self.reset()
         return self
 

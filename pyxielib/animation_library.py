@@ -59,7 +59,8 @@ def makeSpinAnimation(*, rate=3, num_tubes=1, offset=0, loop=True) -> TubeAnimat
     return TubeAnimation(animations)
 
 
-def _offsetFrames(frames:FrameSequence, offset) -> FrameSequence:
+#def _offsetFrames(frames:FrameSequence, offset) -> FrameSequence:
+def _offsetFrames(frames, offset):
     if not offset:
         return list(frames) ## Make copy
 
