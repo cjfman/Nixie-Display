@@ -1,5 +1,7 @@
 #! /usr/bin/python3
 
+import os
+import psutil
 import sys
 import time
 
@@ -15,10 +17,24 @@ c = controller.TerminalController(clear_screen=True)
 #aa = animation.LoopedTubeAnimation([animationlib.makeDoubleSpinSequence(10, offset=x) for x in range(12)])
 #aa = animation.LoopedTubeAnimation([animationlib.makeSpinTubeSequence(10, reverse=(x%2), offset=(x%2)) for x in range(12)])
 #aa = animation.LoopedTubeAnimation([animationlib.makeLoopSequence(5, length=2)])
-aa = animation.TubeAnimation([animationlib.makeLoopSequence(5, length=2)*1.5])
+#aa = animation.TubeAnimation([animationlib.makeLoopSequence(5, length=2)*1.5])
+
+#aa = animation.LoopedTubeAnimation([
+#aa = animation.TubeAnimation.makeAndEqualize([
+aa = animation.LoopedTubeAnimation.makeAndNormalize([
+    animationlib.makeSpinTubeSequence(5),
+    animationlib.makeSpinTubeSequence(10, reverse=True),
+    animationlib.makeDoubleSpinSequence(2),
+    animationlib.makeDoubleSpinSequence(7, reverse=True),
+    animationlib.makeLoopSequence(5),
+])
+#], loops=5)
+
 asmlr = assembler.Assembler(controller=c)
 asmlr.start()
 asmlr.setAnimation(aa)
+#process = psutil.Process(os.getpid())
+#print(process.memory_info()[0] >> 20)
 
 try:
     while not asmlr.animationDone():

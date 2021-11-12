@@ -1,9 +1,34 @@
+import math
 import time
 
 from typing import List, Sequence, Tuple
 
 from pyxielib import tube_manager as tm
 from pyxielib.pyxieutil import PyxieError, PyxieUnimplementedError
+
+
+def rgcd(nums):
+    """Recursive math.gcd"""
+    if not nums:
+        raise ValueError("rgcd cannot take an empty list")
+    elif len(nums) == 1:
+        return nums[0]
+    elif len(nums) == 2:
+        return math.gcd(nums[0], nums[1])
+
+    return math.gcd(nums[0], rgcd(nums[1:]))
+
+
+def mulAll(nums):
+    q = 1
+    for x in nums:
+        q *= x
+
+    return q
+
+
+def lcm(nums):
+    return mulAll(nums) // rgcd(nums)
 
 
 class PixieAnimationError(PyxieError):
@@ -212,7 +237,11 @@ class TubeSequence:
 
     def _mul_helper(self, x:int):
         frames = None
-        if isinstance(x, int):
+        if x == 1:
+            frames = self.frames[:]
+        elif x == 0:
+            frames = []
+        elif isinstance(x, int):
             ## Multiply list
             frames = self.frames*x
             return TubeSequence(self.frames*x)
@@ -293,6 +322,12 @@ class TubeAnimation(Animation):
         Animation.__init__(self)
         self.tubes: Sequence[TubeSequence] = tubes
         self.current_frame_set: List[Frame] = [Frame()]*len(tubes)
+
+    @classmethod
+    def makeAndEqualize(cls, tubes: Sequence[TubeSequence], *, extend=1):
+        """Make a TubeAnimation and make all tube sequences the same length"""
+        max_len = max(map(lambda x: x.length(), tubes)) * extend
+        return cls([x*(max_len/x.length()) for x in tubes])
 
     def reset(self):
         """Reset the start time of the first frame"""
@@ -397,13 +432,30 @@ class TubeAnimation(Animation):
 
 
 class LoopedTubeAnimation(TubeAnimation):
-    def __init__(self, animations: Sequence[TubeSequence], delay: float=0):
+    def __init__(self, animations: Sequence[TubeSequence], loops=None):
         TubeAnimation.__init__(self, animations)
-        self.delay = delay
+        self.loops = loops
+        self.loops_done = 0
+
+    @classmethod
+    def makeAndNormalize(cls, tubes: Sequence[TubeSequence]):
+        """Make a TubeAnimation and make all tube sequences loop at the same time"""
+        ## Normalize with a time precision of 100ms
+        times = list(map(lambda x: x.length(), tubes))
+        x100 = list(map(lambda x: int(x*10), times))
+        coef100 = lcm(x100)
+        coef = coef100 / 10
+        print(times, x100, coef100, coef)
+        #coef = lcm(list(map(lambda x: int(x.length()*100), tubes)))/100
+        return cls([x*coef for x in tubes])
+
+    def reset(self):
+        TubeAnimation.reset(self)
+        self.loops_done = 0
 
     def done(self):
         """The last frame has loaded. Always false for LoopedTubeAnimation"""
-        return False
+        return (self.loops is not None and self.loops_done >= self.loops)
 
     def loopOver(self):
         """Reached the last frame of the loop"""
@@ -416,13 +468,15 @@ class LoopedTubeAnimation(TubeAnimation):
             return update
 
         if self.loopOver():
-            self.reset()
-            return TubeAnimation.updateFrameSet(self)
+            self.loops_done += 1
+            if not self.done():
+                TubeAnimation.reset(self)
+                return TubeAnimation.updateFrameSet(self)
 
         return None
 
     def clone(self):
-        return LoopedTubeAnimation(self.tubes[:], self.delay)
+        return LoopedTubeAnimation(self.tubes[:])
 
     def __copy__(self):
         return self.clone()
