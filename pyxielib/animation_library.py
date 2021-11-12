@@ -4,14 +4,33 @@ from typing import List, Sequence, Tuple
 from pyxielib.animation import *
 
 
+def _textToFrames(text):
+    ## I'd love to do a list comprehension
+    ## but we need to fix colons
+    ## return [TextFrame(x) for x in text]
+    frames = []
+    for x in text:
+        if x in [':', '!'] and not frames:
+            raise PixieAnimationError("Cannot start a text animation with a command character")
+
+        if x == ':':
+            frames[-1].setColon()
+        elif x == '!':
+            frames[-1].setUnderline()
+        else:
+            frames.append(TextFrame(x))
+
+    return frames
+
+
 def makeTextAnimation(text):
     """Create an animation set from a text string"""
-    return FullFrameAnimation([(0, [TextFrame(x) for x in text])])
+    return FullFrameAnimation([(0, _textToFrames(text))])
 
 
 def makeTextSequence(msgs:Sequence[str], delay:float, *, looped=False):
     """Create an animation set from multiple text strings"""
-    frames = [FullFrame([TextFrame(x) for x in msg]) for msg in msgs]
+    frames = [FullFrame(_textToFrames(msg)) for msg in msgs]
     if looped:
         return LoopedFullFrameAnimation.makeTimed(frames, delay=delay)
 
@@ -30,9 +49,9 @@ def makeSpinTubeSequence(rate, offset=0, reverse=False):
     return TubeSequence.makeTimed(frames, rate)
 
 
-def makeSpinAnimation(*, rate=3, num_tubes=1, offset=0, loop=True):
+def makeSpinAnimation(*, rate=3, num_tubes=1, offset=0, loop=True) -> TubeAnimation:
     """Create a spin animation"""
-    seq = makeSpinTubeSequence(rate, offset=0)
+    seq = makeSpinTubeSequence(rate, offset)
     animations = [seq.clone() for x in range(num_tubes)]
     if loop:
         return LoopedTubeAnimation(animations)
@@ -40,14 +59,41 @@ def makeSpinAnimation(*, rate=3, num_tubes=1, offset=0, loop=True):
     return TubeAnimation(animations)
 
 
-def makeDoubleSpinTubeSequence(rate, offset=0, reverse=False):
+def _offsetFrames(frames:FrameSequence, offset) -> FrameSequence:
+    if not offset:
+        return list(frames) ## Make copy
+
+    offset = offset % len(frames)
+    return frames[offset:] + frames[:offset]
+
+
+def makeDoubleSpinSequence(rate, *, offset=0, reverse=False) -> TubeSequence:
     """Create a spin sequence"""
     frames_1 = [0x1 << x for x in range(7, 11)]
     frames_2 = [0x1 << x for x in range(11, 14)] + [0x1 << 6]
     frames = [HexFrame(x | y) for x, y in zip(frames_1, frames_2)]
     if offset:
-        offset = offset % len(frames)
-        frames = frames[offset:] + frames[:offset]
+        frames = _offsetFrames(frames, offset)
+    if reverse:
+        frames.reverse()
+
+    return TubeSequence.makeTimed(frames, rate)
+
+
+def makeLoopSequence(rate, *, length=1, offset=0, reverse=False) -> TubeSequence:
+    """Create a loop sequence"""
+    length = max(1, min(5, length))
+    code = (0x1 << length) - 1
+    #frames = [HexFrame(code << x) for x in range(7-length)]
+    frames = []
+    for x in range(6):
+        frame_code = code << x
+        code_1 = frame_code & 0x3F
+        code_2 = (frame_code & 0xFFC0) >> 6
+        frames.append(HexFrame(code_1 | code_2))
+
+    if offset:
+        frames = _offsetFrames(frames, offset)
     if reverse:
         frames.reverse()
 

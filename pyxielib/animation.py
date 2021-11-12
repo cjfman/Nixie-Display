@@ -2,6 +2,7 @@ import time
 
 from typing import List, Sequence, Tuple
 
+from pyxielib import tube_manager as tm
 from pyxielib.pyxieutil import PyxieError, PyxieUnimplementedError
 
 
@@ -16,6 +17,13 @@ class Frame:
 
     def getCode(self):
         return self.code
+
+    def decode(self):
+        """Get the bitmap for an animation"""
+        try:
+            return tm.cmdDecodePrint(self.getCode())[0]
+        except:
+            raise PixieAnimationError(f"Failed to decode '{self.getCode()}'")
 
     def __str__(self):
         return self.code
@@ -55,10 +63,12 @@ class TextFrame(Frame):
         Frame.__init__(self,code)
 
     def setColon(self):
-        self.code += ':'
+        if self.code and self.code[-1] != ':':
+            self.code += ':'
 
     def setUnderline(self):
-        self.code += '!'
+        if self.code and self.code[-1] != '!':
+            self.code += '!'
 
 
 class FullFrame():
@@ -89,6 +99,7 @@ class FullFrame():
 
 TimeFrame = Tuple[float, Frame]
 TimeFullFrame = Tuple[float, FullFrame]
+FrameSequence = Sequence[Frame]
 
 
 class TubeSequence:
