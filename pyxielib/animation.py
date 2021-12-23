@@ -691,3 +691,32 @@ class LoopedFullFrameAnimation(FullFrameAnimation):
 
     def clone(self):
         return LoopedFullFrameAnimation(self.frames[:], self.delay)
+
+
+class ComboAnimation(Animation):
+    """Animation made by concatinating the tubes of other animations"""
+    def __init__(self, animations: Sequence[Animation]):
+        Animation.__init__(self)
+        self.animations: Sequence[Animation] = list(animations)
+
+    def reset(self):
+        for ani in self.animations:
+            ani.reset()
+
+    def tubeCount(self):
+        total = 0
+        for ani in self.animations:
+            total += ani.tubeCount()
+
+    def getCode(self):
+        return ''.join(map(lambda ani: ani.getCode(), self.animations))
+
+    def updateFrameSet(self):
+        """
+        Update the frame set for every animation based upon the current time.
+        Return True if any animations are updated
+        """
+        return any(map(lambda ani: ani.updateFrameSet(), self.animations))
+
+    def done(self):
+        return all(map(lambda ani: ani.done(), self.animations))
