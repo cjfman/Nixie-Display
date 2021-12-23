@@ -8,6 +8,10 @@ extern "C" {
 
 #define STROBE_PIN 2
 #define OE_PIN 4
+#define HV_ENABLE_PIN 7
+//#define SPI_SPEED 1000
+#define SPI_SPEED 100000
+#define SPIN_DELAY 250
 
 
 void newline() {
@@ -55,12 +59,20 @@ void disableTube() {
     digitalWrite(OE_PIN, LOW);
 }
 
+void enbableHV() {
+    digitalWrite(HV_ENABLE_PIN, HIGH);
+}
+
+void disableHV() {
+    digitalWrite(HV_ENABLE_PIN, LOW);
+}
+
 
 void setTube(uint16_t val) {
     disableTube();
-    SPI.beginTransaction(SPISettings(100000, MSBFIRST, SPI_MODE2));
+    SPI.beginTransaction(SPISettings(SPI_SPEED, MSBFIRST, SPI_MODE2));
     int i;
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < 8; i++) {
         SPI.transfer(val >> 8);
         SPI.transfer(val & 0xFF);
     }
@@ -74,7 +86,7 @@ void clearTube() {
 
 void setTubes(uint16_t* tube_bitmaps, int num_tubes) {
     disableTube();
-    SPI.beginTransaction(SPISettings(100000, MSBFIRST, SPI_MODE2));
+    SPI.beginTransaction(SPISettings(SPI_SPEED, MSBFIRST, SPI_MODE2));
 
     // Shift bitmaps out in reverse order
     int i;
@@ -90,8 +102,10 @@ void setTubes(uint16_t* tube_bitmaps, int num_tubes) {
 void setup() {
     Serial.begin(9600);
     pinMode(STROBE_PIN, OUTPUT);
-    disableTube();
     pinMode(OE_PIN, OUTPUT);
+    pinMode(HV_ENABLE_PIN, OUTPUT);
+    disableTube();
+    enbableHV();
     SPI.begin();
     clearTube();
     digitalWrite(STROBE_PIN, LOW);
@@ -122,11 +136,11 @@ void assignLoop() {
 void spin() {
     uint16_t val = 1;
     clearTube();
-    delay(125);
+    delay(SPIN_DELAY);
     for (int i = 0; i < 16; i++) {
         setTube(val);
         val <<= 1;
-        delay(125);
+        delay(SPIN_DELAY);
     }
     clearTube();
 }
@@ -238,8 +252,8 @@ void tubeManagerLoop(void) {
 
 void loop() {
     //assignLoop();
-    tubeManagerLoop();
-    //testLoop();
-    //fillLoop();
+    //tubeManagerLoop();
+    testLoop();
+    fillLoop();
     delay(1);
 }
