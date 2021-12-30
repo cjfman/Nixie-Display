@@ -1,7 +1,7 @@
 #ifndef TUBE_MANAGER_H
 #define TUBE_MANAGER_H
 
-#define NUM_TUBES 12
+#define NUM_TUBES 16
 #define CMD_BUF_SIZE 128
 #define CMD_MAX_NUM_ARGS 10
 #define CMD_MAX_TOKEN 16

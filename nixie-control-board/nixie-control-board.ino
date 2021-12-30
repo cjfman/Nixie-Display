@@ -72,7 +72,7 @@ void setTube(uint16_t val) {
     disableTube();
     SPI.beginTransaction(SPISettings(SPI_SPEED, MSBFIRST, SPI_MODE2));
     int i;
-    for (i = 0; i < 8; i++) {
+    for (i = 0; i < NUM_TUBES; i++) {
         SPI.transfer(val >> 8);
         SPI.transfer(val & 0xFF);
     }
@@ -137,7 +137,7 @@ void spin() {
     uint16_t val = 1;
     clearTube();
     delay(SPIN_DELAY);
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < NUM_TUBES; i++) {
         setTube(val);
         val <<= 1;
         delay(SPIN_DELAY);
@@ -154,7 +154,7 @@ void testLoop() {
 void fillLoop() {
     int i;
     int x = 0;
-    for (i = 0; i < 16; i++) {
+    for (i = 0; i < NUM_TUBES; i++) {
         setTube(x);
         x <<= 1;
         x |= 0x01;
