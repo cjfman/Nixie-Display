@@ -91,13 +91,18 @@ class ClockProgram(Program):
         if self.full_date:
             return self.fullDate()
 
-        return self.shortDate()
+        return self.date()
+        #return self.shortDate()
+        #return self.timeOnly()
 
     @staticmethod
     def formatDate(dateformat, dt=None):
         if dt is None:
             dt = datetime.datetime.now()
         return dt.strftime(dateformat)
+
+    def date(self):
+        return self.formatDate(f"%a %d {self.hour_code}:%M:%S{self.am_pm_code}")
 
     def shortDate(self):
         return self.formatDate(f"%a %d {self.hour_code}:%M")

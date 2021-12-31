@@ -56,6 +56,7 @@ void enableTube() {
 
 void disableTube() {
     digitalWrite(OE_PIN, LOW);
+    digitalWrite(STROBE_PIN, HIGH);
 }
 
 void enbableHV() {
@@ -103,17 +104,17 @@ void setup() {
     pinMode(STROBE_PIN, OUTPUT);
     pinMode(OE_PIN, OUTPUT);
     pinMode(HV_ENABLE_PIN, OUTPUT);
+
     disableTube();
     enbableHV();
     SPI.begin();
     clearTube();
-    digitalWrite(STROBE_PIN, LOW);
-    delay(1000);
-    digitalWrite(STROBE_PIN, HIGH);
+    //digitalWrite(STROBE_PIN, LOW);
+    //delay(1000);
+    //digitalWrite(STROBE_PIN, HIGH);
 
+    initDisplay();
     Serial.print("Nixie tube command terminal\n");
-    //Serial.print("Test spin!\n");
-    //spin();
     printPrompt();
 }
 
@@ -132,14 +133,14 @@ void assignLoop() {
     setTube(decodeChar(c));
 }
 
-void spin() {
+void spin(int t=SPIN_DELAY) {
     uint16_t val = 1;
     clearTube();
     delay(SPIN_DELAY);
     for (int i = 0; i < NUM_TUBES; i++) {
         setTube(val);
         val <<= 1;
-        delay(SPIN_DELAY);
+        delay(t);
     }
     clearTube();
 }
@@ -174,6 +175,23 @@ void printError(char* msg) {
     Serial.print("NAK: ");
     Serial.print(msg);
     Serial.write('\n');
+}
+
+
+void tubeMsg(char* msg) {
+    uint16_t bitmap[NUM_TUBES];
+    int len = strlen(msg);
+    int i;
+    for (i = 0; i < NUM_TUBES; i++) {
+        bitmap[i] = (i < len) ? decodeChar(msg[i]) : 0x0000;
+    }
+    setTubes(bitmap, NUM_TUBES);
+}
+
+
+void initDisplay() {
+    spin(100);
+    tubeMsg("Nixie Tube Start");
 }
 
 void tubeManagerLoop(void) {
