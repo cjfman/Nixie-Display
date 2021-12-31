@@ -30,7 +30,6 @@ class Program:
         if self.isRunning():
             return
 
-        self.running = True
         self.thread.start()
 
     def stop(self):
@@ -50,12 +49,14 @@ class Program:
     def handler(self):
         self.cv.acquire()
         print(f"Starting {self.name} program thread")
+        self.running = True
         try:
             while self.running:
                 new_animation = self.getAnimation()
                 if self.old_animation != new_animation:
-                    self.assembler.setAnimation(new_animation)
                     self.old_animation = new_animation
+                    if self.assembler:
+                        self.assembler.setAnimation(new_animation)
 
                 self.cv.wait(self.delay)
         except Exception as e:
@@ -64,7 +65,6 @@ class Program:
 
         self.cv.release()
         print(f"Exiting {self.name} program thread")
-        self.shutdown = True
 
     def __del__(self):
         self.stop()
