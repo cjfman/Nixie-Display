@@ -46,6 +46,10 @@ uint16_t underlineCode(uint16_t code) {
     return code | 0x4000;
 }
 
+uint16_t colonCode(uint16_t code) {
+    return code | 0x8000;
+}
+
 uint16_t decodeAndUnderline(char c) {
     return underlineCode(decodeChar(c));
 }

@@ -17,14 +17,16 @@ from pyxielib import assembler, controller, program
 #asmlr.setAnimation(a)
 
 #ctrl = controller.TerminalController(clear_screen=True)
-ctrl = controller.SerialController('/dev/ttyACM0')
-print("Connection to Nixie control board established")
+print("Opening connection to Nixie Control Board")
+ctrl = controller.SerialController('/dev/ttyACM0', debug=True)
+print("Connection established")
 asmlr = assembler.Assembler(controller=ctrl)
 prgm = program.ClockProgram(asmlr, flash=True)
 
 print("Starting program")
 prgm.run()
 asmlr.start()
+time.sleep(1)
 
 try:
     #while not asmlr.animationDone():

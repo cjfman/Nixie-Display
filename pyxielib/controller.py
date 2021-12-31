@@ -34,12 +34,13 @@ class TerminalController(Controller):
 
 
 class SerialController(Controller):
-    def __init__(self, port:str, baud:int=9600, timeout:int=5, endl="\n\r"):
+    def __init__(self, port:str, *, baud:int=9600, timeout:int=5, endl="\n\r", debug=False):
         Controller.__init__(self)
         self.port      = port
         self.baud      = baud
         self.timeout   = timeout
         self.endl      = endl
+        self.debug     = debug
         self.serial    = serial.Serial(self.port, self.baud, timeout=self.timeout)
         self.on_prompt = False
         self.prompt    = '> '
@@ -82,6 +83,9 @@ class SerialController(Controller):
             return True
 
         line = self.serial.read_until(self.prompt.encode('utf8'))
+        if self.debug:
+            print(f"Read '{line}'")
+
         self.on_prompt = (len(line) > 0)
         return self.on_prompt
 
@@ -90,6 +94,10 @@ class SerialController(Controller):
             self.close()
             raise ControllerError("Can't find Nixie controller prompt")
 
-        msg = code + self.endl
+        if self.debug:
+            print(f"Command '{code}'")
+
+        msg = f"print:{code}{self.endl}"
         self.serial.write(msg.encode('utf8'))
         self.serial.flush()
+        self.on_prompt = False

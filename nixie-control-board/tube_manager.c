@@ -132,11 +132,13 @@ int getCmd(char* buf, int buf_len) {
 }
 
 int cmdParse(Command* cmd, char* buf, int len) {
-    // Loop over cmd string and find each ':'
+    // Loop over cmd string, find first ':' and each '&'
     int count = 0;
     int i;
+    char sep = ':';
     for (i = 0; i < len; i++) {
-        if (buf[i] == ':') {
+        if (buf[i] == sep) {
+            if (!count) sep = '&';
             if (count == CMD_MAX_NUM_ARGS) return TUBE_ERR_TOO_MANY_ARGS;
             buf[i] = '\0'; // Replace with null char
             // Pointer to argument
@@ -193,7 +195,12 @@ int cmdDecodePrint(char* buf, uint16_t* tube_bitmap, int bitmap_len) {
             }
             else if (c == '!') {
                 // Underline previous character
-                tube_bitmap[bit_i - 1] =                 underlineCode(tube_bitmap[bit_i - 1]);
+                tube_bitmap[bit_i - 1] = underlineCode(tube_bitmap[bit_i - 1]);
+                state = Idle;
+            }
+            else if (c == ':') {
+                // Add colon to last character
+                tube_bitmap[bit_i - 1] = colonCode(tube_bitmap[bit_i - 1]);
                 state = Idle;
             }
             else {
