@@ -16,9 +16,13 @@ from pyxielib import assembler, controller, program
 #asmlr.start()
 #asmlr.setAnimation(a)
 
-ctrl = controller.TerminalController(clear_screen=True)
+#ctrl = controller.TerminalController(clear_screen=True)
+ctrl = controller.SerialController('/dev/ttyACM0')
+print("Connection to Nixie control board established")
 asmlr = assembler.Assembler(controller=ctrl)
 prgm = program.ClockProgram(asmlr, flash=True)
+
+print("Starting program")
 prgm.run()
 asmlr.start()
 

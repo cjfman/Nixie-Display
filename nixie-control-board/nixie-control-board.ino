@@ -9,7 +9,6 @@ extern "C" {
 #define STROBE_PIN 2
 #define OE_PIN 4
 #define HV_ENABLE_PIN 7
-//#define SPI_SPEED 1000
 #define SPI_SPEED 100000
 #define SPIN_DELAY 250
 
@@ -252,8 +251,8 @@ void tubeManagerLoop(void) {
 
 void loop() {
     //assignLoop();
-    //tubeManagerLoop();
-    testLoop();
-    fillLoop();
+    tubeManagerLoop();
+    //testLoop();
+    //fillLoop();
     delay(1);
 }

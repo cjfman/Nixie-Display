@@ -304,7 +304,8 @@ class Animation:
         """Get the number of tubes supported by this animation"""
         raise PyxieUnimplementedError(self)
 
-    def getCode(self):
+    def getCode(self, start=0, end=None):
+        ## pylint: disable=unused-argument
         """Get the code to send to the decoder"""
         raise PyxieUnimplementedError(self)
 
@@ -315,6 +316,17 @@ class Animation:
     def done(self):
         """The last frame as loaded"""
         raise PyxieUnimplementedError(self)
+
+    @staticmethod
+    def _makeCode(frames, start=0, end=None):
+        if end is None:
+            end = len(frames)
+        if start >= len(frames):
+            raise PixieAnimationError("Cannot start index past last animation tube")
+        if start > end:
+            raise PixieAnimationError("'end' index is smaller than 'start'")
+
+        return ''. join([frame.getCode() for frame in frames[start:end]])
 
 
 class TubeAnimation(Animation):
@@ -346,10 +358,9 @@ class TubeAnimation(Animation):
         """Get the currently assembled frame"""
         return self.current_frame_set[:]
 
-    def getCode(self):
+    def getCode(self, start=0, end=None):
         """Get the code to send to the decoder"""
-        frames = self.currentFrameSet()
-        return ''. join([frame.getCode() for frame in frames])
+        return self._makeCode(self.currentFrameSet(), start, end)
 
     @staticmethod
     def equalize(tubes):
@@ -527,10 +538,9 @@ class FullFrameAnimation(Animation):
         """Get the current frame"""
         return list(self.current_frame.getFrames())
 
-    def getCode(self):
+    def getCode(self, start=0, end=None):
         """Get the code to send to the decoder"""
-        frames = self.currentFrame()
-        return ''. join([frame.getCode() for frame in frames])
+        return self._makeCode(self.currentFrame(), start, end)
 
     def framesThroughTime(self, length:float):
         """Return all the frames that would display in 'length' time"""
@@ -708,7 +718,8 @@ class ComboAnimation(Animation):
         for ani in self.animations:
             total += ani.tubeCount()
 
-    def getCode(self):
+    def getCode(self, start=0, end=None):
+        ## pylint: disable=unused-argument
         return ''.join(map(lambda ani: ani.getCode(), self.animations))
 
     def updateFrameSet(self):
