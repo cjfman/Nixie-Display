@@ -767,7 +767,7 @@ class MarqueeAnimation(Animation):
         """Update the frame set based upon the current time. Return True if updated"""
         elapsed = time.time() - self.start_time
         next_index = int(elapsed / self.delay)
-        if next_index > self.tubeCount() or next_index == self.index:
+        if next_index > len(self.frames) or next_index == self.index:
             return False
 
         self.index = next_index
