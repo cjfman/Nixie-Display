@@ -1,4 +1,5 @@
 import datetime
+import feedparser
 import threading
 import time
 import traceback
@@ -92,8 +93,6 @@ class ClockProgram(Program):
             return self.fullDate()
 
         return self.date()
-        #return self.shortDate()
-        #return self.timeOnly()
 
     @staticmethod
     def formatDate(dateformat, dt=None):
@@ -118,3 +117,12 @@ class ClockProgram(Program):
 
     def dateTimeAsNumbers(self):
         return self.formatDate(f"%d/%m {self.hour_code}:%M:%S")
+
+
+class RssProgram(Program):
+    def __init__(self, url, *args, **kwargs):
+        super().__init__(f"Rss {url}", *args, **kwargs)
+        self.url = url
+
+    def getAnimation(self):
+        pass

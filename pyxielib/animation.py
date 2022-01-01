@@ -304,8 +304,7 @@ class Animation:
         """Get the number of tubes supported by this animation"""
         raise PyxieUnimplementedError(self)
 
-    def getCode(self, start=0, end=None):
-        ## pylint: disable=unused-argument
+    def getCode(self):
         """Get the code to send to the decoder"""
         raise PyxieUnimplementedError(self)
 
@@ -314,19 +313,19 @@ class Animation:
         raise PyxieUnimplementedError(self)
 
     def done(self):
-        """The last frame as loaded"""
+        """The last frame has loaded"""
         raise PyxieUnimplementedError(self)
 
-    @staticmethod
-    def _makeCode(frames, start=0, end=None):
-        if end is None:
-            end = len(frames)
-        if start >= len(frames):
-            raise PixieAnimationError("Cannot start index past last animation tube")
-        if start > end:
-            raise PixieAnimationError("'end' index is smaller than 'start'")
-
-        return ''. join([frame.getCode() for frame in frames[start:end]])
+#    @staticmethod
+#    def _makeCode(frames, start=0, end=None):
+#        if end is None:
+#            end = len(frames)
+#        if start >= len(frames):
+#            raise PixieAnimationError("Cannot start index past last animation tube")
+#        if start > end:
+#            raise PixieAnimationError("'end' index is smaller than 'start'")
+#
+#        return ''. join([frame.getCode() for frame in frames[start:end]])
 
 
 class TubeAnimation(Animation):
@@ -358,9 +357,10 @@ class TubeAnimation(Animation):
         """Get the currently assembled frame"""
         return self.current_frame_set[:]
 
-    def getCode(self, start=0, end=None):
+    def getCode(self):
         """Get the code to send to the decoder"""
-        return self._makeCode(self.currentFrameSet(), start, end)
+        #return self._makeCode(self.currentFrameSet(), start, end)
+        return ''.join(map(lambda x: x.getCode(), self.currentFrameSet()))
 
     @staticmethod
     def equalize(tubes):
@@ -384,7 +384,7 @@ class TubeAnimation(Animation):
         if not updated:
             return None
 
-        return self.current_frame_set[:] ## Make copy
+        return True #self.current_frame_set[:] ## Make copy
 
     def done(self):
         """The last frame as loaded"""
@@ -538,9 +538,10 @@ class FullFrameAnimation(Animation):
         """Get the current frame"""
         return list(self.current_frame.getFrames())
 
-    def getCode(self, start=0, end=None):
+    def getCode(self):
         """Get the code to send to the decoder"""
-        return self._makeCode(self.currentFrame(), start, end)
+        #return self._makeCode(self.currentFrame(), start, end)
+        return ''.join(map(lambda x: x.getCode, self.currentFrame()))
 
     def framesThroughTime(self, length:float):
         """Return all the frames that would display in 'length' time"""
@@ -718,8 +719,7 @@ class ComboAnimation(Animation):
         for ani in self.animations:
             total += ani.tubeCount()
 
-    def getCode(self, start=0, end=None):
-        ## pylint: disable=unused-argument
+    def getCode(self):
         return ''.join(map(lambda ani: ani.getCode(), self.animations))
 
     def updateFrameSet(self):
@@ -731,3 +731,50 @@ class ComboAnimation(Animation):
 
     def done(self):
         return all(map(lambda ani: ani.done(), self.animations))
+
+
+class MarqueeAnimation(Animation):
+    def __init__(self, frames:Sequence[Frame], size:int, delay:float=0.5):
+        super().__init__()
+        self.frames     = frames
+        self.size       = size
+        self.delay      = delay
+        self.index      = None
+        self.start_time = time.time()
+
+    @classmethod
+    def fromText(cls, msg, *args, **kwargs):
+        frames = [Frame(x) for x in msg]
+        return cls(frames, *args, **kwargs)
+
+    def reset(self):
+        self.index = None
+        self.start_time = time.time()
+
+    def tubeCount(self):
+        return self.size
+
+    def getCode(self):
+        """Get the code to send to the decoder"""
+        frames = self.frames[self.index:self.size]
+        missing = self.size - len(frames)
+        if missing:
+            frames += [Frame()]*missing
+
+        return ''.join(map(lambda x: x.getCode(), frames))
+
+    def updateFrameSet(self):
+        """Update the frame set based upon the current time. Return True if updated"""
+        elapsed = time.time() - self.start_time
+        next_index = int(elapsed / self.delay)
+        if next_index > self.tubeCount() or next_index == self.index:
+            return False
+
+        self.index = next_index
+        return True
+
+    def done(self):
+        """The last frame has loaded"""
+        elapsed = time.time() - self.start_time
+        next_index = elapsed // self.delay
+        return (next_index >= self.size)
