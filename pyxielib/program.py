@@ -130,7 +130,8 @@ class RssProgram(Program):
 
     def makeRssAnimation(self):
         rss = feedparser.parse(self.url)
-        self.animation = MarqueeAnimation.fromText(rss['entries'][0]['summary'], self.size)
+        msg = rss['feed']['title'] + ": " + (' '*(self.size/2)).join(map(lambda x: x['summary'], rss['entries']))
+        self.animation = MarqueeAnimation.fromText(msg, self.size)
 
     def getAnimation(self):
         return self.animation
