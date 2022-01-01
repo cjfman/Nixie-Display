@@ -6,7 +6,7 @@ import traceback
 
 import pyxielib.animation_library as animationlib
 from pyxielib.assembler import Assembler
-from pyxielib.animation import Animation
+from pyxielib.animation import Animation, MarqueeAnimation
 
 
 class Program:
@@ -120,9 +120,17 @@ class ClockProgram(Program):
 
 
 class RssProgram(Program):
-    def __init__(self, url, *args, **kwargs):
+    def __init__(self, url, size:int=16, *args, **kwargs):
         super().__init__(f"Rss {url}", *args, **kwargs)
-        self.url = url
+        self.url       = url
+        self.size      = size
+        self.animation = None
+
+        self.makeRssAnimation()
+
+    def makeRssAnimation(self):
+        rss = feedparser.parse(self.url)
+        self.animation = MarqueeAnimation.fromText(rss['entries'][0]['summary'], self.size)
 
     def getAnimation(self):
-        pass
+        return self.animation

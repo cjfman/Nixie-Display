@@ -756,7 +756,7 @@ class MarqueeAnimation(Animation):
 
     def getCode(self):
         """Get the code to send to the decoder"""
-        frames = self.frames[self.index:self.size]
+        frames = self.frames[self.index:self.index + self.size]
         missing = self.size - len(frames)
         if missing:
             frames += [Frame()]*missing
