@@ -1,8 +1,8 @@
 import datetime
-import feedparser
 import threading
-import time
 import traceback
+
+import feedparser
 
 import pyxielib.animation_library as animationlib
 from pyxielib.assembler import Assembler
@@ -120,7 +120,7 @@ class ClockProgram(Program):
 
 
 class RssProgram(Program):
-    def __init__(self, url, size:int=16, *args, **kwargs):
+    def __init__(self, url, *args, size:int=16, **kwargs):
         super().__init__(f"Rss {url}", *args, **kwargs)
         self.url       = url
         self.size      = size
@@ -130,8 +130,11 @@ class RssProgram(Program):
 
     def makeRssAnimation(self):
         rss = feedparser.parse(self.url)
-        msg = rss['feed']['title'] + ": " + (' '*(self.size/2)).join(map(lambda x: x['summary'], rss['entries']))
+        msg = rss['feed']['title'] + " || " + (' '*(self.size//2)).join(map(lambda x: x['summary'], rss['entries']))
         self.animation = MarqueeAnimation.fromText(msg, self.size)
 
     def getAnimation(self):
+        if self.animation.done():
+            self.makeRssAnimation()
+
         return self.animation

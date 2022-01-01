@@ -777,4 +777,4 @@ class MarqueeAnimation(Animation):
         """The last frame has loaded"""
         elapsed = time.time() - self.start_time
         next_index = elapsed // self.delay
-        return (next_index >= self.size)
+        return (next_index >= len(self.frames))
