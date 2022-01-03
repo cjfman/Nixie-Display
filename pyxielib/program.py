@@ -4,7 +4,7 @@ import feedparser
 
 import pyxielib.animation_library as animationlib
 from pyxielib.animation import Animation, MarqueeAnimation
-from pyxielib.pyxieutil import  PyxieUnimplementedError
+from pyxielib.pyxieutil import PyxieUnimplementedError
 
 
 class Program:

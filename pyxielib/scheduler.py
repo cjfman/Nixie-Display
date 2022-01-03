@@ -7,7 +7,7 @@ from croniter import croniter
 
 from pyxielib.assembler import Assembler
 from pyxielib.program import Program
-from pyxielib.pyxieutil import PyxieError
+from pyxielib.pyxieutil import PyxieError, PyxieUnimplementedError
 
 
 class SchedulerError(PyxieError):
@@ -20,17 +20,14 @@ TimeSlot = Tuple[float, Program]
 
 
 class Scheduler:
-    def __init__(self, assembler:Assembler, schedule:Sequence[ScheduleEntry], period:float=.1):
+    def __init__(self, assembler:Assembler, *, period:float=.1):
         self.assembler = assembler
-        self.schedule  = list(schedule) ## Make copy
         self.period    = period
-        self.program   = None
         self.running   = False
         self.shutdown  = False
         self.thread    = threading.Thread(target=self.handler)
         self.lock      = threading.Lock()
         self.cv        = threading.Condition(lock=self.lock)
-        self.printSchedule()
 
     def isRunning(self):
         return (self.running and self.thread.is_alive())
@@ -56,7 +53,48 @@ class Scheduler:
         self.thread.join()
         self.shutdown = True
 
-    def currentProgram(self):
+    def getProgram(self):
+        raise PyxieUnimplementedError(self)
+
+    def nextScheduledEntry(self) -> TimeSlot:
+        raise PyxieUnimplementedError(self)
+
+    def checkSchedule(self):
+        raise PyxieUnimplementedError(self)
+
+    def pollProgram(self):
+        program = self.getProgram()
+        if program and program.update():
+            self.assembler.setAnimation(program.getAnimation())
+
+    def handler(self):
+        self.cv.acquire()
+        print("Starting scheduler thread")
+        try:
+            while self.running:
+                self.checkSchedule()
+                self.pollProgram()
+                self.cv.wait(self.period)
+        except Exception as e:
+            print("Fatal error in scheduler thread: ", e)
+            traceback.print_exc()
+
+        self.cv.release()
+        print("Exiting scheduler thread")
+        self.shutdown = True
+
+    def __del__(self):
+        self.stop()
+
+
+class CronScheduler(Scheduler):
+    def __init__(self, schedule:Sequence[ScheduleEntry], *args, **kwargs):
+        Scheduler.__init__(self, *args, **kwargs)
+        self.schedule = list(schedule) ## Make copy
+        self.program  = None
+        self.printSchedule()
+
+    def getProgram(self):
         return self.program
 
     def printSchedule(self):
@@ -92,27 +130,3 @@ class Scheduler:
             print(f"Switch to program '{name}'")
             self.program = next_prog
             self.program.reset()
-
-
-    def pollProgram(self):
-        if self.program and self.program.update():
-            self.assembler.setAnimation(self.program.getAnimation())
-
-    def handler(self):
-        self.cv.acquire()
-        print("Starting scheduler thread")
-        try:
-            while self.running:
-                self.checkSchedule()
-                self.pollProgram()
-                self.cv.wait(self.period)
-        except Exception as e:
-            print("Fatal error in scheduler thread: ", e)
-            traceback.print_exc()
-
-        self.cv.release()
-        print("Exiting scheduler thread")
-        self.shutdown = True
-
-    def __del__(self):
-        self.stop()

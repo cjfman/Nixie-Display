@@ -27,7 +27,7 @@ schl = (
 )
 
 asmlr = assembler.Assembler(controller=ctrl)
-schdlr = scheduler.Scheduler(asmlr, schl)
+schdlr = scheduler.CronScheduler(schl, asmlr)
 
 print("Starting program")
 schdlr.run()
