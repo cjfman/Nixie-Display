@@ -541,7 +541,7 @@ class FullFrameAnimation(Animation):
     def getCode(self):
         """Get the code to send to the decoder"""
         #return self._makeCode(self.currentFrame(), start, end)
-        return ''.join(map(lambda x: x.getCode, self.currentFrame()))
+        return ''.join(map(lambda x: x.getCode(), self.currentFrame()))
 
     def framesThroughTime(self, length:float):
         """Return all the frames that would display in 'length' time"""

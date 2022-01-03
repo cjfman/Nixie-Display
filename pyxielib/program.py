@@ -1,79 +1,31 @@
 import datetime
-import threading
-import traceback
 
 import feedparser
 
 import pyxielib.animation_library as animationlib
-from pyxielib.assembler import Assembler
 from pyxielib.animation import Animation, MarqueeAnimation
 
 
 class Program:
-    def __init__(self, name, assembler:Assembler, delay: float=1):
-        self.name         = name
-        self.assembler    = assembler
-        self.delay: float = delay
-        self.running      = False
-        self.shutdown     = False
-        self.thread       = threading.Thread(target=self.handler)
-        self.lock         = threading.Lock()
-        self.cv           = threading.Condition(lock=self.lock)
-        self.old_animation: Animation = None
-
-    def isRunning(self):
-        return self.running
-
-    def isShutdown(self):
-        return (self.shutdown or self.thread.is_alive())
-
-    def run(self):
-        if self.isRunning():
-            return
-
-        self.thread.start()
-
-    def stop(self):
-        if not self.running:
-            return
-
-        self.running = False
-        self.cv.acquire()
-        self.cv.notify_all()
-        self.cv.release()
-        self.thread.join()
-        self.shutdown = True
+    def __init__(self, name, *args, **kwargs):
+        self.name:str = name
+        self.animation:Animation = None
 
     def getAnimation(self):
-        return self.old_animation
+        return self.animation
 
-    def handler(self):
-        self.cv.acquire()
-        print(f"Starting {self.name} program thread")
-        self.running = True
-        try:
-            while self.running:
-                new_animation = self.getAnimation()
-                if self.old_animation != new_animation:
-                    self.old_animation = new_animation
-                    if self.assembler:
-                        self.assembler.setAnimation(new_animation)
+    def update(self):
+        new_animation = self.getAnimation()
+        if self.animation == new_animation:
+            return False
 
-                self.cv.wait(self.delay)
-        except Exception as e:
-            print(f"Fatal error in {self.name} program: ", e)
-            traceback.print_exc()
-
-        self.cv.release()
-        print(f"Exiting {self.name} program thread")
-
-    def __del__(self):
-        self.stop()
+        self.animation = new_animation
+        return True
 
 
 class ClockProgram(Program):
     def __init__(self, *args, use_24h=False, full_date=False, flash=False, **kwargs):
-        super().__init__("Clock", *args, delay=0.1, **kwargs)
+        super().__init__("Clock", *args, **kwargs)
         self.full_date = full_date
         self.use_24h = use_24h
         self.hour_code = "%I"
