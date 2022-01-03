@@ -50,11 +50,12 @@ class ClockProgram(Program):
 
     def getAnimation(self):
         code = self.getTimeCode()
-        codes = [code]
         if self.flash:
             codes = [code, code.replace(':', '')]
+            return animationlib.makeTextSequence(codes, 0.5, looped=True)
 
-        return animationlib.makeTextSequence(codes, 0.5, looped=True)
+        return animationlib.makeTextSequence([code], 1)
+
 
     def getTimeCode(self):
         if self.full_date:

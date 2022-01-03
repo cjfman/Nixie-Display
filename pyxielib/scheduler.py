@@ -1,3 +1,4 @@
+import datetime
 import time
 import threading
 import traceback
@@ -14,9 +15,15 @@ class SchedulerError(PyxieError):
     pass
 
 
-TimeCode = str
-ScheduleEntry = Tuple[TimeCode, Program]
+CronTimeCode = str
+ScheduleEntry = Tuple[CronTimeCode, Program]
 TimeSlot = Tuple[float, Program]
+
+
+def timeSlotToStr(slot:TimeSlot):
+    ts, prog = slot
+    dt = datetime.datetime.fromtimestamp(ts)
+    return dt.strftime(f"%d/%m %H:%M:%S") + " : " + prog.getName()
 
 
 class Scheduler:
@@ -101,7 +108,9 @@ class CronScheduler(Scheduler):
         now = time.time()
         next_progs = [(croniter(tc, now).get_next(), prog) for tc, prog in self.schedule]
         next_progs = sorted(next_progs, key=lambda x: x[0])
-        print(next_progs)
+        print("Cron Program Schedule")
+        for slot in next_progs:
+            print(timeSlotToStr(slot))
 
     def nextScheduledEntry(self) -> TimeSlot:
         if not self.schedule:
@@ -112,21 +121,22 @@ class CronScheduler(Scheduler):
             return (0, self.schedule[0][1])
 
         now = time.time()
-        next_progs = [(croniter(tc, now).get_next(), prog) for tc, prog in self.schedule]
-        next_prog = sorted(next_progs, key=lambda x: x[0])[0]
-        return next_prog
+        slots = [(croniter(tc, now).get_next(), prog) for tc, prog in self.schedule]
+        slot = sorted(slots, key=lambda x: x[0])[0]
+        return slot
 
     def checkSchedule(self):
-        timecode, next_prog = self.nextScheduledEntry()
+        slot = self.nextScheduledEntry()
+        timestamp, next_prog = slot
         name = next_prog.getName()
-        now = time.time()
+        now = time.time() + 1 ## Ugly hack. Don't miss start of time slot
         ## Set program now if nothing else is running
         if self.program is None:
             self.program = next_prog
             print(f"Starting with program '{name}'")
             self.program.reset()
         ## Update program if it's scheduled to run now
-        elif timecode <= now and next_prog != self.program:
+        elif timestamp <= now and next_prog != self.program:
             print(f"Switch to program '{name}'")
             self.program = next_prog
             self.program.reset()
