@@ -56,7 +56,6 @@ class ClockProgram(Program):
 
         return animationlib.makeTextSequence([code], 1)
 
-
     def getTimeCode(self):
         if self.full_date:
             return self.fullDate()

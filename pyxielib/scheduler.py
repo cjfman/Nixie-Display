@@ -94,6 +94,21 @@ class Scheduler:
         self.stop()
 
 
+class SingleProgramScheduler(Scheduler):
+    def __init__(self, program:Program, *args, **kwargs):
+        Scheduler.__init__(self, *args, **kwargs)
+        self.program = program
+
+    def getProgram(self):
+        return self.program
+
+    def nextScheduledEntry(self) -> TimeSlot:
+        return (time.time(), self.program)
+
+    def checkSchedule(self):
+        pass
+
+
 class CronScheduler(Scheduler):
     def __init__(self, schedule:Sequence[ScheduleEntry], *args, **kwargs):
         Scheduler.__init__(self, *args, **kwargs)

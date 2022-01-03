@@ -556,7 +556,12 @@ class FullFrameAnimation(Animation):
 
     def updateFrameSet(self):
         """Update the frame set based upon the current time. Return True if updated"""
+        ## This should never happen, but let's be safe
+        if self.frame_index >= len(self.frames):
+            return False
+
         now = time.time()
+        ## Force set the first frame and set the start time
         if not self.started:
             self.started = True
             self.start_time = now
