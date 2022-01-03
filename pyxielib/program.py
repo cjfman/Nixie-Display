@@ -12,11 +12,14 @@ class Program:
         self.name:str = name
         self.old_animation:Animation = None
 
+    def getName(self):
+        return self.name
+
     def getAnimation(self):
         raise PyxieUnimplementedError(self)
 
     def reset(self):
-        pass
+        self.old_animation = None
 
     def update(self):
         new_animation = self.getAnimation()
@@ -25,6 +28,12 @@ class Program:
 
         self.old_animation = new_animation
         return True
+
+    def __str__(self):
+        return f"{self.name}"
+
+    def __repr__(self):
+        return "<Program: " + str(self) + ">"
 
 
 class ClockProgram(Program):
@@ -41,7 +50,10 @@ class ClockProgram(Program):
 
     def getAnimation(self):
         code = self.getTimeCode()
-        codes = [code, code.replace(':', '')]
+        codes = [code]
+        if self.flash:
+            codes = [code, code.replace(':', '')]
+
         return animationlib.makeTextSequence(codes, 0.5, looped=True)
 
     def getTimeCode(self):
@@ -77,7 +89,7 @@ class ClockProgram(Program):
 
 class RssProgram(Program):
     def __init__(self, url, *args, size:int=16, **kwargs):
-        super().__init__(f"Rss {url}", *args, **kwargs)
+        super().__init__(f"RSS {url}", *args, **kwargs)
         self.url       = url
         self.size      = size
         self.animation = None
