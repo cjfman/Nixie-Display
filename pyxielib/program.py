@@ -4,22 +4,26 @@ import feedparser
 
 import pyxielib.animation_library as animationlib
 from pyxielib.animation import Animation, MarqueeAnimation
+from pyxielib.pyxieutil import  PyxieUnimplementedError
 
 
 class Program:
     def __init__(self, name, *args, **kwargs):
         self.name:str = name
-        self.animation:Animation = None
+        self.old_animation:Animation = None
 
     def getAnimation(self):
-        return self.animation
+        raise PyxieUnimplementedError(self)
+
+    def reset(self):
+        pass
 
     def update(self):
         new_animation = self.getAnimation()
-        if self.animation == new_animation:
+        if self.old_animation == new_animation:
             return False
 
-        self.animation = new_animation
+        self.old_animation = new_animation
         return True
 
 
@@ -77,7 +81,10 @@ class RssProgram(Program):
         self.url       = url
         self.size      = size
         self.animation = None
+        self.makeRssAnimation()
 
+    def reset(self):
+        self.animation = None
         self.makeRssAnimation()
 
     def makeRssAnimation(self):

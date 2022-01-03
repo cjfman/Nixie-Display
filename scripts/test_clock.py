@@ -10,13 +10,6 @@ from pyxielib import assembler, controller, program, scheduler
 
 
 DEBUG = True
-#c = controller.TerminalController(clear_screen=True)
-#p = program.ClockProgram()
-#a = animation.makeTextAnimation(p.dateTimeAsNumbers())
-#asmlr = assembler.Assembler(controller=c)
-#asmlr.start()
-#asmlr.setAnimation(a)
-
 ctrl = None
 if DEBUG:
     ctrl = controller.TerminalController(clear_screen=True)
@@ -35,7 +28,6 @@ asmlr.start()
 time.sleep(1)
 
 try:
-    #while not asmlr.animationDone():
     while True:
         if not asmlr.isRunning():
             print("Assembler stopped unexpectedly")
