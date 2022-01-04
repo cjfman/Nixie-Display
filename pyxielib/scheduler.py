@@ -2,7 +2,7 @@ import datetime
 import time
 import threading
 import traceback
-from typing import Sequence, Tuple
+from typing import Sequence
 
 from croniter import croniter
 
@@ -16,14 +16,44 @@ class SchedulerError(PyxieError):
 
 
 CronTimeCode = str
-ScheduleEntry = Tuple[CronTimeCode, Program]
-TimeSlot = Tuple[float, Program]
+
+class TimeSlot:
+    def __init__(self, timestamp:float, program:Program, priority:int=1):
+        self.timestamp = timestamp
+        self.program   = program
+        self.priority  = priority
+
+    def __lt__(self, other):
+        if self.timestamp != other.timestamp:
+            return (self.timestamp < other.timestamp)
+        if self.priority != other.priority:
+            return (self.priority > other.priority)
+
+        return True
+
+    def __str__(self):
+        dt = datetime.datetime.fromtimestamp(self.timestamp)
+        return dt.strftime(f"%d/%m %H:%M:%S") + " : " + self.program.getName()
 
 
-def timeSlotToStr(slot:TimeSlot):
-    ts, prog = slot
-    dt = datetime.datetime.fromtimestamp(ts)
-    return dt.strftime(f"%d/%m %H:%M:%S") + " : " + prog.getName()
+class ScheduleEntry:
+    def __init__(self, timecode:CronTimeCode, priority:int, program:Program):
+        self.timecode = timecode
+        self.priority = priority
+        self.program  = program
+
+    def nextTimeStamp(self, now=None) -> float:
+        """Returns the timestamp of the next event"""
+        if now is None:
+            now = time.time()
+
+        return croniter(self.timecode, now).get_next()
+
+    def nextTimeSlot(self, now=None) -> TimeSlot:
+        if now is None:
+            now = time.time()
+
+        return TimeSlot(self.nextTimeStamp(now), self.program, self.priority)
 
 
 class Scheduler:
@@ -112,7 +142,7 @@ class SingleProgramScheduler(Scheduler):
 class CronScheduler(Scheduler):
     def __init__(self, schedule:Sequence[ScheduleEntry], *args, **kwargs):
         Scheduler.__init__(self, *args, **kwargs)
-        self.schedule = list(schedule) ## Make copy
+        self.schedule = [ScheduleEntry(*x) for x in (schedule or [])]
         self.program  = None
         self.printSchedule()
 
@@ -121,11 +151,10 @@ class CronScheduler(Scheduler):
 
     def printSchedule(self):
         now = time.time()
-        next_progs = [(croniter(tc, now).get_next(), prog) for tc, prog in self.schedule]
-        next_progs = sorted(next_progs, key=lambda x: x[0])
         print("Cron Program Schedule")
-        for slot in next_progs:
-            print(timeSlotToStr(slot))
+        slots = sorted([entry.nextTimeSlot(now) for entry in self.schedule])
+        for slot in slots:
+            print(str(slot))
 
     def nextScheduledEntry(self) -> TimeSlot:
         if not self.schedule:
@@ -133,25 +162,23 @@ class CronScheduler(Scheduler):
 
         ## Check for only one entry
         if len(self.schedule) == 1:
-            return (0, self.schedule[0][1])
+            return self.schedule[0].nextTimeSlot()
 
         now = time.time()
-        slots = [(croniter(tc, now).get_next(), prog) for tc, prog in self.schedule]
-        slot = sorted(slots, key=lambda x: x[0])[0]
-        return slot
+        slots = sorted([entry.nextTimeSlot(now) for entry in self.schedule])
+        return slots[0]
 
     def checkSchedule(self):
         slot = self.nextScheduledEntry()
-        timestamp, next_prog = slot
-        name = next_prog.getName()
+        name = slot.program.getName()
         now = time.time() + 1 ## Ugly hack. Don't miss start of time slot
         ## Set program now if nothing else is running
         if self.program is None:
-            self.program = next_prog
+            self.program = slot.program
             print(f"Starting with program '{name}'")
             self.program.reset()
         ## Update program if it's scheduled to run now
-        elif timestamp <= now and next_prog != self.program:
+        elif slot.timestamp <= now and slot.program != self.program:
             print(f"Switch to program '{name}'")
-            self.program = next_prog
+            self.program = slot.program
             self.program.reset()

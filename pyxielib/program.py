@@ -8,7 +8,7 @@ from pyxielib.pyxieutil import PyxieUnimplementedError
 
 
 class Program:
-    def __init__(self, name, *args, **kwargs):
+    def __init__(self, name):
         self.name:str = name
         self.old_animation:Animation = None
 
@@ -37,8 +37,8 @@ class Program:
 
 
 class ClockProgram(Program):
-    def __init__(self, *args, use_24h=False, full_date=False, flash=False, **kwargs):
-        super().__init__("Clock", *args, **kwargs)
+    def __init__(self, use_24h=False, full_date=False, flash=False):
+        super().__init__("Clock")
         self.full_date = full_date
         self.use_24h = use_24h
         self.hour_code = "%I"
@@ -88,8 +88,8 @@ class ClockProgram(Program):
 
 
 class RssProgram(Program):
-    def __init__(self, url, *args, size:int=16, **kwargs):
-        super().__init__(f"RSS {url}", *args, **kwargs)
+    def __init__(self, url, size:int=16):
+        super().__init__(f"RSS {url}")
         self.url       = url
         self.size      = size
         self.animation = None
