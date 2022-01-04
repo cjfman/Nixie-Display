@@ -4,7 +4,7 @@ import feedparser
 
 import pyxielib.animation_library as animationlib
 from pyxielib.animation import Animation, MarqueeAnimation
-from pyxielib.pyxieutil import PyxieUnimplementedError
+from pyxielib.pyxieutil import PyxieUnimplementedError, flattenHTML
 
 
 class Program:
@@ -88,24 +88,56 @@ class ClockProgram(Program):
 
 
 class RssProgram(Program):
-    def __init__(self, url, size:int=16):
-        super().__init__(f"RSS {url}")
-        self.url       = url
-        self.size      = size
-        self.animation = None
+    def __init__(self, url, *, name=None, size:int=16, max_entries=-1, \
+            use_title=True, use_titles:bool=False
+        ):
+        super().__init__(name or f"RSS {url}")
+        self.url         = url
+        self.size        = size
+        self.use_title   = use_title
+        self.use_titles  = use_titles
+        self.animation   = None
+        self.max_entries = max_entries
         self.makeRssAnimation()
 
     def reset(self):
         self.animation = None
         self.makeRssAnimation()
 
+
+    @staticmethod
+    def cleanText(txt):
+        return txt.replace('°', '*')
+
     def makeRssAnimation(self):
         rss = feedparser.parse(self.url)
-        msg = rss['feed']['title'] + " || " + (' '*(self.size//2)).join(map(lambda x: x['summary'], rss['entries']))
-        self.animation = MarqueeAnimation.fromText(msg, self.size)
+        entries = rss['entries'][:self.max_entries]
+        values = []
+        for entry in entries:
+            value = entry['summary']
+            if 'content' in entry:
+                value = flattenHTML(' '.join([x['value'] for x in entry['content']]))
+            elif self.use_titles:
+                value = entry['title'] + ": " + value
+
+            values.append(value)
+
+        msg = (' '*(self.size//2)).join(values)
+        if self.use_title:
+            msg = rss['feed']['title'] + " || " + msg
+
+        self.animation = MarqueeAnimation.fromText(self.cleanText(msg), self.size)
 
     def getAnimation(self):
         if self.animation.done():
             self.makeRssAnimation()
 
         return self.animation
+
+
+class WeatherProgram(RssProgram):
+    def __init__(self, zipcode):
+        self.zipcode = zipcode
+        self.url = f"http://www.rssweather.com/zipcode/{self.zipcode}/rss.php"
+        RssProgram.__init__(self, self.url, name='Weather', use_titles=True, max_entries=2)
+

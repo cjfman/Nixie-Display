@@ -1,5 +1,7 @@
 import inspect
 
+from bs4 import BeautifulSoup
+
 
 class PyxieError(Exception):
     def __init__(self, msg, *args, **kwargs):
@@ -21,3 +23,14 @@ class PyxieUnimplementedError(PyxieError):
         fname = inspect.stack()[1][3]
         cname = type(obj).__name__
         PyxieError.__init__(self, f"{cname}.{fname}() is unimplemented")
+
+
+def flattenHTML(html):
+    """Parse html content and remove the tags"""
+    soup = BeautifulSoup(html, "html.parser")
+    for data in soup(['style', 'script']):
+        ## Remove tags
+        data.decompose()
+
+    ## Return data by retrieving the tag content
+    return ' '.join(soup.stripped_strings)
