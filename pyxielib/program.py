@@ -3,7 +3,7 @@ import datetime
 import feedparser
 
 import pyxielib.animation_library as animationlib
-from pyxielib.animation import Animation, MarqueeAnimation
+from pyxielib.animation import Animation, MarqueeAnimation, escapeText
 from pyxielib.pyxieutil import PyxieUnimplementedError, flattenHTML
 
 
@@ -105,10 +105,6 @@ class RssProgram(Program):
         self.makeRssAnimation()
 
 
-    @staticmethod
-    def cleanText(txt):
-        return txt.replace('°', '*')
-
     def makeRssAnimation(self):
         rss = feedparser.parse(self.url)
         entries = rss['entries'][:self.max_entries]
@@ -126,7 +122,7 @@ class RssProgram(Program):
         if self.use_title:
             msg = rss['feed']['title'] + " || " + msg
 
-        self.animation = MarqueeAnimation.fromText(self.cleanText(msg), self.size)
+        self.animation = MarqueeAnimation.fromText(escapeText(msg), self.size)
 
     def getAnimation(self):
         if self.animation.done():

@@ -87,9 +87,6 @@ class SerialController(Controller):
             return True
 
         line = self.serial.read_until(self.prompt.encode('utf8'))
-        if self.debug:
-            print(f"Read '{line}'")
-
         self.on_prompt = (len(line) > 0)
         return self.on_prompt
 
@@ -105,3 +102,6 @@ class SerialController(Controller):
         self.serial.write(msg.encode('utf8'))
         self.serial.flush()
         self.on_prompt = False
+        line = self.readline()
+        if self.debug:
+            print(f"Read '{line}'")

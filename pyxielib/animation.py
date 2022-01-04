@@ -31,6 +31,14 @@ def lcm(nums):
     return mulAll(nums) // rgcd(nums)
 
 
+def escapeText(txt):
+    txt = txt.replace('°', '*')
+    txt = txt.replace('(', '<')
+    txt = txt.replace(')', '>')
+    txt = txt.replace('?', ' !')
+    return txt
+
+
 class PixieAnimationError(PyxieError):
     pass
 
