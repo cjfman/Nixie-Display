@@ -51,7 +51,10 @@ class Assembler:
         self.shutdown = True
 
     def animationDone(self):
-        return self.animation.done()
+        self.cv.acquire()
+        done = self.animation.done()
+        self.cv.release()
+        return done
 
     def start(self):
         if self.animation is not None:

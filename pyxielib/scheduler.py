@@ -97,6 +97,7 @@ class Scheduler:
         raise PyxieUnimplementedError(self)
 
     def checkSchedule(self):
+        """Return True if a new event should be started"""
         raise PyxieUnimplementedError(self)
 
     def pollProgram(self):
@@ -109,8 +110,9 @@ class Scheduler:
         print("Starting scheduler thread")
         try:
             while self.running:
-                self.checkSchedule()
-                self.pollProgram()
+                if self.checkSchedule() or self.assembler.animationDone():
+                    self.pollProgram()
+
                 self.cv.wait(self.period)
         except Exception as e:
             print("Fatal error in scheduler thread: ", e)
@@ -169,6 +171,7 @@ class CronScheduler(Scheduler):
         return slots[0]
 
     def checkSchedule(self):
+        """Return True if a new event should be started"""
         slot = self.nextScheduledEntry()
         name = slot.program.getName()
         now = time.time() + 1 ## Ugly hack. Don't miss start of time slot
@@ -177,8 +180,12 @@ class CronScheduler(Scheduler):
             self.program = slot.program
             print(f"Starting with program '{name}'")
             self.program.reset()
+            return True
         ## Update program if it's scheduled to run now
         elif slot.timestamp <= now and slot.program != self.program:
             print(f"Switch to program '{name}'")
             self.program = slot.program
             self.program.reset()
+            return True
+
+        return False
