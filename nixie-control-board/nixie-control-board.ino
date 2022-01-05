@@ -11,6 +11,7 @@ extern "C" {
 #define HV_ENABLE_PIN 7
 #define SPI_SPEED 100000
 #define SPIN_DELAY 250
+#define BAUD 115200
 
 
 void newline() {
@@ -100,7 +101,7 @@ void setTubes(uint16_t* tube_bitmaps, int num_tubes) {
 }
 
 void setup() {
-    Serial.begin(9600);
+    Serial.begin(BAUD);
     pinMode(STROBE_PIN, OUTPUT);
     pinMode(OE_PIN, OUTPUT);
     pinMode(HV_ENABLE_PIN, OUTPUT);

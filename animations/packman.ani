@@ -1,5 +1,41 @@
-sprite|packman_1|0x05B9 # Mouth closed
-sprite|packman_2|0x02BF # Mouth closed
+sprite|packman_1|0x0539 # Mouth closed
+sprite|packman_2|0x023F # Mouth closed
 sprite|ghost|0x1437
-frame|1|{packman_1} {3}{ghost} {ghost} {ghost}{2}
-frame|1|{packman_2} {3}{ghost} {ghost} {ghost}
+frame|0.175|{packman_1} {2}{ghost}{3} {16}
+frame|0.175|{packman_2} {2}{ghost}{3} {16}
+frame|0.175| {packman_1} {2}{ghost}{3} {16}
+frame|0.175| {packman_2} {2}{ghost}{3} {16}
+frame|0.175| {2}{packman_1} {2}{ghost}{3} {16}
+frame|0.175| {2}{packman_2} {2}{ghost}{3} {16}
+frame|0.175| {3}{packman_1} {2}{ghost}{3} {16}
+frame|0.175| {3}{packman_2} {2}{ghost}{3} {16}
+frame|0.175| {4}{packman_1} {2}{ghost}{3} {16}
+frame|0.175| {4}{packman_2} {2}{ghost}{3} {16}
+frame|0.175| {5}{packman_1} {2}{ghost}{3} {16}
+frame|0.175| {5}{packman_2} {2}{ghost}{3} {16}
+frame|0.175| {6}{packman_1} {2}{ghost}{3} {16}
+frame|0.175| {6}{packman_2} {2}{ghost}{3} {16}
+frame|0.175| {7}{packman_1} {2}{ghost}{3} {16}
+frame|0.175| {7}{packman_2} {2}{ghost}{3} {16}
+frame|0.175| {8}{packman_1} {2}{ghost}{3} {16}
+frame|0.175| {8}{packman_2} {2}{ghost}{3} {16}
+frame|0.175| {9}{packman_1} {2}{ghost}{3} {16}
+frame|0.175| {9}{packman_2} {2}{ghost}{3} {16}
+frame|0.175| {10}{packman_1} {2}{ghost}{3} {16}
+frame|0.175| {10}{packman_2} {2}{ghost}{3} {16}
+frame|0.175| {11}{packman_1} {2}{ghost}{3} {16}
+frame|0.175| {11}{packman_2} {2}{ghost}{3} {16}
+frame|0.175| {12}{packman_1} {2}{ghost}{3} {16}
+frame|0.175| {12}{packman_2} {2}{ghost}{3} {16}
+frame|0.175| {13}{packman_1} {2}{ghost}{3} {16}
+frame|0.175| {13}{packman_2} {2}{ghost}{3} {16}
+frame|0.175| {14}{packman_1} {2}{ghost}{3} {16}
+frame|0.175| {14}{packman_2} {2}{ghost}{3} {16}
+frame|0.175| {15}{packman_1} {2}{ghost}{3} {16}
+frame|0.175| {15}{packman_2} {2}{ghost}{3} {16}
+frame|0.5| {16}
+frame|0.25|{ghost}
+frame|0.25|{ghost}{2}
+frame|0.25|{ghost}{3}
+frame|0.25| {ghost}{3}
+frame|0.25| {2}{ghost}{3}
