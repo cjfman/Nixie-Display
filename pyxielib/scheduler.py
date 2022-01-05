@@ -100,10 +100,18 @@ class Scheduler:
         """Return True if a new event should be started"""
         raise PyxieUnimplementedError(self)
 
+    def idle(self):
+        """This is called when the current animation and program are done"""
+        pass
+
     def pollProgram(self):
         program = self.getProgram()
-        if program and program.update():
+        if program is None:
+            return
+        if program.update():
             self.assembler.setAnimation(program.getAnimation())
+        elif program.done():
+            self.idle()
 
     def handler(self):
         self.cv.acquire()
@@ -142,10 +150,11 @@ class SingleProgramScheduler(Scheduler):
 
 
 class CronScheduler(Scheduler):
-    def __init__(self, schedule:Sequence[ScheduleEntry], *args, **kwargs):
+    def __init__(self, schedule:Sequence[ScheduleEntry], *args, default=None, **kwargs):
         Scheduler.__init__(self, *args, **kwargs)
         self.schedule = [ScheduleEntry(*x) for x in (schedule or [])]
         self.program  = None
+        self.default  = default
         self.printSchedule()
 
     def getProgram(self):
@@ -189,3 +198,6 @@ class CronScheduler(Scheduler):
             return True
 
         return False
+
+    def idle(self):
+        self.program = self.default

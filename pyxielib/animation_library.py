@@ -4,33 +4,14 @@ from typing import List, Sequence, Tuple
 from pyxielib.animation import *
 
 
-def _textToFrames(text):
-    ## I'd love to do a list comprehension
-    ## but we need to fix colons
-    ## return [TextFrame(x) for x in text]
-    frames = []
-    for x in text:
-        if x in [':', '!'] and not frames:
-            raise PixieAnimationError("Cannot start a text animation with a command character")
-
-        if x == ':':
-            frames[-1].setColon()
-        elif x == '!':
-            frames[-1].setUnderline()
-        else:
-            frames.append(TextFrame(x))
-
-    return frames
-
-
 def makeTextAnimation(text, length=1):
     """Create an animation set from a text string"""
-    return FullFrameAnimation([(length, _textToFrames(text))])
+    return FullFrameAnimation([(length, textToFrames(text))])
 
 
 def makeTextSequence(msgs:Sequence[str], delay:float, *, looped=False):
     """Create an animation set from multiple text strings"""
-    frames = [FullFrame(_textToFrames(msg)) for msg in msgs]
+    frames = [FullFrame(textToFrames(msg)) for msg in msgs]
     if looped:
         return LoopedFullFrameAnimation.makeTimed(frames, delay=delay)
 

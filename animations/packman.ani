@@ -1,0 +1,5 @@
+sprite|packman_1|0x05B9 # Mouth closed
+sprite|packman_2|0x02BF # Mouth closed
+sprite|ghost|0x1437
+frame|1|{packman_1} {3}{ghost} {ghost} {ghost}{2}
+frame|1|{packman_2} {3}{ghost} {ghost} {ghost}

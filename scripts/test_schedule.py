@@ -23,9 +23,9 @@ clock_prgm = program.ClockProgram(flash=False)
 nyt_prgm = program.RssProgram("https://rss.nytimes.com/services/xml/rss/nyt/US.xml", size=16)
 weather_prgm = program.WeatherProgram('02139')
 schl = (
-    #("*/5 * * * *",  1, clock_prgm),
-    #("*/15 * * * *", 2, nyt_prgm),
-    ("*/10 * * * *", 3, weather_prgm),
+    ("*/5 * * * *",  1, clock_prgm),
+    ("*/15 * * * *", 3, nyt_prgm),
+    ("*/10 * * * *", 2, weather_prgm),
 )
 
 asmlr = assembler.Assembler(controller=ctrl)

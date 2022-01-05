@@ -1,10 +1,11 @@
 import math
+import re
 import time
 
 from typing import List, Sequence, Tuple
 
 from pyxielib import tube_manager as tm
-from pyxielib.pyxieutil import PyxieError, PyxieUnimplementedError
+from pyxielib.pyxieutil import PyxieError, PyxieUnimplementedError, strToInt
 
 
 def rgcd(nums):
@@ -128,6 +129,31 @@ class FullFrame():
 
     def __deepcopy__(self, memo):
         return self.clone()
+
+    def __str__(self):
+        return ','.join([str(x) for x in self.frames])
+
+    def __repr__(self):
+        return "[FullFrame " + str(self) + "]"
+
+
+def textToFrames(text):
+    ## I'd love to do a list comprehension
+    ## but we need to fix colons
+    ## return [TextFrame(x) for x in text]
+    frames = []
+    for x in text:
+        if x in [':', '!'] and not frames:
+            raise PixieAnimationError("Cannot start a text animation with a command character")
+
+        if x == ':':
+            frames[-1].setColon()
+        elif x == '!':
+            frames[-1].setUnderline()
+        else:
+            frames.append(TextFrame(x))
+
+    return frames
 
 
 TimeFrame = Tuple[float, Frame]
@@ -791,3 +817,156 @@ class MarqueeAnimation(Animation):
         elapsed = time.time() - self.start_time
         next_index = elapsed // self.delay
         return (next_index >= len(self.frames))
+
+
+class FileAnimationError(PixieAnimationError):
+    """Use for errors found when parsing an animation file"""
+    pass
+
+
+class FileAnimation(FullFrameAnimation):
+    def __init__(self, path):
+        self.path       = path
+        self.sprites    = {}
+        self.fullframes: TimeFullFrame = []
+        FullFrameAnimation.__init__(self, self.loadFrames(path))
+
+    def loadFrames(self, path):
+        """Load animation from a file given the path"""
+        try:
+            with open(path, 'r') as ani_file:
+                return self._loadFramesHelper(ani_file)
+        except FileAnimationError as e:
+            raise PixieAnimationError(f"Failed to load animation file {path}: " + e.what())
+        except Exception as e:
+            raise PixieAnimationError(f"Failed to load animation file {path}: " + str(e))
+
+    def _loadFramesHelper(self, ani_file):
+        """Load animation from a sequence of strings"""
+        self.frames = []
+        ## Parse file line by line
+        line_no = 0
+        errors = []
+        for line in ani_file:
+            ## Get command and arguments from line
+            line_no += 1
+            line = re.sub(r"\s*(?:#.*)", '', line) ## Remove comments from line
+            line = line.strip()
+            args = line.split('|')
+            if not args:
+                errors.append((line_no, "Line is blank"))
+                continue
+
+            ## Parse command
+            cmd = args[0]
+            args = args[1:]
+            handlers = {
+                'sprite': (2, self._parseSprite),
+                'frame': (2, self._parseFrame),
+            }
+            try:
+                if cmd not in handlers:
+                    errors.append((line_no, f"No such command '{cmd}'"))
+                    continue
+
+                num, hdlr = handlers[cmd]
+                if len(args) != num:
+                    errors.append((line_no, f"Command '{cmd}' takes exactly {num} arguments"))
+                    continue
+
+                hdlr(*args)
+            except FileAnimationError as e:
+                errors.append((line_no, e.what()))
+                continue
+
+        if errors:
+            num = len(errors)
+            errors = [f"Line {l_no}: {msg}" for l_no, msg in errors]
+            raise FileAnimationError(f"Found {num} errors:\n" + "\n".join(errors))
+
+        return self.fullframes
+
+    def _parseSprite(self, name, code):
+        """Parse a sprite line"""
+        ## Convert code to int
+        try:
+            code = strToInt(code)
+        except Exception as e:
+            raise FileAnimationError("Failed to convert sprite code: " + str(e))
+
+        self.sprites[name] = HexFrame(code)
+
+    def _parseFrame(self, length, line):
+        """Parse a frame line"""
+        ## Parse first argument
+        try:
+            length = float(length)
+        except:
+            raise FileAnimationError(f"Argument 'delay' must be a float, not '{length}'")
+
+        ## Tokenize the frames
+        tokens = self._tokenize(line)
+        frames = []
+        for t_type, token in tokens:
+            if t_type == 'literal':
+                ## Treat token as plain text
+                frames.extend(textToFrames(token))
+            elif t_type == 'macro':
+                ## Look up token as defined symbol
+                if token in self.sprites:
+                    frames.append(self.sprites[token])
+                else:
+                    raise FileAnimationError(f"Symbol '{token}' not defined")
+            elif t_type == 'multiplier':
+                ## Multipy the previously defined token
+                if token == 0:
+                    raise FileAnimationError(f"Multiplier must be a positive integer")
+                if not frames:
+                    raise FileAnimationError(f"No previous frame to multiply")
+                ## Add token-1 more of the last frame
+                for x in range(token-1):
+                    frames.append(frames[-1])
+            else:
+                raise PyxieError(f"Unrecognized token type '{t_type}'")
+
+
+        self.fullframes.append((length, FullFrame(frames)))
+
+
+    @staticmethod
+    def _tokenize(line):
+        """Break line into tokens"""
+        tokens = []
+        parsed = ""
+        while line:
+            ## Match macro
+            m = re.search(r"^\{([A-z]\w*)}", line)
+            if m:
+                tokens.append(('macro', m.groups()[0]))
+
+            ## Match multiplier
+            if m is None:
+                m = re.search(r"^\{(\d+)}", line)
+                if m:
+                    tokens.append(('multiplier', int(m.groups()[0])))
+
+            ## Match literal
+            if m is None:
+                m = re.search(r"^[^\{\}]*", line)
+                if m:
+                    tokens.append(('literal', m.group()))
+
+            ## At least one match was found
+            if m:
+                matched = m.group()
+                line = line[len(matched):]
+                parsed += matched
+                continue
+
+            ## Identify error
+            if line[0] in ['{', '}']:
+                raise FileAnimationError(f"Found unmatched '{line[0]}: '{parsed}<<HERE>>{line}'")
+
+            raise FileAnimationError(f"Unknown syntax error: '{parsed}<<HERE>>{line}'")
+
+        return tokens

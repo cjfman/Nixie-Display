@@ -34,3 +34,15 @@ def flattenHTML(html):
 
     ## Return data by retrieving the tag content
     return ' '.join(soup.stripped_strings)
+
+
+def strToInt(num):
+    prefix = num[:2]
+    if prefix == '0x':
+        return int(num, 16)
+    elif prefix == '0b':
+        return int(num, 2)
+    elif prefix[0] == '0':
+        return int(num, 8)
+
+    return int(num)

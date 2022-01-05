@@ -21,6 +21,9 @@ class Program:
     def reset(self):
         self.old_animation = None
 
+    def done(self):
+        return False
+
     def update(self):
         new_animation = self.getAnimation()
         if self.old_animation == new_animation:
@@ -89,21 +92,23 @@ class ClockProgram(Program):
 
 class RssProgram(Program):
     def __init__(self, url, *, name=None, size:int=16, max_entries=-1, \
-            use_title=True, use_titles:bool=False
+            use_title=True, use_titles:bool=False, loop:bool=True
         ):
         super().__init__(name or f"RSS {url}")
         self.url         = url
         self.size        = size
+        self.max_entries = max_entries
         self.use_title   = use_title
         self.use_titles  = use_titles
         self.animation   = None
-        self.max_entries = max_entries
-        self.makeRssAnimation()
+        self.loop        = loop
 
     def reset(self):
+        Program.reset(self)
         self.animation = None
-        self.makeRssAnimation()
 
+    def done(self):
+        return (self.animation is not None and not self.loop)
 
     def makeRssAnimation(self):
         rss = feedparser.parse(self.url)
@@ -125,7 +130,7 @@ class RssProgram(Program):
         self.animation = MarqueeAnimation.fromText(escapeText(msg), self.size)
 
     def getAnimation(self):
-        if self.animation.done():
+        if self.animation is None or (self.loop and self.animation.done()):
             self.makeRssAnimation()
 
         return self.animation
@@ -135,5 +140,6 @@ class WeatherProgram(RssProgram):
     def __init__(self, zipcode):
         self.zipcode = zipcode
         self.url = f"http://www.rssweather.com/zipcode/{self.zipcode}/rss.php"
-        RssProgram.__init__(self, self.url, name='Weather', use_titles=True, max_entries=2)
-
+        RssProgram.__init__(self, self.url,
+            name='Weather', use_titles=True, loop=False, max_entries=2
+        )
