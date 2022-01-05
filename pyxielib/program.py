@@ -92,7 +92,7 @@ class ClockProgram(Program):
 
 class RssProgram(Program):
     def __init__(self, url, *, name=None, size:int=16, max_entries=-1, \
-            use_title=True, use_titles:bool=False, loop:bool=True
+            use_title=True, use_titles:bool=False, use_content=False, loop:bool=True
         ):
         super().__init__(name or f"RSS {url}")
         self.url         = url
@@ -100,6 +100,7 @@ class RssProgram(Program):
         self.max_entries = max_entries
         self.use_title   = use_title
         self.use_titles  = use_titles
+        self.use_content = use_content
         self.animation   = None
         self.loop        = loop
 
@@ -115,10 +116,13 @@ class RssProgram(Program):
         entries = rss['entries'][:self.max_entries]
         values = []
         for entry in entries:
+            ## Default is to sure the summary
             value = entry['summary']
-            if 'content' in entry:
+            if self.use_content and 'content' in entry:
+                ## Override summary with content
                 value = flattenHTML(' '.join([x['value'] for x in entry['content']]))
             elif self.use_titles:
+                ## Only add the title if the content isn't used
                 value = entry['title'] + ": " + value
 
             values.append(value)
@@ -141,5 +145,5 @@ class WeatherProgram(RssProgram):
         self.zipcode = zipcode
         self.url = f"http://www.rssweather.com/zipcode/{self.zipcode}/rss.php"
         RssProgram.__init__(self, self.url,
-            name='Weather', use_titles=True, loop=False, max_entries=2
+            name='Weather', use_titles=True, loop=False, use_content=True, max_entries=2
         )

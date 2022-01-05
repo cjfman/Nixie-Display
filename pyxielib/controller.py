@@ -38,7 +38,7 @@ class TerminalController(Controller):
 
 
 class SerialController(Controller):
-    def __init__(self, port:str, *, baud:int=9600, timeout:int=5, endl="\n\r", debug=False):
+    def __init__(self, port:str, *, baud:int=115200, timeout:int=5, endl="\n\r", debug=False):
         Controller.__init__(self)
         self.port      = port
         self.baud      = baud
