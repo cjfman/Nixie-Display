@@ -9,7 +9,7 @@ sys.path.append("/home/charles/Projects/nixie")
 from pyxielib import assembler, controller, program, scheduler
 
 
-DEBUG = False
+DEBUG = True
 ctrl = None
 if DEBUG:
     ctrl = controller.TerminalController(clear_screen=False, print_code=True)

@@ -111,6 +111,9 @@ class RssProgram(Program):
     def done(self):
         return (self.animation is not None and not self.loop)
 
+    def escapeText(self, txt):
+        return escapeText(txt)
+
     def makeRssAnimation(self):
         rss = feedparser.parse(self.url)
         entries = rss['entries'][:self.max_entries]
@@ -131,7 +134,7 @@ class RssProgram(Program):
         if self.use_title:
             msg = rss['feed']['title'] + " || " + msg
 
-        self.animation = MarqueeAnimation.fromText(escapeText(msg), self.size)
+        self.animation = MarqueeAnimation.fromText(self.escapeText(msg), self.size)
 
     def getAnimation(self):
         if self.animation is None or (self.loop and self.animation.done()):
@@ -141,9 +144,25 @@ class RssProgram(Program):
 
 
 class WeatherProgram(RssProgram):
-    def __init__(self, zipcode):
+    def __init__(self, zipcode, size=16):
         self.zipcode = zipcode
         self.url = f"http://www.rssweather.com/zipcode/{self.zipcode}/rss.php"
         RssProgram.__init__(self, self.url,
-            name='Weather', use_titles=True, loop=False, use_content=True, max_entries=2
+            name='Weather', use_titles=True, use_content=True,
+            size=size, max_entries=2, loop=False
         )
+
+    def escapeText(self, txt):
+        txt = RssProgram.escapeText(self, txt)
+        replace = {
+            'NORTH': 'N',
+            'SOUTH': 'S',
+            'EAST':  'E',
+            'WEST':  'W',
+            '  ':    ' ',
+            ' WIND DIRECTION:': '',
+        }
+        regex_rep = {
+            r"< <\d+.>.>": '',
+        }
+        return escapeText(txt, replace, regex_rep)

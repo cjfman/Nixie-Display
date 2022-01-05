@@ -2,7 +2,7 @@ import math
 import re
 import time
 
-from typing import List, Sequence, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 from pyxielib import tube_manager as tm
 from pyxielib.pyxieutil import PyxieError, PyxieUnimplementedError, strToInt
@@ -32,11 +32,23 @@ def lcm(nums):
     return mulAll(nums) // rgcd(nums)
 
 
-def escapeText(txt):
-    txt = txt.replace('°', '*')
-    txt = txt.replace('(', '<')
-    txt = txt.replace(')', '>')
-    txt = txt.replace('?', ' !')
+def escapeText(txt, overrides:Dict[str, str]=None, regex_rep:Dict[str, str]=None):
+    txt = txt.upper()
+    replace = {
+        '°': '*',
+        '(': '<',
+        ')': '>',
+        '?': ' !',
+    }
+    if overrides is not None:
+        replace.update(overrides)
+    for old, new in replace.items():
+        txt = txt.replace(old, new)
+
+    if regex_rep is not None:
+        for old, new in regex_rep.items():
+            txt = re.sub(old, new, txt, flags=re.IGNORECASE)
+
     return txt
 
 
@@ -825,9 +837,10 @@ class FileAnimationError(PixieAnimationError):
 
 
 class FileAnimation(FullFrameAnimation):
-    def __init__(self, path):
-        self.path       = path
-        self.sprites    = {}
+    def __init__(self, path, size=16):
+        self.path    = path
+        self.size    = size
+        self.sprites = {}
         self.fullframes: TimeFullFrame = []
         FullFrameAnimation.__init__(self, self.loadFrames(path))
 
@@ -930,6 +943,13 @@ class FileAnimation(FullFrameAnimation):
                 raise PyxieError(f"Unrecognized token type '{t_type}'")
 
 
+        ## Fix number of frames
+        num_frames = len(frames)
+        if num_frames > self.size:
+            frames = frames[:self.size]
+        elif num_frames < self.size:
+            missing = self.size - num_frames
+            frames += [Frame()]*missing
         self.fullframes.append((length, FullFrame(frames)))
 
 
