@@ -2,8 +2,12 @@ sprite|packman_1|0x0539 # Mouth opened facing right
 sprite|packman_2|0x023F # Mouth closed facing right
 sprite|packman_3|0x104F # Mouth opened facing left
 sprite|packman_4|0x203F # Mouth closed facing left
+sprite|packman_5|0x003F # Death 1
+sprite|packman_6|0x017E # Death 2
+sprite|packman_7|0x221C # Death 3
+sprite|packman_8|0x1408 # Death 4
 sprite|ghost_1|0x1437
-sprite|ghost_2|0x003F
+sprite|ghost_2|0x083F
 scale|0.15
 # Move on screen from left
 frame|2|
@@ -146,4 +150,22 @@ frame|0.75|{ghost_2}{2}
 frame|0.75|{ghost_1}{2}
 frame|0.75|{ghost_2}
 frame|0.75|{ghost_1}
-frame|8|
+frame|4|
+frame|0.75|{packman_1}
+frame|0.75|{packman_2}
+frame|0.75| {packman_1}
+frame|0.75| {packman_2}
+frame|0.75|{ghost_1} {packman_1}
+frame|0.75|{ghost_2} {packman_2}
+frame|0.75| {2}{ghost_1}{packman_1}
+frame|0.75| {2}{ghost_2}{packman_2}
+frame|0.75| {3}{ghost_1}{packman_1}
+frame|0.75| {3}{ghost_2}{packman_2}
+frame|0.75| {4}{ghost_1}{packman_1}
+frame|0.75| {4}{ghost_2}{packman_2}
+frame|3| {4}{ghost_2}{packman_5}
+frame|3| {4}{ghost_2}{packman_6}
+frame|3| {4}{ghost_2}{packman_7}
+frame|3| {4}{ghost_2}{packman_8}
+frame|3| {4}{ghost_2}
+frame|4|
