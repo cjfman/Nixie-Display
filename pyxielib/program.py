@@ -159,7 +159,6 @@ class WeatherProgram(RssProgram):
             'SOUTH': 'S',
             'EAST':  'E',
             'WEST':  'W',
-            '  ':    ' ',
             ' WIND DIRECTION:': '',
         }
         regex_rep = {

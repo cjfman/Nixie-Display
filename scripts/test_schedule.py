@@ -9,7 +9,7 @@ sys.path.append("/home/charles/Projects/nixie")
 from pyxielib import assembler, controller, program, scheduler
 
 
-DEBUG = True
+DEBUG = False
 ctrl = None
 if DEBUG:
     ctrl = controller.TerminalController(clear_screen=False, print_code=True)
@@ -24,8 +24,8 @@ nyt_prgm = program.RssProgram("https://rss.nytimes.com/services/xml/rss/nyt/US.x
 weather_prgm = program.WeatherProgram('02139')
 schl = (
     ("*/5 * * * *",  1, clock_prgm),
-    ("*/15 * * * *", 3, nyt_prgm),
-    ("*/10 * * * *", 2, weather_prgm),
+    ("*/20 * * * *", 3, nyt_prgm),
+    ("*/15 * * * *", 2, weather_prgm),
 )
 
 asmlr = assembler.Assembler(controller=ctrl)

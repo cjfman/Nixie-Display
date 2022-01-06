@@ -840,6 +840,7 @@ class FileAnimation(FullFrameAnimation):
     def __init__(self, path, size=16):
         self.path    = path
         self.size    = size
+        self.scale   = 1
         self.sprites = {}
         self.fullframes: TimeFullFrame = []
         FullFrameAnimation.__init__(self, self.loadFrames(path))
@@ -865,6 +866,9 @@ class FileAnimation(FullFrameAnimation):
             line_no += 1
             line = re.sub(r"\s*(?:#.*)", '', line) ## Remove comments from line
             line = line.strip()
+            if not line:
+                continue
+
             args = line.split('|')
             if not args:
                 errors.append((line_no, "Line is blank"))
@@ -873,9 +877,13 @@ class FileAnimation(FullFrameAnimation):
             ## Parse command
             cmd = args[0]
             args = args[1:]
+            if cmd == 'end':
+                break
+
             handlers = {
                 'sprite': (2, self._parseSprite),
                 'frame': (2, self._parseFrame),
+                'scale': (1, self._parseScale),
             }
             try:
                 if cmd not in handlers:
@@ -913,7 +921,7 @@ class FileAnimation(FullFrameAnimation):
         """Parse a frame line"""
         ## Parse first argument
         try:
-            length = float(length)
+            length = float(length)*self.scale
         except:
             raise FileAnimationError(f"Argument 'delay' must be a float, not '{length}'")
 
@@ -952,6 +960,13 @@ class FileAnimation(FullFrameAnimation):
             frames += [Frame()]*missing
         self.fullframes.append((length, FullFrame(frames)))
 
+    def _parseScale(self, scale):
+        """Parse a sprite line"""
+        ## Convert code to int
+        try:
+            self.scale = float(scale)
+        except Exception as e:
+            raise FileAnimationError("Failed to convert scale to float: " + str(e))
 
     @staticmethod
     def _tokenize(line):
