@@ -5,6 +5,17 @@ from pyxielib import tube_manager as tm
 from pyxielib.pyxieutil import PyxieError
 
 
+USE_RASPI=False
+try:
+    import spidev           ## pylint: disable=import-error
+    import RPi.GPIO as GPIO ## pylint: disable=import-error
+    GPIO.setmode(GPIO.BOARD)
+    USE_RASPI=True
+except:
+    print("Warn: There is no 'spidev' library. The 'RaspberryPi' controller will not work")
+    USE_RASPI=False
+
+
 class ControllerError(PyxieError):
     pass
 
@@ -105,3 +116,75 @@ class SerialController(Controller):
         line = self.readline()
         if self.debug:
             print(f"Read '{line}'")
+
+
+class RaspberryPiController(Controller):
+    def __init__(self, *, num_tubes=16, oe_pin=29, hv_pin=13, strobe_pin=15, \
+            spi_ctrl=0, device=0, mode=2, speed=100000, debug=False):
+        """Controller for directly using the RasPis output pins"""
+        if not USE_RASPI:
+            raise ControllerError("Cannot instantiate a 'RasbperryPiController'")
+
+        Controller.__init__(self)
+        self.num_tubes  = num_tubes
+        self.oe_pin     = oe_pin
+        self.hv_pin     = hv_pin
+        self.strobe_pin = strobe_pin
+        self.spi_ctrl   = spi_ctrl
+        self.device     = device
+        self.mode       = mode
+        self.speed      = speed
+        self.debug      = debug
+        self.spi        = None
+
+        ## Setup GPIO
+        GPIO.setup(self.oe_pin, GPIO.OUT)
+        GPIO.output(self.oe_pin, False)       ## Disable output
+        GPIO.setup(self.strobe_pin, GPIO.OUT)
+        GPIO.output(self.strobe_pin, True)    ## Disable strobe
+        GPIO.setup(self.hv_pin, GPIO.OUT)
+        GPIO.output(self.hv_pin, True)        ## Enable high voltage
+
+        ## Setup SPI controller
+        self.spi = spidev.SpiDev()
+        self.spi.open(self.spi_ctrl, device)
+        self.spi.max_speed_hz = self.speed
+        self.spi.mode = self.mode
+
+        self.enable()
+
+    def enable(self):
+        GPIO.output(self.oe_pin, True)     ## Disable strobe
+        GPIO.output(self.strobe_pin, True) ## Disable strobe
+
+    def disable(self):
+        GPIO.output(self.oe_pin, False)
+
+    def send(self, code):
+        """Decode and send bitmaps over SPI"""
+        if self.debug:
+            print(f"Command '{code}'")
+
+        try:
+            bitmaps = tm.cmdDecodePrint(code)
+        except:
+            pass
+
+        ## Correct number of tubes
+        if len(bitmaps) > self.num_tubes:
+            data = bitmaps[:16] ## Take left most 16 tubes
+        elif len(bitmaps) < self.num_tubes:
+            missing = 16 - len(bitmaps)
+            bitmaps.extend([0]*missing)
+
+        data = []
+        ## Send the data in reverse order
+        self.disable()
+        for bitmap in reversed(bitmaps):
+            msb = (bitmap >> 8) & 0xFF
+            lsb = bitmap & 0xFF
+            #self.spi.xfer([msb, lsb])
+            data += [msb, lsb]
+
+        self.spi.xfer(data)
+        self.enable()

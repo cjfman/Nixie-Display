@@ -10,9 +10,13 @@ from pyxielib import assembler, controller, program, scheduler
 
 
 DEBUG = False
+RASPI = True
 ctrl = None
 if DEBUG:
     ctrl = controller.TerminalController(clear_screen=False, print_code=True)
+elif RASPI:
+    print("Using the RaspberryPi outputs directly")
+    ctrl = controller.RaspberryPiController(debug=True)
 else:
     print("Opening connection to Nixie Control Board")
     ctrl = controller.SerialController('/dev/ttyACM0', debug=True)
