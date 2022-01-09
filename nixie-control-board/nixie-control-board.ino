@@ -248,7 +248,7 @@ void tubeManagerLoop(void) {
         printPrompt();
         return;
     }
-    if (cmd.type != Print) {
+    if (cmd.type != CommandType::Print) {
        printError("Unsupported command\n");
        printPrompt();
        return;
