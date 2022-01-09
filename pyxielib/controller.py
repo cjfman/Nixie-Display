@@ -197,11 +197,11 @@ class RaspberryPiController(Controller):
 
         data = []
         ## Send the data in reverse order
-        self.disable()
         for bitmap in reversed(bitmaps):
             msb = (bitmap >> 8) & 0xFF
             lsb = bitmap & 0xFF
             data += [msb, lsb]
 
+        self.disable()
         self.spi.xfer(data)
         self.enable()
