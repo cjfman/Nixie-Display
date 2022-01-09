@@ -138,6 +138,7 @@ class RaspberryPiController(Controller):
         self.spi        = None
 
         ## Setup GPIO
+        GPIO.setwarnings(False)
         GPIO.setup(self.oe_pin, GPIO.OUT)
         GPIO.output(self.oe_pin, False)       ## Disable output
         GPIO.setup(self.strobe_pin, GPIO.OUT)
@@ -205,3 +206,7 @@ class RaspberryPiController(Controller):
         self.disable()
         self.spi.xfer(data)
         self.enable()
+
+    def __del__(self):
+        GPIO.cleanup()
+        self.spi.close()
