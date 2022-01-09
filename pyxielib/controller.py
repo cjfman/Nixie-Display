@@ -154,21 +154,39 @@ class RaspberryPiController(Controller):
         self.enable()
 
     def enable(self):
-        GPIO.output(self.oe_pin, True)     ## Disable strobe
-        GPIO.output(self.strobe_pin, True) ## Disable strobe
+        try:
+            GPIO.output(self.oe_pin, True)     ## Disable strobe
+            GPIO.output(self.strobe_pin, True) ## Disable strobe
+        except Exception as e:
+            msg = "Failed to enable display"
+            if self.debug:
+                msg += "\n\t" + str(e)
+
+            raise ControllerError(msg)
 
     def disable(self):
-        GPIO.output(self.oe_pin, False)
+        try:
+            GPIO.output(self.oe_pin, False)
+        except Exception as e:
+            msg = "Failed to disable display"
+            if self.debug:
+                msg += "\n\t" + str(e)
+
+            raise ControllerError(msg)
 
     def send(self, code):
         """Decode and send bitmaps over SPI"""
         if self.debug:
             print(f"Command '{code}'")
 
+        ## Ignore all errors
         try:
-            bitmaps = tm.cmdDecodePrint(code)
+            self.spiSend(code)
         except:
             pass
+
+    def spiSend(self, code):
+        bitmaps = tm.cmdDecodePrint(code)
 
         ## Correct number of tubes
         if len(bitmaps) > self.num_tubes:
@@ -183,7 +201,6 @@ class RaspberryPiController(Controller):
         for bitmap in reversed(bitmaps):
             msb = (bitmap >> 8) & 0xFF
             lsb = bitmap & 0xFF
-            #self.spi.xfer([msb, lsb])
             data += [msb, lsb]
 
         self.spi.xfer(data)
