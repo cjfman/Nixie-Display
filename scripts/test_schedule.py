@@ -16,7 +16,7 @@ if DEBUG:
     ctrl = controller.TerminalController(clear_screen=False, print_code=True)
 elif RASPI:
     print("Using the RaspberryPi outputs directly")
-    ctrl = controller.RaspberryPiController(debug=True)
+    ctrl = controller.RaspberryPiController(debug=True, speed=10**6)
 else:
     print("Opening connection to Nixie Control Board")
     ctrl = controller.SerialController('/dev/ttyACM0', debug=True)
