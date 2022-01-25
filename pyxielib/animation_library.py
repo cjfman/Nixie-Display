@@ -6,7 +6,7 @@ from pyxielib.animation import *
 
 def makeTextAnimation(text, length=1):
     """Create an animation set from a text string"""
-    return FullFrameAnimation([(length, textToFrames(text))])
+    return FullFrameAnimation([(length, FullFrame(textToFrames(text)))])
 
 
 def makeTextSequence(msgs:Sequence[str], delay:float, *, looped=False):
