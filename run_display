@@ -13,25 +13,11 @@ CTRL_TYPE = None
 ctrl = None
 
 parser = argparse.ArgumentParser(description='Nixie tube controller')
-parser.add_argument('--logfile', help="File to log all info")
 parser.add_argument('-c', '--controller', help="The type of controller <terminal,raspi,serial>")
 parser.add_argument('-p', '--print-code', action='store_true', help="Print the code to the output")
 parser.add_argument('-s', '--serial', help="The serial device path. Overrides --controller")
 parser.add_argument('-v', '--verbose', action='store_true', help="Be verbose in output")
 args = parser.parse_args()
-
-
-## Open log file
-logfile   = None
-old_stdout = None
-if args.logfile is not None:
-    try:
-        logfile = open(args.logfile, 'a')
-        old_stdout = sys.stdout
-        sys.stdout = logfile
-    except Exception as e:
-        print(f"Failed redirect otuput to logfile {args.logfile}")
-        print(str(e))
 
 
 ## Fix controler argument
