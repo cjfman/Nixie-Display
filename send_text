@@ -12,6 +12,7 @@ parser.add_argument('-c', '--controller', help="The type of controller <terminal
 parser.add_argument('-p', '--print-code', action='store_true', help="Print the code to the output")
 parser.add_argument('-s', '--serial', help="The serial device path. Overrides --controller")
 parser.add_argument('-v', '--verbose', action='store_true', help="Be verbose in output")
+parser.add_argument('-n', '--no-clean', action='store_true', help="Dont' cleanup the GPIO")
 parser.add_argument('message')
 args = parser.parse_args()
 
@@ -29,7 +30,7 @@ if args.controller == 'terminal':
     ctrl = controller.TerminalController(clear_screen=False, print_code=args.print_code)
 elif args.controller == 'raspi':
     print("Using the RaspberryPi outputs directly")
-    ctrl = controller.RaspberryPiController(speed=10**6, debug=args.verbose, print_code=args.print_code)
+    ctrl = controller.RaspberryPiController(speed=10**6, debug=args.verbose, print_code=args.print_code, cleanup=(not args.no_clean))
 elif args.controller == 'serial':
     print("Opening connection to Nixie Control Board")
     ctrl = controller.SerialController(args.serial, debug=args.verbose)
