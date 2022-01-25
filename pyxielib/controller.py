@@ -120,7 +120,8 @@ class SerialController(Controller):
 
 class RaspberryPiController(Controller):
     def __init__(self, *, num_tubes=16, oe_pin=29, hv_pin=13, strobe_pin=15, \
-            spi_ctrl=0, device=0, mode=2, speed=100000, debug=False):
+            spi_ctrl=0, device=0, mode=2, speed=100000, \
+            debug=False, print_code=False):
         """Controller for directly using the RasPis output pins"""
         if not USE_RASPI:
             raise ControllerError("Cannot instantiate a 'RasbperryPiController'")
@@ -135,6 +136,7 @@ class RaspberryPiController(Controller):
         self.mode       = mode
         self.speed      = speed
         self.debug      = debug
+        self.print_code = print_code
         self.spi        = None
 
         ## Setup GPIO
@@ -177,7 +179,7 @@ class RaspberryPiController(Controller):
 
     def send(self, code):
         """Decode and send bitmaps over SPI"""
-        if self.debug:
+        if self.print_code:
             print(f"Command '{code}'")
 
         ## Ignore all errors

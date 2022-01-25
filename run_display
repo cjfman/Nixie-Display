@@ -1,24 +1,59 @@
 #! /usr/bin/python3
 ##pylint: disable=wrong-import-position
 
+import argparse
 import sys
 import time
 
 from pyxielib import assembler, controller, program, scheduler
 
 
-DEBUG = False
-RASPI = True
+RASPI = False
+CTRL_TYPE = None
 ctrl = None
-if DEBUG:
-    ctrl = controller.TerminalController(clear_screen=False, print_code=True)
-elif RASPI:
-    print("Using the RaspberryPi outputs directly")
-    ctrl = controller.RaspberryPiController(speed=10**6)
+
+parser = argparse.ArgumentParser(description='Nixie tube controller')
+parser.add_argument('--logfile', help="File to log all info")
+parser.add_argument('-c', '--controller', help="The type of controller <terminal,raspi,serial>")
+parser.add_argument('-p', '--print-code', action='store_true', help="Print the code to the output")
+parser.add_argument('-s', '--serial', help="The serial device path. Overrides --controller")
+parser.add_argument('-v', '--verbose', action='store_true', help="Be verbose in output")
+args = parser.parse_args()
+
+
+## Open log file
+logfile   = None
+old_stdout = None
+if args.logfile is not None:
+    try:
+        logfile = open(args.logfile, 'a')
+        old_stdout = sys.stdout
+        sys.stdout = logfile
+    except Exception as e:
+        print(f"Failed redirect otuput to logfile {args.logfile}")
+        print(str(e))
+
+
+## Fix controler argument
+if args.serial is not None:
+    args.controller = 'serial'
 else:
+    args.controller = args.controller.lower()
+
+
+## Create controller
+if args.controller == 'terminal':
+    ctrl = controller.TerminalController(clear_screen=True, print_code=args.print_code)
+elif args.controller == 'raspi':
+    print("Using the RaspberryPi outputs directly")
+    ctrl = controller.RaspberryPiController(speed=10**6, debug=args.verbose, print_code=args.print_code)
+elif args.controller == 'serial':
     print("Opening connection to Nixie Control Board")
-    ctrl = controller.SerialController('/dev/ttyACM0', debug=True)
+    ctrl = controller.SerialController(args.serial, debug=args.verbose)
     print("Connection established")
+else:
+    print(f"Unsupported controller type: {args.controller}")
+    sys.exit(1)
 
 
 clock_prgm = program.ClockProgram(flash=False)
