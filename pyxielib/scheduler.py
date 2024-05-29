@@ -49,6 +49,13 @@ class ScheduleEntry:
 
         return croniter(self.timecode, now).get_next()
 
+    def nextTimeStamps(self, n, now=None) -> List[float]:
+        """Returns list of the timestamps of the next n events"""
+        if now is None:
+            now = time.time()
+
+        return [croniter(self.timecode, now).get_next() for x in range(n)]
+
     def nextTimeSlot(self, now=None) -> TimeSlot:
         if now is None:
             now = time.time()
