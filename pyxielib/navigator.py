@@ -21,6 +21,9 @@ class MenuItem:
     def is_done(self):
         return self.done
 
+    def set_done(self):
+        self.done = True
+
     def reset(self):
         self.done = False
 
@@ -40,10 +43,10 @@ class MenuItem:
         pass
 
     def key_enter(self):
-        self.done = True
+        self.set_done()
 
     def key_backspace(self):
-        self.done = True
+        self.set_done()
 
     def key_alpha_num(self, c):
         ## pylint: disable=unused-argument
@@ -61,7 +64,7 @@ class SubcommandItem(MenuItem):
         super().__init__(name, **kwargs)
         self.cmd = cmd
         self.shell = shell
-        self.last_output = ""
+        self.last_output = "Running..."
 
     def for_display(self):
         return self.last_output
@@ -78,8 +81,8 @@ class SubcommandItem(MenuItem):
 
 
 class Menu(MenuItem):
-    def __init__(self, name:str, items:Sequence[MenuItem]=None, *args, **kwargs):
-        super().__init__(name, *args, **kwargs)
+    def __init__(self, name:str, items:Sequence[MenuItem]=None, **kwargs):
+        super().__init__(name, **kwargs)
         self.items = list(items or tuple())
         self.parent = None
         self.idx = 0
@@ -93,9 +96,6 @@ class Menu(MenuItem):
 
     def for_display(self):
         return self.items[self.idx].display_name
-
-    def is_done(self):
-        return self.done
 
     def next(self):
         if self.idx + 1 >= len(self.items):
@@ -133,10 +133,10 @@ class Menu(MenuItem):
         self.next()
 
     def key_left(self):
-        self.done = True
+        self.set_done()
 
     def key_backspace(self):
-        self.done = True
+        self.set_done()
 
     def __str__(self):
         return f"{self.__class__.__name__} '{self.name}' idx={self.idx}"
