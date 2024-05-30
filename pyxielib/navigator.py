@@ -12,15 +12,16 @@ class MenuItem:
         self.name = name
         self.parent = parent
         self.display_name = display_name or name
+        self.done = False
 
     def for_display(self):
-        return self.display_name
+        return self.name
 
     def is_done(self):
-        return True
+        return self.done
 
     def reset(self):
-        pass
+        self.done = False
 
     def key_up(self):
         pass
@@ -38,7 +39,17 @@ class MenuItem:
         pass
 
     def key_backspace(self):
+        self.done = True
+
+    def key_alpha_num(self, c):
+        ## pylint: disable=unused-argument
         pass
+
+    def __str__(self):
+        return f"{self.__class__.__name__} '{self.name}'"
+
+    def __repr__(self):
+        return f"<{self}>"
 
 
 class Menu(MenuItem):
@@ -47,7 +58,6 @@ class Menu(MenuItem):
         self.items = list(items or tuple())
         self.parent = None
         self.idx = 0
-        self.done = False
         for item in self.items:
             if isinstance(item, Menu):
                 item.parent = self
@@ -103,6 +113,9 @@ class Menu(MenuItem):
     def key_backspace(self):
         self.done = True
 
+    def __str__(self):
+        return f"{self.__class__.__name__} '{self.name}' idx={self.idx}"
+
 
 class Navigator:
     def __init__(self, root):
@@ -121,12 +134,11 @@ class Navigator:
         return self.node.current()
 
     def enter(self):
-        item = self.node.current()
-        if not isinstance(item, Menu):
+        if not isinstance(self.node, Menu):
             raise MenuError("Cannot enter a non-menu item")
 
         self.visited.append(self.node)
-        self.node = item
+        self.node = self.node.current()
 
     def back(self):
         if not self.visited:
@@ -143,9 +155,8 @@ class Navigator:
         return self.node.previous()
 
     def key_enter(self):
-        item = self.node.current()
-        if not isinstance(item, Menu):
-            item.key_enter()
+        if not isinstance(self.node, Menu):
+            self.node.key_enter()
         else:
             self.enter()
 
@@ -163,6 +174,8 @@ class Navigator:
             self.node.key_right()
         elif key == "UP":
             self.node.key_up()
+        elif len(key) == 1:
+            self.node.key_alpha_num(key)
 
         ## Check if done
         if self.node.is_done():
