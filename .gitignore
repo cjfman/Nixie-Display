@@ -1,6 +1,7 @@
 ## git
 *.swp
 *.swo
+*.log
 
 ## Sublime Text
 *.sublime-workspace
