@@ -1,3 +1,4 @@
+import subprocess
 from typing import Sequence
 
 from pyxielib.pyxieutil import PyxieError
@@ -23,6 +24,9 @@ class MenuItem:
     def reset(self):
         self.done = False
 
+    def on_active(self):
+        pass
+
     def key_up(self):
         pass
 
@@ -36,7 +40,7 @@ class MenuItem:
         pass
 
     def key_enter(self):
-        pass
+        self.done = True
 
     def key_backspace(self):
         self.done = True
@@ -52,9 +56,30 @@ class MenuItem:
         return f"<{self}>"
 
 
+class SubcommandItem(MenuItem):
+    def __init__(self, name, cmd, shell=False, **kwargs):
+        super().__init__(name, **kwargs)
+        self.cmd = cmd
+        self.shell = shell
+        self.last_output = ""
+
+    def for_display(self):
+        return self.last_output
+
+    def run(self):
+        return subprocess.run(self.cmd, shell=self.shell, capture_output=True, check=False).stdout.decode('utf8')
+
+    def on_active(self):
+        self.last_output = self.run()
+
+    def reset(self):
+        MenuItem.reset(self)
+        self.last_output = ""
+
+
 class Menu(MenuItem):
     def __init__(self, name:str, items:Sequence[MenuItem]=None, *args, **kwargs):
-        MenuItem.__init__(self, name, *args, **kwargs)
+        super().__init__(name, *args, **kwargs)
         self.items = list(items or tuple())
         self.parent = None
         self.idx = 0
@@ -93,8 +118,8 @@ class Menu(MenuItem):
         return self.items[self.idx]
 
     def reset(self):
+        MenuItem.reset(self)
         self.idx = 0
-        self.done = False
         for item in self.items:
             item.reset()
 
@@ -133,12 +158,17 @@ class Navigator:
     def current_item(self):
         return self.node.current()
 
+    def reset(self):
+        self.root.reset()
+        self.node = self.root
+
     def enter(self):
         if not isinstance(self.node, Menu):
             raise MenuError("Cannot enter a non-menu item")
 
         self.visited.append(self.node)
         self.node = self.node.current()
+        self.node.on_active()
 
     def back(self):
         if not self.visited:
@@ -168,6 +198,10 @@ class Navigator:
         elif key == "ENTER":
             ## Call on self
             self.key_enter()
+        elif key == "ESC":
+            ## Exit menu now
+            self.reset()
+            self.should_exit = True
         elif key == "LEFT":
             self.node.key_left()
         elif key == "RIGHT":
