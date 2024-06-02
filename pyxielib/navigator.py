@@ -48,6 +48,9 @@ class MenuItem:
     def key_backspace(self):
         self.set_done()
 
+    def key_esc(self):
+        self.set_done()
+
     def key_alpha_num(self, c):
         ## pylint: disable=unused-argument
         pass
@@ -64,7 +67,7 @@ class SubcommandItem(MenuItem):
         super().__init__(name, **kwargs)
         self.cmd = cmd
         self.shell = shell
-        self.last_output = "Running..."
+        self.last_output = ""
 
     def for_display(self):
         return self.last_output
