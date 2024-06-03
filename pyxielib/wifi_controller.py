@@ -21,23 +21,37 @@ class Network:
         return ('DISABLED' not in self.flags)
 
 
-class WifiController:
-    def __init__(self, device='wlan0', sudo=False):
+class WiFiController:
+    def __init__(self, device='wlan0', *, sudo=False):
         self.device = device
         self.networks = None
         self.current = None
+        self.status = None
         self.sudo = sudo
         self.cmd = ['wpa_cli', '-i', self.device]
         if self.sudo:
             self.cmd = ['sudo'] + self.cmd
 
-    def _run_cmd(self, cmd):
-        """Run a simple command"""
-        if isinstance(cmd, str):
-            cmd = [cmd]
+    def connected_to(self):
+        self.load()
+        if self.current is None:
+            return None
 
-        proc = subprocess.run(self.cmd + cmd, capture_output=True, check=False)
-        return (proc.returncode == 0)
+        return self.current.ssid
+
+    def connected(self):
+        self.load()
+        if self.status is None or 'wpa_state' not in self.status:
+            return None
+
+        return (self.status['wpa_state'] == 'COMPLETED')
+
+    def ip_address(self):
+        self.load()
+        if self.status is None or 'ip_address' not in self.status:
+            return None
+
+        return self.status['ip_address']
 
     def loaded(self):
         return (self.networks is not None)
@@ -68,6 +82,7 @@ class WifiController:
             if network.current:
                 self.current = network
 
+        self.status = self.get_status()
         return True
 
     def add_network(self, ssid, password=None, *, priority=None, save=False, connect=False) -> bool:
@@ -136,3 +151,26 @@ class WifiController:
     def save(self):
         """Save the network config"""
         return self._run_cmd('save_config')
+
+    def get_status(self):
+        proc = subprocess.run(self.cmd + ['status'], capture_output=True, check=False)
+        if proc.returncode != 0:
+            return None
+
+        status = {}
+        for line in proc.stdout.decode('utf8').split('\n'):
+            if '=' not in line:
+                continue
+
+            args = line.split('=')
+            status[args[0]] = args[1]
+
+        return status
+
+    def _run_cmd(self, cmd):
+        """Run a simple command"""
+        if isinstance(cmd, str):
+            cmd = [cmd]
+
+        proc = subprocess.run(self.cmd + cmd, capture_output=True, check=False)
+        return (proc.returncode == 0)

@@ -1,9 +1,10 @@
 import re
 
-import pyxielib.navigator as nav
+from pyxielib.navigator import Menu, MsgItem, SubcommandItem
+from pyxielib.wifi_controller import WiFiController
 
 
-class IpItem(nav.SubcommandItem):
+class IpItem(SubcommandItem):
     def __init__(self):
         super().__init__("Show IP Address", ['ip', 'route', 'list', 'default'])
 
@@ -16,7 +17,7 @@ class IpItem(nav.SubcommandItem):
         return "No IP Address"
 
 
-class FindWiFiItem(nav.SubcommandItem):
+class ListWiFiItem(SubcommandItem):
     def __init__(self, device='wlan0'):
         super().__init__("WiFi Networks", ['sudo', 'iwlist', device, 'scan'])
         self.networks = None
@@ -60,3 +61,23 @@ class FindWiFiItem(nav.SubcommandItem):
 
     def key_left(self):
         self.set_done()
+
+
+class WiFiMenu(Menu):
+    def __init__(self):
+        super().__init__("WiFi Settings")
+        self.wifi = WiFiController('wlan0', sudo=True)
+        self.wifi.load()
+
+        ## Add submenues
+        ssid = lambda: self.wifi.connected_to() or "No Network"
+        addr = lambda: self.wifi.ip_address() or "No Address"
+        conn = lambda: "Connected" if self.wifi.connected() else "Not Connected"
+
+        self.add_submenu(MsgItem("Current Network", ssid))
+        self.add_submenu(MsgItem("IP Address", addr))
+        self.add_submenu(MsgItem("Status", conn))
+        self.add_submenu(ListWiFiItem())
+
+    def on_active(self):
+        sef.wifi.load(force=True)

@@ -62,6 +62,18 @@ class MenuItem:
         return f"<{self}>"
 
 
+class MsgItem(MenuItem):
+    def __init__(self, name, msg, **kwargs):
+        super().__init__(name)
+        self.msg = msg
+
+    def for_display(self):
+        if callable(self.msg):
+            return self.msg()
+
+        return self.msg
+
+
 class SubcommandItem(MenuItem):
     def __init__(self, name, cmd, shell=False, **kwargs):
         super().__init__(name, **kwargs)
