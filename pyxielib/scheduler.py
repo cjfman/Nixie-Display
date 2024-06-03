@@ -2,7 +2,7 @@ import datetime
 import time
 import threading
 import traceback
-from typing import Sequence
+from typing import List, Sequence
 
 from croniter import croniter
 
