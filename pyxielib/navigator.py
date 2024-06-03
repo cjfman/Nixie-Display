@@ -127,6 +127,9 @@ class ListItem(MenuItem):
     def key_left(self):
         self.set_done()
 
+    def key_enter(self):
+        pass
+
 
 class Menu(MenuItem):
     def __init__(self, name:str, items:Sequence[MenuItem]=None, **kwargs):

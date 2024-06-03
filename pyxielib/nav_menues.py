@@ -21,12 +21,30 @@ class IpItem(SubcommandItem):
 class ListWiFiItem(ListItem):
     def __init__(self, device='wlan0'):
         super().__init__("WiFi Networks")
-        self.started = False
-        self.device = device
+        self.device    = device
+        self.proc      = None
+        self.started   = False
+        self.completed = False
+        self.failed    = False
+
+    def reset(self):
+        super().reset()
+        self.proc      = None
+        self.started   = False
+        self.completed = False
+        self.failed    = False
 
     def for_display(self):
+        if self.completed:
+            return super().for_display()
+
+        self.poll()
         if not self.started:
             return "Scan not started"
+        if self.failed:
+            return "Scan failed"
+        if not self.completed:
+            return "Scanning..."
 
         return super().for_display()
 
@@ -36,15 +54,24 @@ class ListWiFiItem(ListItem):
 
     def run(self):
         cmd = ['sudo', 'iwlist', self.device, 'scan']
-        output = subprocess.run(cmd, capture_output=True, check=False).stdout.decode('utf8')
+        self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+
+    def poll(self):
+        ret = self.proc.poll()
+        if ret is None:
+            return
+        if ret != 0:
+            self.failed = True
+
         networks = []
-        for line in output.split("\n"):
-            match = re.search(r'ESSID:"(.+)"', line)
+        for line in self.proc.stdout:
+            match = re.search(r'ESSID:"(.+)"', line.decode('utf8'))
             if match:
                 networks.append(match.groups()[0])
 
         header = f"Found {len(networks)} SSIDs"
         self.set_values([header] + networks)
+        self.completed = True
 
 
 class WiFiMenu(Menu):
