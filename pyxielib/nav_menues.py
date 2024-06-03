@@ -9,7 +9,7 @@ class IpItem(SubcommandItem):
     def __init__(self):
         super().__init__("Show IP Address", ['ip', 'route', 'list', 'default'])
 
-    def run(self):
+    def run(self) -> str:
         output = super().run()
         match = re.match(r"default via (\S+)", output)
         if match:
@@ -18,7 +18,7 @@ class IpItem(SubcommandItem):
         return "No IP Address"
 
 
-class ListWiFiItem(ListItem):
+class WiFiScanItem(ListItem):
     def __init__(self, device='wlan0'):
         super().__init__("WiFi Networks")
         self.device    = device
@@ -34,7 +34,7 @@ class ListWiFiItem(ListItem):
         self.completed = False
         self.failed    = False
 
-    def for_display(self):
+    def for_display(self) -> str:
         if self.completed:
             return super().for_display()
 
@@ -74,6 +74,57 @@ class ListWiFiItem(ListItem):
         self.completed = True
 
 
+class WiFiSelectItem(ListItem):
+    def __init__(self, wifi, **kwargs):
+        super().__init__("WiFi Select", wifi.network_ssids(), **kwargs)
+        self.wifi = wifi
+        self.state = 'SELECT'
+
+    def for_display(self):
+        if self.state == 'SELECT':
+            return super().for_display()
+        if self.state == 'CONFIRM':
+            return 'Set Network[y/n]'
+        if self.state == 'SUCCESS':
+            return 'Success'
+        if self.state == 'FAILED':
+            return 'Failed'
+        if self.state == 'ALREADY':
+            return "Connected already"
+
+        return "WiFi Select Err"
+
+    def reset(self):
+        super().reset()
+        self.state = 'SELECT'
+
+    def select(self):
+        ssid = self.current_value()
+        success = self.wifi.select_network(self.wifi.id_lookup(ssid))
+        return 'SUCCESS' if success else 'FAILED'
+
+    def key_enter(self):
+        if self.state == 'SELECT':
+            if self.current_value() == self.wifi.connected_to():
+                self.state = 'ALREADY'
+            else:
+                self.state = 'CONFIRM'
+        elif self.state == 'CONFIRM':
+            pass
+        elif self.state == 'ALREADY':
+            self.state = 'SELECT'
+        else:
+            self.set_done()
+
+    def key_alpha_num(self, c):
+        if self.state != 'CONFIRM':
+            return
+        if c.lower() == 'y':
+            self.state = self.select()
+        elif c.lower() == 'n':
+            self.state = 'SELECT'
+
+
 class WiFiMenu(Menu):
     def __init__(self):
         super().__init__("WiFi Settings")
@@ -88,7 +139,8 @@ class WiFiMenu(Menu):
         self.add_submenu(MsgItem("Current Network", ssid))
         self.add_submenu(MsgItem("IP Address", addr))
         self.add_submenu(MsgItem("Status", conn))
-        self.add_submenu(ListWiFiItem())
+        self.add_submenu(WiFiSelectItem(self.wifi, display_name="Select Network"))
+        self.add_submenu(WiFiScanItem())
 
     def on_active(self):
         super().on_active()

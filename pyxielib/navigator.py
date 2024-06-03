@@ -64,7 +64,7 @@ class MenuItem:
 
 class MsgItem(MenuItem):
     def __init__(self, name, msg, **kwargs):
-        super().__init__(name)
+        super().__init__(name, **kwargs)
         self.msg = msg
 
     def for_display(self):
@@ -106,8 +106,11 @@ class ListItem(MenuItem):
         self.values = ["Empty List"]
         self.idx = 0
 
-    def for_display(self):
+    def current_value(self):
         return self.values[self.idx]
+
+    def for_display(self):
+        return self.current_value()
 
     def set_values(self, values):
         self.values = values or ["Empty List"]
@@ -123,9 +126,6 @@ class ListItem(MenuItem):
             self.idx = 0
         elif self.idx - 1 >= 0:
             self.idx -= 1
-
-    def key_left(self):
-        self.set_done()
 
     def key_enter(self):
         pass
