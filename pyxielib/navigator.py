@@ -95,6 +95,39 @@ class SubcommandItem(MenuItem):
         self.last_output = ""
 
 
+class ListItem(MenuItem):
+    def __init__(self, name, values=None, **kwargs):
+        super().__init__(name, **kwargs)
+        self.values = values or ["Empty List"]
+        self.idx = 0
+
+    def reset(self):
+        super().reset()
+        self.values = ["Empty List"]
+        self.idx = 0
+
+    def for_display(self):
+        return self.values[self.idx]
+
+    def set_values(self, values):
+        self.values = values or ["Empty List"]
+
+    def key_down(self):
+        if self.idx + 1 < len(self.values):
+            self.idx += 1
+        else:
+            self.idx = len(self.values) - 1
+
+    def key_up(self):
+        if self.idx <= 0:
+            self.idx = 0
+        elif self.idx - 1 >= 0:
+            self.idx -= 1
+
+    def key_left(self):
+        self.set_done()
+
+
 class Menu(MenuItem):
     def __init__(self, name:str, items:Sequence[MenuItem]=None, **kwargs):
         super().__init__(name, **kwargs)
@@ -228,6 +261,7 @@ class Navigator:
 
         ## Check if done
         if self.node.is_done():
+            print(f'Node "{self.node.name}" is done')
             self.back()
 
         return self.for_display()

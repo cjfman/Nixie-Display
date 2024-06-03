@@ -1,6 +1,7 @@
 import re
+import subprocess
 
-from pyxielib.navigator import Menu, MsgItem, SubcommandItem
+from pyxielib.navigator import ListItem, Menu, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
 
 
@@ -17,50 +18,33 @@ class IpItem(SubcommandItem):
         return "No IP Address"
 
 
-class ListWiFiItem(SubcommandItem):
+class ListWiFiItem(ListItem):
     def __init__(self, device='wlan0'):
-        super().__init__("WiFi Networks", ['sudo', 'iwlist', device, 'scan'])
-        self.networks = None
-        self.idx = None
+        super().__init__("WiFi Networks")
+        self.started = False
+        self.device = device
 
     def for_display(self):
-        if self.networks is None:
+        if not self.started:
             return "Scan not started"
-        if self.idx is None:
-            return f"Found {len(self.networks)} SSIDs"
 
-        return self.networks[self.idx]
+        return super().for_display()
 
-    def reset(self):
-        super().reset()
-        self.networks = None
-        self.idx = None
+    def on_active(self):
+        self.run()
+        self.started = True
 
     def run(self):
-        output = super().run()
-        self.networks = []
-        self.idx = None
+        cmd = ['sudo', 'iwlist', self.device, 'scan']
+        output = subprocess.run(cmd, capture_output=True, check=False).stdout.decode('utf8')
+        networks = []
         for line in output.split("\n"):
             match = re.search(r'ESSID:"(.+)"', line)
             if match:
-                self.networks.append(match.groups()[0])
+                networks.append(match.groups()[0])
 
-        return f"Found {len(self.networks)} SSIDs"
-
-    def key_up(self):
-        if self.idx is None:
-            self.idx = 0
-        elif self.idx + 1 < len(self.networks):
-            self.idx += 1
-
-    def key_down(self):
-        if self.idx <= 0:
-            self.idx = None
-        elif self.idx - 1 >= 0:
-            self.idx -= 1
-
-    def key_left(self):
-        self.set_done()
+        header = f"Found {len(networks)} SSIDs"
+        self.set_values([header] + networks)
 
 
 class WiFiMenu(Menu):
@@ -80,4 +64,9 @@ class WiFiMenu(Menu):
         self.add_submenu(ListWiFiItem())
 
     def on_active(self):
-        sef.wifi.load(force=True)
+        super().on_active()
+        self.wifi.load(force=True)
+
+    def reset(self):
+        super().reset()
+        self.wifi.load(force=True)
