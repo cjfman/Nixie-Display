@@ -80,17 +80,21 @@ class WiFiSelectItem(ListItem):
         self.wifi = wifi
         self.state = 'SELECT'
 
-    def for_display(self):
+    def for_display(self) -> str:
+        ## pylint: disable=too-many-return-statements
+        self.poll()
         if self.state == 'SELECT':
             return super().for_display()
         if self.state == 'CONFIRM':
             return 'Set Network[y/n]'
         if self.state == 'SUCCESS':
-            return 'Success'
+            return 'Connected'
         if self.state == 'FAILED':
             return 'Failed'
         if self.state == 'ALREADY':
             return "Connected already"
+        if self.state == 'CONNECTING':
+            return 'Connecting...'
 
         return "WiFi Select Err"
 
@@ -98,10 +102,17 @@ class WiFiSelectItem(ListItem):
         super().reset()
         self.state = 'SELECT'
 
+    def poll(self):
+        if self.state != 'CONNECTING':
+            return
+
+        success = self.wifi.poll()
+        if success is not None:
+            self.state = 'SUCCESS' if success else 'FAILED'
+
     def select(self):
         ssid = self.current_value()
-        success = self.wifi.select_network(self.wifi.id_lookup(ssid))
-        return 'SUCCESS' if success else 'FAILED'
+        self.wifi.select_network(self.wifi.id_lookup(ssid), blocking=False)
 
     def key_enter(self):
         if self.state == 'SELECT':
@@ -114,14 +125,18 @@ class WiFiSelectItem(ListItem):
         elif self.state == 'ALREADY':
             self.state = 'SELECT'
         else:
+            self.state = 'DONE'
             self.set_done()
 
     def key_alpha_num(self, c):
         if self.state != 'CONFIRM':
             return
-        if c.lower() == 'y':
-            self.state = self.select()
-        elif c.lower() == 'n':
+
+        c = c.lower()
+        if c == 'y':
+            self.select()
+            self.state = 'CONNECTING'
+        elif c == 'n':
             self.state = 'SELECT'
 
 

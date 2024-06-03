@@ -29,6 +29,7 @@ class WiFiController:
         self.ssid_id   = None
         self.current   = None
         self.status    = None
+        self.proc      = None
         self.cmd = ['wpa_cli', '-i', self.device]
         if self.sudo:
             self.cmd = ['sudo'] + self.cmd
@@ -143,9 +144,9 @@ class WiFiController:
 
         return self.load(force=True)
 
-    def select_network(self, nid) -> bool:
+    def select_network(self, nid, *, blocking=True) -> bool:
         """Select a network"""
-        return self._run_cmd(['select_network', str(nid)])
+        return self._run_cmd(['select_network', str(nid)], blocking=blocking)
 
     def enable_network(self, nid) -> bool:
         """Enable a network"""
@@ -181,10 +182,27 @@ class WiFiController:
 
         return status
 
-    def _run_cmd(self, cmd) -> bool:
+    def poll(self) -> bool:
+        if self.proc is None:
+            return None
+
+        ret = self.proc.poll()
+        if ret is None:
+            return None
+
+        self.proc = None
+        return (ret == 0)
+
+    def _run_cmd(self, cmd, *, blocking=True) -> bool:
         """Run a simple command"""
         if isinstance(cmd, str):
-            cmd = [cmd]
+            cmd = self.cmd + [cmd]
+        else:
+            cmd = self.cmd + cmd
 
-        proc = subprocess.run(self.cmd + cmd, capture_output=True, check=False)
-        return (proc.returncode == 0)
+        if blocking:
+            proc = subprocess.run(cmd, capture_output=True, check=False)
+            return (proc.returncode == 0)
+
+        self.proc = subprocess.Popen(cmd)
+        return self.proc
