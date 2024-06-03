@@ -109,7 +109,6 @@ class Scheduler:
 
     def idle(self):
         """This is called when the current animation and program are done"""
-        pass
 
     def pollProgram(self):
         program = self.getProgram()
@@ -126,7 +125,12 @@ class Scheduler:
         try:
             while self.running:
                 if self.checkSchedule() or self.assembler.animationDone():
-                    self.pollProgram()
+                    try:
+                        self.pollProgram()
+                    except Exception as e:
+                        print("Failed to poll program: ", e)
+                        traceback.print_exc()
+                        self.idle()
 
                 self.cv.wait(self.period)
         except Exception as e:
@@ -162,6 +166,7 @@ class CronScheduler(Scheduler):
         self.schedule = [ScheduleEntry(*x) for x in (schedule or [])]
         self.program  = None
         self.default  = default
+        self.slot     = None
         self.printSchedule()
 
     def getProgram(self):
@@ -198,9 +203,10 @@ class CronScheduler(Scheduler):
             self.program.reset()
             return True
         ## Update program if it's scheduled to run now
-        elif slot.timestamp <= now and slot.program != self.program:
+        if slot.timestamp <= now and slot != self.slot and slot.program != self.program:
             print(f"Switch to program '{name}'")
             self.program = slot.program
+            self.slot = slot
             self.program.reset()
             return True
 

@@ -8,7 +8,7 @@ import time
 from pyxielib import assembler, controller, program, scheduler
 
 parser = argparse.ArgumentParser(description='Nixie tube controller')
-parser.add_argument('-c', '--controller', help="The type of controller <terminal,raspi,serial>")
+parser.add_argument('-c', '--controller', required=True, help="The type of controller <terminal,raspi,serial>")
 parser.add_argument('-p', '--print-code', action='store_true', help="Print the code to the output")
 parser.add_argument('-s', '--serial', help="The serial device path. Overrides --controller")
 parser.add_argument('-v', '--verbose', action='store_true', help="Be verbose in output")
