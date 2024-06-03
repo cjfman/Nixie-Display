@@ -81,22 +81,22 @@ class WiFiSelectItem(ListItem):
         self.state = 'SELECT'
 
     def for_display(self) -> str:
-        ## pylint: disable=too-many-return-statements
         self.poll()
-        if self.state == 'SELECT':
-            return super().for_display()
-        if self.state == 'CONFIRM':
-            return 'Set Network[y/n]'
-        if self.state == 'SUCCESS':
-            return 'Connected'
-        if self.state == 'FAILED':
-            return 'Failed'
-        if self.state == 'ALREADY':
-            return "Connected already"
-        if self.state == 'CONNECTING':
-            return 'Connecting...'
+        msg = "WiFi Select Err"
+        if 'SELECT' == self.state:
+            msg = super().for_display()
+        elif 'CONFIRM' == self.state:
+            msg = 'Set Network[y/n]'
+        elif 'SUCCESS' == self.state:
+            msg = 'Connected'
+        elif 'FAILED' == self.state:
+            msg = 'Failed'
+        elif 'ALREADY' == self.state:
+            msg = "Connected already"
+        elif 'CONNECTING' == self.state:
+            msg = 'Connecting...'
 
-        return "WiFi Select Err"
+        return msg
 
     def reset(self):
         super().reset()
