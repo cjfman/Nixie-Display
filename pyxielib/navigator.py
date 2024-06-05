@@ -231,6 +231,14 @@ class Navigator:
         self.node = self.root
         self.visited = []
         self.should_exit = False
+        for r in (range(ord('a'), ord('z') + 1), range(ord('A'), ord('Z') + 1), range(ord('0'), ord('9') + 1)):
+            for i in r:
+                c = chr(i)
+                setattr(self, f"key_{c}", lambda cc=c: self.key_entry(cc))
+
+        for key in ('down', 'up', 'left', 'right', 'enter'):
+            key_u = key.upper()
+            setattr(self, f"key_{key}", lambda k=key_u: self.key_entry(k))
 
     def for_display(self):
         return self.node.for_display()
@@ -247,11 +255,11 @@ class Navigator:
 
     def enter(self):
         if not isinstance(self.node, Menu):
-            raise MenuError("Cannot enter a non-menu item")
-
-        self.visited.append(self.node)
-        self.node = self.node.current()
-        self.node.activate()
+            self.node.key_enter()
+        else:
+            self.visited.append(self.node)
+            self.node = self.node.current()
+            self.node.activate()
 
     def back(self):
         if not self.visited:
@@ -267,12 +275,6 @@ class Navigator:
     def previous(self):
         return self.node.previous()
 
-    def key_enter(self):
-        if not isinstance(self.node, Menu):
-            self.node.key_enter()
-        else:
-            self.enter()
-
     def key_entry(self, key):
         if key == "BACKSPACE":
             self.node.key_backspace()
@@ -280,11 +282,9 @@ class Navigator:
             self.node.key_down()
         elif key == "ENTER":
             ## Call on self
-            self.key_enter()
+            self.enter()
         elif key == "ESC":
-            ## Exit menu now
-            self.reset()
-            self.should_exit = True
+            self.node.key_esc()
         elif key == "LEFT":
             self.node.key_left()
         elif key == "RIGHT":

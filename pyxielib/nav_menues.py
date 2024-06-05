@@ -19,49 +19,53 @@ class IpItem(SubcommandItem):
 
 
 class WiFiScanItem(ListItem):
-    def __init__(self, device='wlan0'):
-        super().__init__("WiFi Networks")
-        self.device    = device
-        self.proc      = None
-        self.started   = False
-        self.completed = False
-        self.failed    = False
+    def __init__(self, device='wlan0', sudo=True, **kwargs):
+        super().__init__("WiFi Networks", **kwargs)
+        self.device = device
+        self.sudo   = sudo
+        self.proc   = None
+        self.state  = None
 
     def reset(self):
         super().reset()
-        self.proc      = None
-        self.started   = False
-        self.completed = False
-        self.failed    = False
+        self.proc  = None
+        self.state = None
 
     def for_display(self) -> str:
-        if self.completed:
-            return super().for_display()
-
         self.poll()
-        if not self.started:
-            return "Scan not started"
-        if self.failed:
-            return "Scan failed"
-        if not self.completed:
-            return "Scanning..."
+        msg = ""
+        if self.state is None:
+            msg = "Scan not started"
+        elif 'RUNNING' == self.state:
+            msg = "Scanning..."
+        elif 'SELECT' == self.state:
+            msg = super().for_display()
+        elif 'FAILED' == self.state:
+            msg = "Scan failed"
+        else:
+            msg = f"Error state: {self.state}"
 
-        return super().for_display()
+        return msg
 
     def activate(self):
         self.run()
-        self.started = True
+        self.state = 'RUNNING'
 
     def run(self):
-        cmd = ['sudo', 'iwlist', self.device, 'scan']
+        cmd = ['iwlist', self.device, 'scan']
+        if self.sudo:
+            cmd = ['sudo'] + cmd
         self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
     def poll(self):
+        if self.state != 'RUNNING':
+            return
+
         ret = self.proc.poll()
         if ret is None:
             return
         if ret != 0:
-            self.failed = True
+            self.state = 'FAILED'
 
         networks = []
         for line in self.proc.stdout:
@@ -71,7 +75,7 @@ class WiFiScanItem(ListItem):
 
         header = f"Found {len(networks)} SSIDs"
         self.set_values([header] + networks)
-        self.completed = True
+        self.state = 'SELECT'
 
 
 class WiFiSelectItem(ListItem):
