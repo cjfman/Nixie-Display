@@ -19,37 +19,56 @@ class IpItem(SubcommandItem):
 
 
 class WiFiScanItem(ListItem):
-    def __init__(self, device='wlan0', sudo=True, **kwargs):
+    def __init__(self, device='wlan0', sudo=True, show_passwd=False, wifi=None, **kwargs):
         super().__init__("WiFi Networks", **kwargs)
         self.device = device
         self.sudo   = sudo
+        self.show   = show_passwd
+        self.wifi   = wifi
         self.proc   = None
         self.state  = None
+        self.ssid   = None
+        self.passwd = None
 
     def reset(self):
         super().reset()
-        self.proc  = None
-        self.state = None
+        self.proc   = None
+        self.state  = None
+        self.ssid   = None
+        self.passwd = None
 
     def for_display(self) -> str:
         self.poll()
         msg = ""
         if self.state is None:
             msg = "Scan not started"
-        elif 'RUNNING' == self.state:
+        elif 'running' == self.state:
             msg = "Scanning..."
-        elif 'SELECT' == self.state:
+        elif 'select' == self.state:
             msg = super().for_display()
-        elif 'FAILED' == self.state:
+        elif 'password' == self.state:
+            if not self.passwd:
+                msg = "Enter Password"
+            else:
+                msg = self.passwd_msg()
+        elif 'connected' == self.state:
+            msg = "Connected"
+        elif 'failed' == self.state:
             msg = "Scan failed"
         else:
             msg = f"Error state: {self.state}"
 
         return msg
 
+    def passwd_msg(self):
+        if self.show:
+            return self.passwd
+
+        return '*'*len(self.passwd)
+
     def activate(self):
         self.run()
-        self.state = 'RUNNING'
+        self.state = 'running'
 
     def run(self):
         cmd = ['iwlist', self.device, 'scan']
@@ -58,14 +77,14 @@ class WiFiScanItem(ListItem):
         self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
     def poll(self):
-        if self.state != 'RUNNING':
+        if self.state != 'running':
             return
 
         ret = self.proc.poll()
         if ret is None:
             return
         if ret != 0:
-            self.state = 'FAILED'
+            self.state = 'failed'
 
         networks = []
         for line in self.proc.stdout:
@@ -74,74 +93,102 @@ class WiFiScanItem(ListItem):
                 networks.append(match.groups()[0])
 
         header = f"Found {len(networks)} SSIDs"
-        self.set_values([header] + networks)
-        self.state = 'SELECT'
+        self.set_values([header] + sorted(networks))
+        self.state = 'select'
+
+    def key_enter(self):
+        if 'select' == self.state and self.idx and self.wifi:
+            self.state  = 'password'
+            self.ssid   = self.current_value()
+        elif 'password' == self.state:
+            success = self.wifi.add_network(self.ssid, self.passwd, save=True, connect=False)
+            if success:
+                self.state = 'connected'
+            else:
+                self.state = 'failed'
+        elif self.state in ('connected', 'failed'):
+            self.reset()
+            self.set_done()
+
+    def key_alpha_num(self, c):
+        if 'password' == self.state:
+            if self.passwd is None:
+                self.passwd = c
+            else:
+                self.passwd += c
+
+    def key_backspace(self):
+        if 'password' == self.state and self.passwd:
+            if len(self.passwd) <= 1:
+                self.passwd = None
+            else:
+                self.passwd = self.passwd[:-1]
 
 
 class WiFiSelectItem(ListItem):
     def __init__(self, wifi, **kwargs):
         super().__init__("WiFi Select", wifi.network_ssids(), **kwargs)
         self.wifi = wifi
-        self.state = 'SELECT'
+        self.state = 'select'
 
     def for_display(self) -> str:
         self.poll()
         msg = "WiFi Select Err"
-        if 'SELECT' == self.state:
+        if 'select' == self.state:
             msg = super().for_display()
-        elif 'CONFIRM' == self.state:
+        elif 'confirm' == self.state:
             msg = 'Set Network[y/n]'
-        elif 'SUCCESS' == self.state:
+        elif 'success' == self.state:
             msg = 'Connected'
-        elif 'FAILED' == self.state:
+        elif 'failed' == self.state:
             msg = 'Failed'
-        elif 'ALREADY' == self.state:
+        elif 'already' == self.state:
             msg = "Connected already"
-        elif 'CONNECTING' == self.state:
+        elif 'connecting' == self.state:
             msg = 'Connecting...'
 
         return msg
 
     def reset(self):
         super().reset()
-        self.state = 'SELECT'
+        self.state = 'select'
 
     def poll(self):
-        if self.state != 'CONNECTING':
+        if self.state != 'connecting':
             return
 
         success = self.wifi.poll()
         if success is not None:
-            self.state = 'SUCCESS' if success else 'FAILED'
+            self.state = 'success' if success else 'failed'
 
     def select(self):
         ssid = self.current_value()
         self.wifi.select_network(self.wifi.id_lookup(ssid), blocking=False)
 
     def key_enter(self):
-        if self.state == 'SELECT':
+        if self.state == 'select':
             if self.current_value() == self.wifi.connected_to():
-                self.state = 'ALREADY'
+                self.state = 'already'
             else:
-                self.state = 'CONFIRM'
-        elif self.state == 'CONFIRM':
+                self.state = 'confirm'
+        elif self.state == 'confirm':
             pass
-        elif self.state == 'ALREADY':
-            self.state = 'SELECT'
+        elif self.state == 'already':
+            self.state = 'select'
         else:
-            self.state = 'DONE'
+            self.state = 'done'
             self.set_done()
 
     def key_alpha_num(self, c):
-        if self.state != 'CONFIRM':
+        if self.state != 'confirm':
             return
 
         c = c.lower()
         if c == 'y':
             self.select()
-            self.state = 'CONNECTING'
+            self.state = 'connecting'
         elif c == 'n':
-            self.state = 'SELECT'
+            self.state = 'select'
 
 
 class WiFiMenu(Menu):
@@ -159,7 +206,7 @@ class WiFiMenu(Menu):
         self.add_submenu(MsgItem("IP Address", addr))
         self.add_submenu(MsgItem("Status", conn))
         self.add_submenu(WiFiSelectItem(self.wifi, display_name="Select Network"))
-        self.add_submenu(WiFiScanItem())
+        self.add_submenu(WiFiScanItem(wifi=self.wifi))
 
     def activate(self):
         super().activate()

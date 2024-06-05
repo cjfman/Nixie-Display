@@ -236,7 +236,7 @@ class Navigator:
                 c = chr(i)
                 setattr(self, f"key_{c}", lambda cc=c: self.key_entry(cc))
 
-        for key in ('down', 'up', 'left', 'right', 'enter'):
+        for key in ('down', 'up', 'left', 'right', 'enter', 'backspace'):
             key_u = key.upper()
             setattr(self, f"key_{key}", lambda k=key_u: self.key_entry(k))
 

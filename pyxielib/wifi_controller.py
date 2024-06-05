@@ -38,7 +38,7 @@ class WiFiController:
         if self.networks is None:
             return None
 
-        return tuple(x.ssid for x in self.networks.values())
+        return sorted(tuple(x.ssid for x in self.networks.values()))
 
     def id_lookup(self, ssid) -> int:
         if self.ssid_id is None or ssid not in self.ssid_id:
