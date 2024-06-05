@@ -27,7 +27,7 @@ class MenuItem:
     def reset(self):
         self.done = False
 
-    def on_active(self):
+    def activate(self):
         pass
 
     def key_up(self):
@@ -75,20 +75,52 @@ class MsgItem(MenuItem):
 
 
 class SubcommandItem(MenuItem):
-    def __init__(self, name, cmd, shell=False, **kwargs):
+    def __init__(self, name, cmd, *, shell=False, blocking=True, running_msg=None, **kwargs):
         super().__init__(name, **kwargs)
-        self.cmd = cmd
-        self.shell = shell
-        self.last_output = ""
+        self.cmd         = cmd
+        self.shell       = shell
+        self.blocking    = blocking
+        self.running_msg = running_msg or "Running..."
+        self.last_output = None
+        self.proc        = None
+        self.started     = False
+        self.failed      = False
 
     def for_display(self):
-        return self.last_output
+        if self.proc is None:
+            return "Not started"
+
+        self.poll()
+        if self.last_output is not None:
+            return self.last_output
+        if self.failed:
+            return "Failed"
+
+        return self.running_msg
+
+    def poll(self):
+        if self.last_output is not None:
+            return
+
+        ret = self.proc.poll()
+        if ret is None:
+            return
+        if ret == 0:
+            self.last_output = self.proc.stdout.decode('utf8')
+        else:
+            self.last_output = "Failed"
 
     def run(self):
-        return subprocess.run(self.cmd, shell=self.shell, capture_output=True, check=False).stdout.decode('utf8')
+        if self.blocking:
+            return subprocess.run(self.cmd, shell=self.shell, capture_output=True, check=False).stdout.decode('utf8')
 
-    def on_active(self):
-        self.last_output = self.run()
+        self.proc = subprocess.Popen(self.cmd, shell=self.shell, stdout=subprocess.PIPE)
+        return self.proc
+
+    def activate(self):
+        res = self.run()
+        if self.blocking:
+            self.last_output = res
 
     def reset(self):
         MenuItem.reset(self)
@@ -219,7 +251,7 @@ class Navigator:
 
         self.visited.append(self.node)
         self.node = self.node.current()
-        self.node.on_active()
+        self.node.activate()
 
     def back(self):
         if not self.visited:

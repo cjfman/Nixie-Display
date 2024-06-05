@@ -48,7 +48,7 @@ class WiFiScanItem(ListItem):
 
         return super().for_display()
 
-    def on_active(self):
+    def activate(self):
         self.run()
         self.started = True
 
@@ -157,8 +157,8 @@ class WiFiMenu(Menu):
         self.add_submenu(WiFiSelectItem(self.wifi, display_name="Select Network"))
         self.add_submenu(WiFiScanItem())
 
-    def on_active(self):
-        super().on_active()
+    def activate(self):
+        super().activate()
         self.wifi.load(force=True)
 
     def reset(self):
