@@ -127,6 +127,17 @@ class SubcommandItem(MenuItem):
         self.last_output = ""
 
 
+class DelayedCommandItem(SubcommandItem):
+    def __init__(self, name, cmd:str, delay=5, **kwargs):
+        if not isinstance(cmd, str):
+            raise ValueError("DelayedCommandItem can only use strings as cmd")
+        if not isinstance(delay, int) or delay < 1:
+            raise ValueError("DaylaedCommandItem delay must be a positive integer")
+
+        cmd = f"sleep {delay} && " + cmd
+        super().__init__(name, cmd, **kwargs, shell=True, blocking=False)
+
+
 class ListItem(MenuItem):
     def __init__(self, name, values=None, **kwargs):
         super().__init__(name, **kwargs)

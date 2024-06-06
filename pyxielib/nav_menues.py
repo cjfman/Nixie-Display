@@ -1,7 +1,7 @@
 import re
 import subprocess
 
-from pyxielib.navigator import ListItem, Menu, MsgItem, SubcommandItem
+from pyxielib.navigator import DelayedCommandItem, ListItem, Menu, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
 
 
@@ -16,6 +16,16 @@ class IpItem(SubcommandItem):
             return match.groups()[0]
 
         return "No IP Address"
+
+
+class RebootItem(DelayedCommandItem):
+    def __init__(self, **kwargs):
+        super().__init__("Reboot", "sudo reboot", **kwargs)
+
+
+class ShutdownItem(DelayedCommandItem):
+    def __init__(self, **kwargs):
+        super().__init__("Shutdown", "sudo halt", **kwargs)
 
 
 class WiFiScanItem(ListItem):

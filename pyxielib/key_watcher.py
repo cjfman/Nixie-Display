@@ -23,6 +23,9 @@ class KeyWatcher:
 
         self.thread.start()
 
+    def reset(self):
+        self.queue = Queue()
+
     def run(self):
         for event in self.dev.read_loop():
             if not self.running:
@@ -39,26 +42,26 @@ class KeyWatcher:
                     self.active = True
                 elif self.release and self.release == self.keys_down:
                     self.active = False
-                elif active:
+                elif self.active:
                     ## Only add event to queue if it's not a trigger or release
-                    self.queue.push(k_event)
+                    self.queue.put(k_event)
             elif k_event.status == KeyEvent.key_up:
                 self.keys_down.remove(k_event.key_code)
             elif k_event.status == KeyEvent.key_hold:
                 self.keys_down.add(k_event.key_code) ## Add just in case it was somehow missed before
                 if self.hold and self.active:
-                    self.queue.push(k_event)
+                    self.queue.put(k_event)
 
         self.stopped = True
 
     def can_pop(self):
-        return bool(self.queue)
+        return (not self.queue.empty())
 
     def pop(self):
-        if not self.queue:
+        if not self.queue.empty():
             return None
 
-        return None ## XXX
+        return self.queue.get().replace("KEY_", "")
 
     def stop(self):
         self.running = False

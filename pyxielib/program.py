@@ -8,6 +8,7 @@ from pyxielib.pyxieutil import PyxieUnimplementedError, flattenHTML
 
 
 class Program:
+    ## pylint: disable=no-self-use
     def __init__(self, name):
         self.name:str = name
         self.old_animation:Animation = None
@@ -26,7 +27,7 @@ class Program:
 
     def update(self):
         new_animation = self.getAnimation()
-        if self.old_animation == new_animation:
+        if new_animation is None or self.old_animation == new_animation:
             return False
 
         self.old_animation = new_animation
@@ -111,7 +112,8 @@ class RssProgram(Program):
     def done(self):
         return (self.animation is not None and not self.loop)
 
-    def escapeText(self, txt):
+    @staticmethod
+    def escapeText(txt):
         return escapeText(txt)
 
     def makeRssAnimation(self):
@@ -153,7 +155,7 @@ class WeatherProgram(RssProgram):
         )
 
     def escapeText(self, txt):
-        txt = RssProgram.escapeText(self, txt)
+        txt = RssProgram.escapeText(txt)
         replace = {
             'NORTH': 'N',
             'SOUTH': 'S',
