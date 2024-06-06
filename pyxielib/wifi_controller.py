@@ -46,6 +46,14 @@ class WiFiController:
 
         return self.ssid_id[ssid]
 
+    def to_id(self, val) -> int:
+        """Take any value that may represent a network and return an ID"""
+        ## Check if it's a string
+        if isinstance(val, str) and not val.isdigit():
+            return self.id_lookup(val)
+
+        return int(val)
+
     def connected_to(self) -> str:
         self.load()
         if self.current is None:
@@ -108,7 +116,10 @@ class WiFiController:
         if proc.returncode != 0:
             return False
 
-        nid = int(proc.stdout.decode('utf8').strip())
+        ## Convert nid to number
+        nid = proc.stdout.strip()
+        if nid.isdigit():
+            nid = int(nid)
 
         ## Set the SSID
         if not self.set_network(nid, 'ssid', ssid):
@@ -146,22 +157,26 @@ class WiFiController:
 
     def select_network(self, nid, *, blocking=True) -> bool:
         """Select a network"""
-        return self._run_cmd(['select_network', str(nid)], blocking=blocking)
+        nid = str(self.to_id(nid))
+        return self._run_cmd(['select_network', nid], blocking=blocking)
 
     def enable_network(self, nid) -> bool:
         """Enable a network"""
-        return self._run_cmd(['enable_network', str(nid)])
+        nid = str(self.to_id(nid))
+        return self._run_cmd(['enable_network', nid])
 
     def remove_network(self, nid) -> bool:
         """Remove a network"""
-        return self._run_cmd(['remove_network', str(nid)])
+        nid = str(self.to_id(nid))
+        return self._run_cmd(['remove_network', nid])
 
     def set_network(self, nid, key, value) -> True:
         """Set a network property"""
+        nid = str(self.to_id(nid))
         if isinstance(value, str):
             value = f'"{value}"'
 
-        return self._run_cmd(['set_network', str(nid), key, str(value)])
+        return self._run_cmd(['set_network', nid, key, str(value)])
 
     def save(self) -> bool:
         """Save the network config"""
@@ -193,7 +208,7 @@ class WiFiController:
         self.proc = None
         return (ret == 0)
 
-    def _run_cmd(self, cmd, *, blocking=True) -> bool:
+    def _run_cmd(self, cmd, *, check=True, blocking=True) -> bool:
         """Run a simple command"""
         if isinstance(cmd, str):
             cmd = self.cmd + [cmd]
@@ -201,8 +216,13 @@ class WiFiController:
             cmd = self.cmd + cmd
 
         if blocking:
-            proc = subprocess.run(cmd, capture_output=True, check=False)
-            return (proc.returncode == 0)
+            print(" ".join(cmd))
+            res = subprocess.run(cmd, capture_output=True, check=False)
+            print(res.stdout)
+            if check:
+                return (b"OK" == res.stdout.strip())
+
+            return (res.returncode == 0)
 
         self.proc = subprocess.Popen(cmd)
         return self.proc

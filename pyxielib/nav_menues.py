@@ -20,7 +20,7 @@ class IpItem(SubcommandItem):
 
 class WiFiScanItem(ListItem):
     def __init__(self, device='wlan0', sudo=True, show_passwd=False, wifi=None, **kwargs):
-        super().__init__("WiFi Networks", **kwargs)
+        super().__init__("Add WiFi Network", **kwargs)
         self.device = device
         self.sudo   = sudo
         self.show   = show_passwd
@@ -54,7 +54,7 @@ class WiFiScanItem(ListItem):
         elif 'connected' == self.state:
             msg = "Connected"
         elif 'failed' == self.state:
-            msg = "Scan failed"
+            msg = "Conn. failed" if self.ssid else "Scan failed"
         else:
             msg = f"Error state: {self.state}"
 
@@ -86,26 +86,25 @@ class WiFiScanItem(ListItem):
         if ret != 0:
             self.state = 'failed'
 
-        networks = []
+        networks = set()
+        known = set(self.wifi.network_ssids())
         for line in self.proc.stdout:
             match = re.search(r'ESSID:"(.+)"', line.decode('utf8'))
             if match:
-                networks.append(match.groups()[0])
+                networks.add(match.groups()[0])
 
+        ## Add a header and exclude known networks
         header = f"Found {len(networks)} SSIDs"
-        self.set_values([header] + sorted(networks))
+        self.set_values([header] + sorted(networks.difference(known)))
         self.state = 'select'
 
     def key_enter(self):
         if 'select' == self.state and self.idx and self.wifi:
-            self.state  = 'password'
-            self.ssid   = self.current_value()
+            self.ssid = self.current_value()
+            self.state = 'password'
         elif 'password' == self.state:
             success = self.wifi.add_network(self.ssid, self.passwd, save=True, connect=False)
-            if success:
-                self.state = 'connected'
-            else:
-                self.state = 'failed'
+            self.state = 'connected' if success else 'failed'
         elif self.state in ('connected', 'failed'):
             self.reset()
             self.set_done()
@@ -162,8 +161,7 @@ class WiFiSelectItem(ListItem):
             self.state = 'success' if success else 'failed'
 
     def select(self):
-        ssid = self.current_value()
-        self.wifi.select_network(self.wifi.id_lookup(ssid), blocking=False)
+        self.wifi.select_network(self.current_value(), blocking=False)
 
     def key_enter(self):
         if self.state == 'select':
