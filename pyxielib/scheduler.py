@@ -127,7 +127,6 @@ class Scheduler:
             if ani is not None:
                 self.assembler.setAnimation(ani)
         elif program.done():
-            program.reset()
             self.idle()
 
     def handler(self):
@@ -179,7 +178,6 @@ class CronScheduler(Scheduler):
         self.schedule = [ScheduleEntry(*x) for x in (schedule or [])]
         self.program  = None
         self.default  = default
-        self.slot     = None
         self.printSchedule()
 
     def getProgram(self):
@@ -211,16 +209,14 @@ class CronScheduler(Scheduler):
         now = time.time() + 1 ## Ugly hack. Don't miss start of time slot
         ## Set program now if nothing else is running
         if self.program is None:
-            self.slot = slot
             self.program = slot.program
             print(f"Starting with program '{name}'")
             self.program.reset()
             return True
         ## Update program if it's scheduled to run now
-        if slot.timestamp <= now and slot != self.slot and slot.program != self.program:
+        elif slot.timestamp <= now and slot.program != self.program:
             print(f"Switch to program '{name}'")
             self.program = slot.program
-            self.slot = slot
             self.program.reset()
             return True
 
@@ -229,4 +225,3 @@ class CronScheduler(Scheduler):
     def idle(self):
         print("Activating default program")
         self.program = self.default
-        self.program.reset()

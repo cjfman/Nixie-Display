@@ -11,32 +11,44 @@ class Program:
     ## pylint: disable=no-self-use
     def __init__(self, name):
         self.name:str = name
-        self.animation:Animation = None
+        self.old_animation:Animation = None
+        self.failed = False
 
     def getName(self):
         return self.name
 
     def getAnimation(self) -> Animation:
-        return self.animation
+        return self.old_animation
 
     def makeAnimation(self) -> Animation:
         raise PyxieUnimplementedError(self)
 
     def reset(self):
-        self.animation = None
+        self.old_animation = None
+        self.failed = False
 
     def done(self):
+        return (self.failed or self._done)
+
+    def _done(self):
         return False
 
     def interrupt(self):
         return False
 
     def update(self):
-        new_animation = self.makeAnimation()
-        if new_animation is None or self.animation == new_animation:
+        new_animation = None
+        try:
+            new_animation = self.makeAnimation()
+        except Exception as e:
+            print(f"Program '{self.name}' failed: {e}")
+            self.failed = True
             return False
 
-        self.animation = new_animation
+        if new_animation is None or self.old_animation == new_animation:
+            return False
+
+        self.old_animation = new_animation
         return True
 
     def __str__(self):
@@ -112,10 +124,10 @@ class RssProgram(Program):
         self.loop        = loop
 
     def reset(self):
-        Program.reset(self)
+        super().reset()
         self.animation = None
 
-    def done(self):
+    def _done(self):
         return (self.animation is not None and not self.loop)
 
     @staticmethod
@@ -123,11 +135,18 @@ class RssProgram(Program):
         return escapeText(txt)
 
     def makeRssAnimation(self):
+        print(f"Querying RSS feed {self.url}")
         rss = feedparser.parse(self.url)
         entries = rss['entries'][:self.max_entries]
         values = []
+        print(f"Found {len(entries)} entries")
+        if not entries:
+            #self.animation = animationlib.makeTextSequence("There is no weather", 5)
+            self.animation = MarqueeAnimation.fromText("There is no weather", self.size)
+            return
+
         for entry in entries:
-            ## Default is to sure the summary
+            ## Default is to sow the summary
             value = entry['summary']
             if self.use_content and 'content' in entry:
                 ## Override summary with content
@@ -139,7 +158,7 @@ class RssProgram(Program):
             values.append(value)
 
         msg = (' '*(self.size//2)).join(values)
-        if self.use_title:
+        if self.use_title and 'title' in rss['feed']:
             msg = rss['feed']['title'] + " || " + msg
 
         self.animation = MarqueeAnimation.fromText(self.escapeText(msg), self.size)
