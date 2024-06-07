@@ -70,7 +70,7 @@ class KeyWatcher:
                 if self.trigger and self.trigger == self.keys_down:
                     self.active = True
                     print("KeyWatcher triggered")
-                elif self.release and self.release == self.keys_down:
+                elif self.release and self.release == self.keys_down and self.active:
                     self.active = False
                     self.queue.put('USER_INTERRUPT')
                     print("KeyWatcher interrupted")
