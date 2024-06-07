@@ -182,6 +182,10 @@ class MirrorItem(MenuItem):
     def for_display(self):
         return self.msg
 
+    def reset(self):
+        super().reset()
+        self.msg
+
     def key_alpha_num(self, c):
         self.msg += c
 
@@ -279,6 +283,7 @@ class Navigator:
     def reset(self):
         self.root.reset()
         self.node = self.root
+        self.should_exit = False
 
     def enter(self):
         if not isinstance(self.node, Menu):
@@ -291,10 +296,12 @@ class Navigator:
     def back(self):
         if not self.visited:
             self.root.reset()
-            raise KeyboardInterrupt()
+            self.should_exit = True
+            return False
         else:
             self.node.reset()
             self.node = self.visited.pop()
+            return True
 
     def next(self):
         return self.node.next()
@@ -324,6 +331,7 @@ class Navigator:
         ## Check if done
         if self.node.is_done():
             print(f'Node "{self.node.name}" is done')
-            self.back()
+            if not self.back():
+                return None
 
         return self.for_display()

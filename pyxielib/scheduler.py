@@ -127,6 +127,7 @@ class Scheduler:
             if ani is not None:
                 self.assembler.setAnimation(ani)
         elif program.done():
+            program.reset()
             self.idle()
 
     def handler(self):
