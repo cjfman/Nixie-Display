@@ -41,7 +41,7 @@ else:
 
 clock_prgm = program.ClockProgram(flash=False)
 nyt_prgm = program.RssProgram("https://rss.nytimes.com/services/xml/rss/nyt/US.xml", size=16)
-weather_prgm = program.WeatherProgram('02139')
+weather_prgm = program.WeatherProgram(nws_code="KBOS")
 user_prgm = None
 if args.keyboard_event_file is not None:
     user_prgm = usermenuprogram.UserMenuProgram(args.keyboard_event_file)
