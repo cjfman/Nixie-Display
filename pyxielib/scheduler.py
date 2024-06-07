@@ -226,4 +226,6 @@ class CronScheduler(Scheduler):
         return False
 
     def idle(self):
+        print("Activating default program")
         self.program = self.default
+        self.program.reset()

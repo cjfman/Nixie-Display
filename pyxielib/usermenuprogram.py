@@ -15,7 +15,7 @@ class UserMenuProgram(Program):
             trigger={
                 'KEY_LEFTCTRL',
                 'KEY_LEFTALT',
-                'KEY_DELETE',
+                'KEY_F4',
             },
             release={
                 'KEY_LEFTCTRL',
