@@ -11,16 +11,19 @@ class Program:
     ## pylint: disable=no-self-use
     def __init__(self, name):
         self.name:str = name
-        self.old_animation:Animation = None
+        self.animation:Animation = None
 
     def getName(self):
         return self.name
 
-    def getAnimation(self):
+    def getAnimation(self) -> Animation:
+        return self.animation
+
+    def makeAnimation(self) -> Animation:
         raise PyxieUnimplementedError(self)
 
     def reset(self):
-        self.old_animation = None
+        self.animation = None
 
     def done(self):
         return False
@@ -29,11 +32,11 @@ class Program:
         return False
 
     def update(self):
-        new_animation = self.getAnimation()
-        if new_animation is None or self.old_animation == new_animation:
+        new_animation = self.makeAnimation()
+        if new_animation is None or self.animation == new_animation:
             return False
 
-        self.old_animation = new_animation
+        self.animation = new_animation
         return True
 
     def __str__(self):
@@ -55,7 +58,7 @@ class ClockProgram(Program):
             self.hour_code = "%k"
             self.am_pm_code = ''
 
-    def getAnimation(self):
+    def makeAnimation(self):
         code = self.getTimeCode()
         if self.flash:
             codes = [code, code.replace(':', '')]
@@ -141,7 +144,7 @@ class RssProgram(Program):
 
         self.animation = MarqueeAnimation.fromText(self.escapeText(msg), self.size)
 
-    def getAnimation(self):
+    def makeAnimation(self):
         if self.animation is None or (self.loop and self.animation.done()):
             self.makeRssAnimation()
 

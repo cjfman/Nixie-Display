@@ -12,7 +12,7 @@ from pyxielib import assembler, controller, key_watcher, scheduler, usermenuprog
 ctrl = controller.TerminalController(clear_screen=True)
 asmlr = assembler.Assembler(controller=ctrl)
 prgm = usermenuprogram.UserMenuProgram("/dev/input/event22")
-schdlr = scheduler.SingleProgramScheduler(prgm, asmlr)
+schdlr = scheduler.SingleProgramScheduler(prgm, asmlr, period=0.01)
 
 print("Starting program")
 schdlr.run()

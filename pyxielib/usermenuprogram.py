@@ -41,7 +41,7 @@ class UserMenuProgram(Program):
     def done(self):
         return self.should_exit
 
-    def getAnimation(self):
+    def makeAnimation(self):
         ## Handle all queued keys
         msg = None
         if self.watcher.can_pop() and not self.should_exit:
