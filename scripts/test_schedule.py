@@ -30,7 +30,8 @@ if os.getuid() == 0:
 
 clock_prgm = program.ClockProgram(flash=False)
 nyt_prgm = program.RssProgram("https://rss.nytimes.com/services/xml/rss/nyt/US.xml", size=16)
-weather_prgm = program.WeatherProgram('02139')
+#weather_prgm = program.WeatherProgram(url="https://forecast.weather.gov/xml/current_obs/KBOS.rss")
+weather_prgm = program.WeatherProgram(nws_code="KBOS")
 schl = (
     ("*/5 * * * *",  1, clock_prgm),
     ("*/20 * * * *", 3, nyt_prgm),

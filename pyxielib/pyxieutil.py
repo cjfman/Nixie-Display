@@ -33,7 +33,7 @@ def flattenHTML(html):
         data.decompose()
 
     ## Return data by retrieving the tag content
-    return ' '.join(soup.stripped_strings)
+    return ' '.join(soup.stripped_strings).replace('\n', '')
 
 
 def strToInt(num):

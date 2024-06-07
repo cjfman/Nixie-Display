@@ -141,13 +141,12 @@ class RssProgram(Program):
         values = []
         print(f"Found {len(entries)} entries")
         if not entries:
-            #self.animation = animationlib.makeTextSequence("There is no weather", 5)
             self.animation = MarqueeAnimation.fromText("There is no weather", self.size)
             return
 
         for entry in entries:
             ## Default is to sow the summary
-            value = entry['summary']
+            value = flattenHTML(entry['summary'])
             if self.use_content and 'content' in entry:
                 ## Override summary with content
                 value = flattenHTML(' '.join([x['value'] for x in entry['content']]))
@@ -171,9 +170,21 @@ class RssProgram(Program):
 
 
 class WeatherProgram(RssProgram):
-    def __init__(self, zipcode, size=16):
-        self.zipcode = zipcode
-        self.url = f"http://www.rssweather.com/zipcode/{self.zipcode}/rss.php"
+    def __init__(self, *, zipcode=None, nws_code=None, url=None, size=16):
+        self.zipcode  = zipcode
+        self.nws_code = nws_code
+        self.url      = None
+
+        ## Set URL
+        if url is not None:
+            self.url = usl
+        elif self.zipcode is not None:
+            self.url = f"http://www.rssweather.com/zipcode/{self.zipcode}/rss.php"
+        elif self.nws_code is not None:
+            self.url = f"https://forecast.weather.gov/xml/current_obs/{self.nws_code}.rss"
+        else:
+            raise ValueError("At least one of zipcode, nws_code, or url must be not None")
+
         RssProgram.__init__(self, self.url,
             name='Weather', use_titles=True, use_content=True,
             size=size, max_entries=2, loop=False
