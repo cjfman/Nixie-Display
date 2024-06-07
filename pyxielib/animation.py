@@ -789,11 +789,12 @@ class ComboAnimation(Animation):
 
 
 class MarqueeAnimation(Animation):
-    def __init__(self, frames:Sequence[Frame], size:int, delay:float=0.5):
+    def __init__(self, frames:Sequence[Frame], size:int, delay:float=0.5, freeze=False):
         super().__init__()
         self.frames     = frames
         self.size       = size
         self.delay      = delay
+        self.freeze     = (freeze and len(frames) <= size)
         self.index      = None
         self.start_time = time.time()
 
@@ -820,6 +821,12 @@ class MarqueeAnimation(Animation):
 
     def updateFrameSet(self):
         """Update the frame set based upon the current time. Return True if updated"""
+        if self.freeze:
+            idx = self.index
+            self.index = 0
+            return (idx is None)
+
+        ## Shift frames if it's time
         elapsed = time.time() - self.start_time
         next_index = int(elapsed / self.delay)
         if next_index > len(self.frames) or next_index == self.index:
@@ -830,6 +837,11 @@ class MarqueeAnimation(Animation):
 
     def done(self):
         """The last frame has loaded"""
+        if self.freeze:
+            ## Always done when frozen
+            return True
+
+        ## Return true if the last frame has shifted off the screen
         elapsed = time.time() - self.start_time
         next_index = elapsed // self.delay
         return (next_index >= len(self.frames))

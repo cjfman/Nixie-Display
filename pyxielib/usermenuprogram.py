@@ -65,4 +65,4 @@ class UserMenuProgram(Program):
         if msg is None:
             msg = self.navigator.for_display()
 
-        return animationlib.makeTextSequence([msg], 1)
+        return animationlib.MarqueeAnimation.fromText(msg, 16, freeze=True)
