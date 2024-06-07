@@ -115,7 +115,10 @@ class Scheduler:
         if program is None:
             return
         if program.update():
-            self.assembler.setAnimation(program.getAnimation())
+            ani = program.getAnimation()
+            print(ani) ## XXX
+            if ani is not None:
+                self.assembler.setAnimation(ani)
         elif program.done():
             self.idle()
 

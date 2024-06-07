@@ -87,7 +87,7 @@ class SubcommandItem(MenuItem):
         self.failed      = False
 
     def for_display(self):
-        if self.proc is None:
+        if not self.blocking and self.proc is None:
             return "Not started"
 
         self.poll()
@@ -172,6 +172,22 @@ class ListItem(MenuItem):
 
     def key_enter(self):
         pass
+
+
+class MirrorItem(MenuItem):
+    def __init__(self, name="Mirror", **kwargs):
+        super().__init__(name, **kwargs)
+        self.msg = ""
+
+    def for_display(self):
+        return self.msg
+
+    def key_alpha_num(self, c):
+        self.msg += c
+
+    def key_backspace(self):
+        if len(self.msg):
+            self.msg = self.msg[:-1]
 
 
 class Menu(MenuItem):
@@ -275,7 +291,7 @@ class Navigator:
     def back(self):
         if not self.visited:
             self.root.reset()
-            self.should_exit = True
+            raise KeyboardInterrupt()
         else:
             self.node.reset()
             self.node = self.visited.pop()
@@ -287,6 +303,7 @@ class Navigator:
         return self.node.previous()
 
     def key_entry(self, key):
+        print(f"Enter key '{key}'")
         if key == "BACKSPACE":
             self.node.key_backspace()
         elif key == "DOWN":

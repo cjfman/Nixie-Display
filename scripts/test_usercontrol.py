@@ -6,20 +6,12 @@ import time
 
 sys.path.append("/home/charles/Projects/nixie")
 
-from pyxielib import assembler, controller, program, scheduler
+from pyxielib import assembler, controller, key_watcher, scheduler, usermenuprogram
 
 
-DEBUG = True
-ctrl = None
-if DEBUG:
-    ctrl = controller.TerminalController(clear_screen=True)
-else:
-    print("Opening connection to Nixie Control Board")
-    ctrl = controller.SerialController('/dev/ttyACM0', debug=True)
-    print("Connection established")
-
+ctrl = controller.TerminalController(clear_screen=True)
 asmlr = assembler.Assembler(controller=ctrl)
-prgm = program.ClockProgram(asmlr, flash=True)
+prgm = usermenuprogram.UserMenuProgram("/dev/input/event22")
 schdlr = scheduler.SingleProgramScheduler(prgm, asmlr)
 
 print("Starting program")

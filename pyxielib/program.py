@@ -25,6 +25,9 @@ class Program:
     def done(self):
         return False
 
+    def interruptSet(self):
+        return False
+
     def update(self):
         new_animation = self.getAnimation()
         if new_animation is None or self.old_animation == new_animation:

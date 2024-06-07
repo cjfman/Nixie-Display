@@ -52,7 +52,7 @@ class Assembler:
 
     def animationDone(self):
         self.cv.acquire()
-        done = self.animation.done()
+        done = (self.animation is None or self.animation.done())
         self.cv.release()
         return done
 
