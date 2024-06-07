@@ -7,13 +7,13 @@ from pyxielib.wifi_controller import WiFiController
 
 class IpItem(SubcommandItem):
     def __init__(self):
-        super().__init__("Show IP Address", ['ip', 'route', 'list', 'default'])
+        super().__init__("Show IP Address", "ip route get 8.8.8.8 | head -1 | cut -d' ' -f7", shell=True)
 
     def run(self) -> str:
-        output = super().run()
-        match = re.match(r"default via (\S+)", output)
+        output = super().run().strip()
+        match = re.match(r"$\d{1,3}(\.\d{1,3}){3}$", output)
         if match:
-            return match.groups()[0]
+            return output
 
         return "No IP Address"
 

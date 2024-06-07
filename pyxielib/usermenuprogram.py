@@ -52,6 +52,8 @@ class UserMenuProgram(Program):
             key = None
             try:
                 key = self.watcher.pop()
+                if key is not None:
+                    msg = self.navigator.key_entry(key)
             except KeyboardInterrupt:
                 print("User requested exit from menu")
                 self.should_exit = True
@@ -59,9 +61,6 @@ class UserMenuProgram(Program):
                 self.watcher.reset()
                 self.navigator.reset()
                 return None
-
-            if key is not None:
-                msg = self.navigator.key_entry(key)
 
         if msg is None:
             msg = self.navigator.for_display()

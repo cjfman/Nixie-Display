@@ -121,6 +121,7 @@ class Scheduler:
 
         if program is None:
             return
+
         if program.update():
             ani = program.getAnimation()
             if ani is not None:
