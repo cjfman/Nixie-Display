@@ -5,13 +5,14 @@ import argparse
 import sys
 import time
 
-from pyxielib import assembler, controller, program, scheduler
+from pyxielib import assembler, controller, program, scheduler, usermenuprogram
 
 parser = argparse.ArgumentParser(description='Nixie tube controller')
 parser.add_argument('-c', '--controller', required=True, help="The type of controller <terminal,raspi,serial>")
 parser.add_argument('-p', '--print-code', action='store_true', help="Print the code to the output")
 parser.add_argument('-s', '--serial', help="The serial device path. Overrides --controller")
 parser.add_argument('-v', '--verbose', action='store_true', help="Be verbose in output")
+parser.add_argument('--keyboard-event-file', help="The /dev/input/event file that represents keyboard input")
 args = parser.parse_args()
 
 
@@ -41,6 +42,10 @@ else:
 clock_prgm = program.ClockProgram(flash=False)
 nyt_prgm = program.RssProgram("https://rss.nytimes.com/services/xml/rss/nyt/US.xml", size=16)
 weather_prgm = program.WeatherProgram('02139')
+user_prgm = None
+if args.keyboard_event_file is not None:
+    user_prgm = usermenuprogram.UserMenuProgram(args.keyboard_event_file)
+
 schl = (
     ("*/5 * * * *",  1, clock_prgm),
     ("*/20 * * * *", 3, nyt_prgm),
@@ -48,7 +53,7 @@ schl = (
 )
 
 asmlr = assembler.Assembler(controller=ctrl)
-schdlr = scheduler.CronScheduler(schl, asmlr)
+schdlr = scheduler.CronScheduler(schl, asmlr, user_menu=user_prgm)
 
 print("Starting program")
 schdlr.run()

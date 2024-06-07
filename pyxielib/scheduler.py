@@ -137,6 +137,8 @@ class Scheduler:
                 if self.checkSchedule() or self.assembler.animationDone():
                     try:
                         self.pollProgram()
+                    except KeyboardInterrupt:
+                        break
                     except Exception as e:
                         print("Failed to poll program: ", e)
                         traceback.print_exc()

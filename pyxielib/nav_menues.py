@@ -1,7 +1,7 @@
 import re
 import subprocess
 
-from pyxielib.navigator import DelayedCommandItem, ListItem, Menu, MsgItem, SubcommandItem
+from pyxielib.navigator import DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
 
 
@@ -26,6 +26,11 @@ class RebootItem(DelayedCommandItem):
 class ShutdownItem(DelayedCommandItem):
     def __init__(self, **kwargs):
         super().__init__("Shutdown", "sudo halt", **kwargs)
+
+
+class ExitItem(MenuItem):
+    def activate(self):
+        raise KeyboardInterrupt()
 
 
 class WiFiScanItem(ListItem):

@@ -51,7 +51,7 @@ try:
             print("Assembler stopped unexpectedly")
             break
         if not schdlr.isRunning():
-            print("Schedluer stopped unexpectedly")
+            print("Scheduler stopped unexpectedly")
             break
         time.sleep(0.1)
 except KeyboardInterrupt:
