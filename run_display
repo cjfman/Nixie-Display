@@ -53,7 +53,7 @@ schl = (
 )
 
 asmlr = assembler.Assembler(controller=ctrl)
-schdlr = scheduler.CronScheduler(schl, asmlr, user_menu=user_prgm)
+schdlr = scheduler.CronScheduler(schl, asmlr, default=clock_prgm, user_menu=user_prgm)
 
 print("Starting program")
 schdlr.run()

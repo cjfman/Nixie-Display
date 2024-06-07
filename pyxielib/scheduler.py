@@ -210,6 +210,7 @@ class CronScheduler(Scheduler):
         now = time.time() + 1 ## Ugly hack. Don't miss start of time slot
         ## Set program now if nothing else is running
         if self.program is None:
+            self.slot = slot
             self.program = slot.program
             print(f"Starting with program '{name}'")
             self.program.reset()
