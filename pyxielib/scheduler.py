@@ -9,6 +9,7 @@ from croniter import croniter
 from pyxielib.assembler import Assembler
 from pyxielib.program import Program
 from pyxielib.pyxieutil import PyxieError, PyxieUnimplementedError
+from pyxielib.usermenuprogram import UserMenuProgram
 
 
 class SchedulerError(PyxieError):
@@ -64,9 +65,10 @@ class ScheduleEntry:
 
 
 class Scheduler:
-    def __init__(self, assembler:Assembler, *, period:float=.1):
+    def __init__(self, assembler:Assembler, *, period:float=.1, user_menu:UserMenuProgram=None):
         self.assembler = assembler
         self.period    = period
+        self.user_menu = user_menu
         self.running   = False
         self.shutdown  = False
         self.thread    = threading.Thread(target=self.handler)
@@ -111,15 +113,20 @@ class Scheduler:
         """This is called when the current animation and program are done"""
 
     def pollProgram(self):
-        program = self.getProgram()
+        program = None
+        if self.user_menu is not None and self.user_menu.interrupt():
+            program = self.user_menu
+        else:
+            program = self.getProgram()
+
         if program is None:
             return
         if program.update():
             ani = program.getAnimation()
-            print(ani) ## XXX
             if ani is not None:
                 self.assembler.setAnimation(ani)
         elif program.done():
+            program.reset()
             self.idle()
 
     def handler(self):

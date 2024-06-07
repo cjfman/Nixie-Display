@@ -9,6 +9,8 @@ from pyxielib.program import Program
 class UserMenuProgram(Program):
     def __init__(self, event_path):
         super().__init__("User Control")
+        self.active      = False
+        self.should_exit = False
         self.watcher = KeyWatcher(event_path, hold=False,
             trigger={
                 'KEY_LEFTCTRL',
@@ -27,16 +29,16 @@ class UserMenuProgram(Program):
             nav_menues.RebootItem(),
             nav_menues.ShutdownItem(),
         ]))
-        self.should_exit = False
 
     def reset(self):
         super().reset()
         self.navigator.reset()
         self.watcher.reset()
+        self.active      = False
         self.should_exit = False
 
-    def interruptSet(self):
-        return self.watcher.can_pop()
+    def interrupt(self):
+        return (self.active or self.watcher.active or self.watcher.can_pop())
 
     def done(self):
         return self.should_exit
@@ -45,6 +47,7 @@ class UserMenuProgram(Program):
         ## Handle all queued keys
         msg = None
         if self.watcher.can_pop() and not self.should_exit:
+            self.active = True
             try:
                 key = self.watcher.pop()
                 if key is not None:
@@ -52,6 +55,7 @@ class UserMenuProgram(Program):
             except KeyboardInterrupt:
                 print("User requested exit from menu")
                 self.should_exit = True
+                self.active = False
                 self.watcher.reset()
                 self.navigator.reset()
                 return None

@@ -303,7 +303,6 @@ class Navigator:
         return self.node.previous()
 
     def key_entry(self, key):
-        print(f"Enter key '{key}'")
         if key == "BACKSPACE":
             self.node.key_backspace()
         elif key == "DOWN":

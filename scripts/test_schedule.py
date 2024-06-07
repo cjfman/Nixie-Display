@@ -1,15 +1,16 @@
 #! /usr/bin/python3
 ##pylint: disable=wrong-import-position
 
+import os
 import sys
 import time
 
 sys.path.append("/home/charles/Projects/nixie")
 
-from pyxielib import assembler, controller, program, scheduler
+from pyxielib import assembler, controller, program, scheduler, usermenuprogram
 
 
-DEBUG = False
+DEBUG = True
 RASPI = True
 ctrl = None
 if DEBUG:
@@ -23,6 +24,10 @@ else:
     print("Connection established")
 
 
+user_prgm = None
+if os.getuid() == 0:
+    user_prgm = usermenuprogram.UserMenuProgram("/dev/input/event22")
+
 clock_prgm = program.ClockProgram(flash=False)
 nyt_prgm = program.RssProgram("https://rss.nytimes.com/services/xml/rss/nyt/US.xml", size=16)
 weather_prgm = program.WeatherProgram('02139')
@@ -33,7 +38,7 @@ schl = (
 )
 
 asmlr = assembler.Assembler(controller=ctrl)
-schdlr = scheduler.CronScheduler(schl, asmlr)
+schdlr = scheduler.CronScheduler(schl, asmlr, user_menu=user_prgm)
 
 print("Starting program")
 schdlr.run()

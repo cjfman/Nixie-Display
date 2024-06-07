@@ -28,7 +28,7 @@ class Program:
     def done(self):
         return False
 
-    def interruptSet(self):
+    def interrupt(self):
         return False
 
     def update(self):
