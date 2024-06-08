@@ -114,7 +114,7 @@ class Scheduler:
 
     def pollProgram(self):
         program = None
-        if self.user_menu is not None and self.user_menu.interrupt():
+        if self.user_menu is not None and self.user_menu.active:
             program = self.user_menu
         else:
             program = self.getProgram()
@@ -214,8 +214,9 @@ class CronScheduler(Scheduler):
             print(f"Starting with program '{name}'")
             self.program.reset()
             return True
+
         ## Update program if it's scheduled to run now
-        elif slot.timestamp <= now and slot.program != self.program:
+        if slot.timestamp <= now and slot.program != self.program:
             print(f"Switch to program '{name}'")
             self.program = slot.program
             self.program.reset()

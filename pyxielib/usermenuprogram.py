@@ -10,9 +10,10 @@ from pyxielib.program import Program
 class UserMenuProgram(Program):
     def __init__(self, event_path):
         super().__init__("User Control")
-        self.active      = False
-        self.should_exit = False
-        self.old_msg     = None
+        self.active           = False
+        self.old_msg          = None
+        self.should_exit      = False
+        self.should_interrupt = False
         self.watcher = KeyWatcher(event_path, hold=False,
             trigger={
                 'KEY_LEFTCTRL',
@@ -38,13 +39,18 @@ class UserMenuProgram(Program):
         super().reset()
         self.navigator.reset()
         self.watcher.reset()
-        self.active      = False
-        self.should_exit = False
-        self.old_msg     = None
+        self.active           = False
+        self.old_msg          = None
+        self.should_exit      = False
+        self.should_interrupt = False
 
     def interrupt(self) -> bool:
         """Returns true if active animations and programs should be interrupted to check the user menu"""
-        return (self.active or self.watcher.active or self.watcher.can_pop())
+        return self.should_interrupt
+
+    def wake(self):
+        self.active = True
+        self.should_interrupt = True
 
     def done(self) -> bool:
         return self.should_exit
@@ -53,6 +59,7 @@ class UserMenuProgram(Program):
         """Make the menu animation"""
         ## Check the key watcher
         msg = None
+        self.should_interrupt = True
         if self.watcher.can_pop() and not self.should_exit:
             self.active = True
             key = None
@@ -77,8 +84,14 @@ class UserMenuProgram(Program):
         if msg == self.old_msg:
             return None
 
-        ## Make the actual animation
+        ## Process msg
         self.old_msg = msg
+        if isinstance(msg, Animation):
+            ## Allow animation to complete
+            self.should_interrupt = False
+            return msg
+
+        ## Make the actual animation
         return animationlib.MarqueeAnimation.fromText(msg, 16, freeze=True)
 
     def menu_exit(self):
