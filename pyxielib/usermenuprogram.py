@@ -56,19 +56,15 @@ class UserMenuProgram(Program):
                 key = self.watcher.pop()
                 if key is not None:
                     msg = self.navigator.key_entry(key)
-            except KeyboardInterrupt as e:
-                print("User requested exit from program")
-                raise e
-            
+            except KeyboardInterrupt:
+                self.menu_exit()
+                return None
+
         if msg is None:
             if not self.navigator.should_exit:
                 msg = self.navigator.for_display()
             else:
-                print("User requested exit from menu")
-                self.should_exit = True
-                self.active = False
-                self.watcher.reset()
-                self.navigator.reset()
+                self.menu_exit()
                 return None
 
         if msg == self.old_msg:
@@ -76,3 +72,10 @@ class UserMenuProgram(Program):
 
         self.old_msg = msg
         return animationlib.MarqueeAnimation.fromText(msg, 16, freeze=True)
+
+    def menu_exit(self):
+        print("User requested exit from menu")
+        self.should_exit = True
+        self.active = False
+        self.watcher.reset()
+        self.navigator.reset()
