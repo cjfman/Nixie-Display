@@ -14,7 +14,10 @@ class UserMenuProgram(Program):
         self.old_msg          = None
         self.should_exit      = False
         self.should_interrupt = False
-        self.watcher = KeyWatcher(event_path, hold=False,
+        self.watcher = KeyWatcher(
+            event_path,
+            owner=self,
+            hold=False,
             trigger={
                 'KEY_LEFTCTRL',
                 'KEY_LEFTALT',
