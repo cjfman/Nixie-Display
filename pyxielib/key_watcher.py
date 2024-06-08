@@ -118,6 +118,7 @@ class KeyWatcher:
 
     def read_loop(self):
         """Read key events"""
+        ## pylint: disable=too-many-branches
         for event in self.dev.read_loop():
             if not self.running:
                 break
@@ -133,14 +134,15 @@ class KeyWatcher:
                 ## Check for trigger or release key combo
                 if self.trigger and self.trigger == self.keys_down:
                     self.active = True
+                    print("KeyWatcher triggered")
                     if self.owner is not None:
                         self.owner.wake()
-
-                    print("KeyWatcher triggered")
                 elif self.release and self.release == self.keys_down and self.active:
                     self.active = False
                     self.queue.put('USER_INTERRUPT')
                     print("KeyWatcher interrupted")
+                    if self.owner is not None:
+                        self.owner.wake()
                 elif self.active:
                     ## Only add event to queue if it's not a trigger or release
                     self.queue.put(k_event)
