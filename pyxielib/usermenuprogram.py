@@ -11,6 +11,7 @@ class UserMenuProgram(Program):
         super().__init__("User Control")
         self.active      = False
         self.should_exit = False
+        self.old_msg     = None
         self.watcher = KeyWatcher(event_path, hold=False,
             trigger={
                 'KEY_LEFTCTRL',
@@ -37,6 +38,7 @@ class UserMenuProgram(Program):
         self.watcher.reset()
         self.active      = False
         self.should_exit = False
+        self.old_msg     = None
 
     def interrupt(self):
         return (self.active or self.watcher.active or self.watcher.can_pop())
@@ -69,4 +71,8 @@ class UserMenuProgram(Program):
                 self.navigator.reset()
                 return None
 
-        return animationlib.makeTextAnimation(msg, 0.01)
+        if msg == self.old_msg:
+            return None
+
+        self.old_msg = msg
+        return animationlib.MarqueeAnimation.fromText(msg, 16, freeze=True)

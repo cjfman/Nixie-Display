@@ -135,7 +135,7 @@ class Scheduler:
         print("Starting scheduler thread")
         try:
             while self.running:
-                if self.checkSchedule() or self.assembler.animationDone():
+                if self.checkSchedule() or self.assembler.animationDone() or self.user_menu.interrupt():
                     try:
                         self.pollProgram()
                     except KeyboardInterrupt:
