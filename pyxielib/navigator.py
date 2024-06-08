@@ -61,7 +61,7 @@ class MenuItem:
         """Set done on ESC"""
         self.set_done()
 
-    def key_alpha_num(self, c):
+    def key_char(self, c):
         """Handle a pressed key"""
         ## pylint: disable=unused-argument
         ## Should be overridden
@@ -224,7 +224,7 @@ class MirrorItem(MenuItem):
         self.msg = ""
         self._msg = ""
 
-    def key_alpha_num(self, c):
+    def key_char(self, c):
         """Add a key to the message"""
         ## Check for a bracket, as this is a special character
         if c == '{':
@@ -428,7 +428,7 @@ class Navigator:
         elif key == "UP":
             self.node.key_up()
         elif len(key) == 1:
-            self.node.key_alpha_num(key)
+            self.node.key_char(key)
 
         ## Check if done
         if self.node.is_done():

@@ -44,6 +44,7 @@ SPECIAL_KEYS = {
     'COMMA':      ',',
     'DOT':        '.',
     'SLASH':      '/',
+    'SPACE':      ' ',
 }
 
 class KeyWatcher:
