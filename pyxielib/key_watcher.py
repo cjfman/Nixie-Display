@@ -83,10 +83,13 @@ class KeyWatcher:
     def code_to_char(self, key):
         key = key.replace('KEY_', '')
         key = SPECIAL_KEYS.get(key, key)
-        if self.shifted():
-            return self.make_shifted(key)
+        if len(key) == 1:
+            if self.shifted():
+                key = self.make_shifted(key)
+            else:
+                key = key.lower()
 
-        return key.lower()
+        return key
 
     def run(self):
         print("KeyWatcher thread starting")
