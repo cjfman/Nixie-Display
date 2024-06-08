@@ -1,4 +1,5 @@
 import datetime
+import re
 
 import feedparser
 
@@ -59,12 +60,13 @@ class Program:
 
 
 class ClockProgram(Program):
-    def __init__(self, use_24h=False, full_date=False, flash=False):
+    def __init__(self, use_24h=False, full_date=False, flash=False, underscore=True):
         super().__init__("Clock")
-        self.full_date = full_date
-        self.use_24h = use_24h
-        self.hour_code = "%I"
-        self.flash = flash
+        self.full_date  = full_date
+        self.use_24h    = use_24h
+        self.flash      = flash
+        self.underscore = underscore
+        self.hour_code  = "%I"
         self.am_pm_code = " %p"
         if use_24h:
             self.hour_code = "%k"
@@ -72,8 +74,14 @@ class ClockProgram(Program):
 
     def makeAnimation(self):
         code = self.getTimeCode()
+        colon = ':'
+        if self.underscore:
+            code = code.replace(':', '!')
+            colon = '!'
+            code = re.sub(r"(\d{2}!\d{2}!\d{2})", "\\1!", code)
+
         if self.flash:
-            codes = [code, code.replace(':', '')]
+            codes = [code, code.replace(colon, '')]
             return animationlib.makeTextSequence(codes, 0.5, looped=True)
 
         return animationlib.makeTextSequence([code], 1)
@@ -177,7 +185,7 @@ class WeatherProgram(RssProgram):
 
         ## Set URL
         if url is not None:
-            self.url = usl
+            self.url = url
         elif self.zipcode is not None:
             self.url = f"http://www.rssweather.com/zipcode/{self.zipcode}/rss.php"
         elif self.nws_code is not None:
