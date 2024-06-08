@@ -72,6 +72,7 @@ class UserMenuProgram(Program):
                 return None
 
         ## Enter key into the navigator
+        msg = None
         if key is not None:
             msg = self.navigator.key_entry(key)
 
