@@ -212,6 +212,8 @@ class MirrorItem(MenuItem):
     def __init__(self, name="Mirror", **kwargs):
         super().__init__(name, **kwargs)
         self.msg = ""
+        self._msg = ""
+        self.bracket = False
 
     def for_display(self):
         return self.msg
@@ -219,15 +221,49 @@ class MirrorItem(MenuItem):
     def reset(self):
         super().reset()
         self.msg = ""
+        self._msg = ""
 
     def key_alpha_num(self, c):
         """Add a key to the message"""
-        self.msg += c
+        ## Check for a bracket, as this is a special character
+        if c == '{':
+            if self.bracket:
+                ## We're already in bracket mode
+                return
+
+            self.bracket = True
+        elif c == '}':
+            if not self.bracket:
+                ## We are not in bracket mode
+                return
+
+            self.bracket = False
+
+        ## Add to the internal message and clone to external one
+        self._msg += c
+        self.msg = self._msg
+        if self.bracket:
+            ## Close bracket on external message
+            self.msg += '}'
 
     def key_backspace(self):
         """Erase the last typed key"""
-        if self.msg:
-            self.msg = self.msg[:-1]
+        if not self._msg:
+            return
+
+        if self._msg[-1] == '}':
+            ## We've entered a bracket section
+            self.bracket = True
+        elif self._msg[-1] == '{':
+            ## We've entered a bracket section
+            self.bracket = False
+
+        ## Add to the internal message and clone to external one
+        self._msg = self._msg[:-1]
+        self.msg = self._msg
+        if self.bracket:
+            ## Close bracket on external message
+            self.msg += '}'
 
 
 class Menu(MenuItem):
