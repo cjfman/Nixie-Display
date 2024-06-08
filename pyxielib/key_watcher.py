@@ -47,20 +47,22 @@ SPECIAL_KEYS = {
 }
 
 class KeyWatcher:
-    def __init__(self, event_path, *, trigger=None, release=None, hold=True):
+    def __init__(self, event_path, *, owner=None, trigger=None, release=None, hold=True):
         self.event_path = event_path
-        self.thread = threading.Thread(target=self.run)
+        self.owner = owner
+        self.trigger = set(trigger or {})
+        self.release = set(release or {})
+        self.hold = hold
         self.dev = None
         self.running = True
         self.stopped = False
-        self.thread.daemon = True
-        self.hold = hold
         self.keys_down = set()
-        self.trigger = set(trigger or {})
-        self.release = set(release or {})
         self.active = (not self.trigger)
+        self.thread = threading.Thread(target=self.run)
         self.queue = Queue()
 
+        ## Thread options
+        self.thread.daemon = True
         self.thread.start()
 
     def reset(self):
@@ -131,6 +133,9 @@ class KeyWatcher:
                 ## Check for trigger or release key combo
                 if self.trigger and self.trigger == self.keys_down:
                     self.active = True
+                    if self.owner is not None:
+                        self.owner.wake()
+
                     print("KeyWatcher triggered")
                 elif self.release and self.release == self.keys_down and self.active:
                     self.active = False
