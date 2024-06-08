@@ -12,7 +12,7 @@ from pyxielib import assembler, controller, program, scheduler
 DEBUG = True
 ctrl = None
 if DEBUG:
-    ctrl = controller.TerminalController(clear_screen=True)
+    ctrl = controller.TerminalController(clear_screen=True, print_code=False)
 else:
     print("Opening connection to Nixie Control Board")
     ctrl = controller.SerialController('/dev/ttyACM0', debug=True)

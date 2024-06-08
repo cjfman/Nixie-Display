@@ -39,7 +39,7 @@ else:
     sys.exit(1)
 
 
-clock_prgm = program.ClockProgram(flash=False)
+clock_prgm = program.ClockProgram(flash=True, underscore=True)
 nyt_prgm = program.RssProgram("https://rss.nytimes.com/services/xml/rss/nyt/US.xml", size=16)
 weather_prgm = program.WeatherProgram(nws_code="KBOS")
 user_prgm = None

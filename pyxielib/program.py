@@ -82,7 +82,7 @@ class ClockProgram(Program):
 
         if self.flash:
             codes = [code, code.replace(colon, '')]
-            return animationlib.makeTextSequence(codes, 0.5, looped=True)
+            return animationlib.makeTextSequence(codes, 0.5)
 
         return animationlib.makeTextSequence([code], 1)
 
