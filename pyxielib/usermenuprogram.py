@@ -1,6 +1,5 @@
 import pyxielib.animation_library as animationlib
 from pyxielib import nav_menues
-from pyxielib import navigator as navlib
 from pyxielib.animation import Animation
 from pyxielib.key_watcher import KeyWatcher
 from pyxielib.navigator import Menu, Navigator
@@ -34,7 +33,7 @@ class UserMenuProgram(Program):
         self.navigator = Navigator(Menu("Nixie Menu", [
             nav_menues.IpItem(),
             nav_menues.WiFiMenu(),
-            navlib.MirrorItem("Mirror Mode"),
+            nav_menues.MirrorItem("Mirror Mode"),
             nav_menues.RebootItem(),
             nav_menues.ShutdownItem(),
             nav_menues.ExitItem("Exit Program"),

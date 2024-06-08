@@ -228,3 +228,62 @@ class WiFiMenu(Menu):
     def reset(self):
         super().reset()
         self.wifi.load(force=True)
+
+
+class MirrorItem(MenuItem):
+    """Mirror whatever is typed. Exits on ESC and not backspace"""
+    def __init__(self, name="Mirror", **kwargs):
+        super().__init__(name, **kwargs, crop=True)
+        self.msg = ""
+        self._msg = ""
+        self.bracket = False
+
+    def for_display(self):
+        return self.msg
+
+    def reset(self):
+        super().reset()
+        self.msg = ""
+        self._msg = ""
+
+    def key_char(self, c):
+        """Add a key to the message"""
+        ## Check for a bracket, as this is a special character
+        if c == '{':
+            if self.bracket:
+                ## We're already in bracket mode
+                return
+
+            self.bracket = True
+        elif c == '}':
+            if not self.bracket:
+                ## We are not in bracket mode
+                return
+
+            self.bracket = False
+
+        ## Add to the internal message and clone to external one
+        self._msg += c
+        self.msg = self._msg
+        if self.bracket:
+            ## Close bracket on external message
+            self.msg += '}'
+
+    def key_backspace(self):
+        """Erase the last typed key"""
+        if not self._msg:
+            return
+
+        if self._msg[-1] == '}':
+            ## We've entered a bracket section
+            self.bracket = True
+        elif self._msg[-1] == '{':
+            ## We've entered a bracket section
+            self.bracket = False
+
+        ## Add to the internal message and clone to external one
+        self._msg = self._msg[:-1]
+        self.msg = self._msg
+        if self.bracket:
+            ## Close bracket on external message
+            self.msg += '}'
