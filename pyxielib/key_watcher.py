@@ -64,6 +64,7 @@ class KeyWatcher:
         self.thread.start()
 
     def reset(self):
+        """Reset the key watcher"""
         self.active = (not self.trigger)
         self.queue = Queue()
 
@@ -72,7 +73,8 @@ class KeyWatcher:
         return any(x in self.keys_down for x in ('KEY_LEFTSHIFT', 'KEY_RIGHTSHIFT'))
 
     @staticmethod
-    def make_shifted(key):
+    def make_shifted(key) -> str:
+        """Make a key shifted assuing US keyboard"""
         if key.isalpha():
             return key.upper()
         if key in SHIFTS:
@@ -80,7 +82,8 @@ class KeyWatcher:
 
         return key
 
-    def code_to_char(self, key):
+    def code_to_char(self, key) -> str:
+        """Turn a KeyEvent into a char"""
         key = key.replace('KEY_', '')
         key = SPECIAL_KEYS.get(key, key)
         if self.shifted():
@@ -89,6 +92,7 @@ class KeyWatcher:
         return key.lower()
 
     def run(self):
+        """Main watcher loop"""
         print("KeyWatcher thread starting")
         while self.running:
             try:
@@ -108,6 +112,7 @@ class KeyWatcher:
         print("KeyWatcher thread stopped")
 
     def read_loop(self):
+        """Read key events"""
         for event in self.dev.read_loop():
             if not self.running:
                 break
