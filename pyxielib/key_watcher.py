@@ -32,6 +32,20 @@ SHIFTS = {
     "\\": "|",
 }
 
+SPECIAL_KEYS = {
+    'GRAVE':      '`',
+    'MINUS':      '-',
+    'EQUAL':      '=',
+    'LEFTBRACE':  '[',
+    'RIGHTBRACE': ']',
+    'BACKSLASH':  '\\',
+    'SEMICOLON':  ';',
+    'APOSTROPHE': "'",
+    'COMMA':      ',',
+    'DOT':        '.',
+    'SLASH':      '/',
+}
+
 class KeyWatcher:
     def __init__(self, event_path, *, trigger=None, release=None, hold=True):
         self.event_path = event_path
@@ -65,6 +79,14 @@ class KeyWatcher:
             return SHIFTS[key]
 
         return key
+
+    def code_to_char(self, key):
+        key = key.replace('KEY_', '')
+        key = SPECIAL_KEYS.get(key, key)
+        if self.shifted():
+            return self.make_shifted(key)
+
+        return key.lower()
 
     def run(self):
         print("KeyWatcher thread starting")
@@ -131,15 +153,8 @@ class KeyWatcher:
         if not key.keycode.startswith('KEY_'):
             return None
 
-        ## Clean up the key value and case
-        key = key.keycode.replace('KEY_', '')
-        if len(key) == 1:
-            if self.shifted():
-                key = self.make_shifted(key)
-            else:
-                key = key.lower()
-
-        return key
+        ## Clean up the key
+        return self.code_to_char(key.keycode)
 
     def stop(self):
         self.running = False
