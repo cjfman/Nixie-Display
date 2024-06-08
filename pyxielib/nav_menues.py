@@ -20,12 +20,12 @@ class IpItem(SubcommandItem):
 
 class RebootItem(DelayedCommandItem):
     def __init__(self, **kwargs):
-        super().__init__("Reboot", "sudo reboot", **kwargs)
+        super().__init__("Reboot", "sudo reboot", running_msg="Rebooting...", **kwargs)
 
 
 class ShutdownItem(DelayedCommandItem):
     def __init__(self, **kwargs):
-        super().__init__("Shutdown", "sudo halt", **kwargs)
+        super().__init__("Shutdown", "sudo halt", running_msg="Shutting down...", **kwargs)
 
 
 class ExitItem(MenuItem):

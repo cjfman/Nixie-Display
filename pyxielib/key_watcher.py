@@ -8,6 +8,29 @@ from evdev.events import KeyEvent
 #from evdev import categorize, event_factory, ecodes
 
 DEBUG = False
+SHIFTS = {
+    "`": "~",
+    "1": "!",
+    "2": "@",
+    "3": "#",
+    "4": "$",
+    "5": "%",
+    "6": "^",
+    "7": "&",
+    "8": "*",
+    "9": "(",
+    "0": ")",
+    "-": "_",
+    "=": "+",
+    "[": "{",
+    "]": "}",
+    ";": ":",
+    "'": '"',
+    ",": "<",
+    ".": ">",
+    "/": "?",
+    "\\": "|",
+}
 
 class KeyWatcher:
     def __init__(self, event_path, *, trigger=None, release=None, hold=True):
@@ -33,6 +56,15 @@ class KeyWatcher:
     def shifted(self) -> bool:
         """Returns True if any of the shift keys are being held"""
         return any(x in self.keys_down for x in ('KEY_LEFTSHIFT', 'KEY_RIGHTSHIFT'))
+
+    @staticmethod
+    def make_shifted(key):
+        if key.isalpha():
+            return key.upper()
+        if key in SHIFTS:
+            return SHIFTS[key]
+
+        return key
 
     def run(self):
         print("KeyWatcher thread starting")
@@ -103,7 +135,7 @@ class KeyWatcher:
         key = key.keycode.replace('KEY_', '')
         if len(key) == 1:
             if self.shifted():
-                key = key.upper()
+                key = self.make_shifted(key)
             else:
                 key = key.lower()
 
