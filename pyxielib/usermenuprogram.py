@@ -61,11 +61,10 @@ class UserMenuProgram(Program):
     def makeAnimation(self) -> Animation:
         """Make the menu animation"""
         ## Check the key watcher
-        msg = None
+        key = None
         self.should_interrupt = True
         if self.watcher.can_pop() and not self.should_exit:
             self.active = True
-            key = None
             try:
                 key = self.watcher.pop()
             except KeyboardInterrupt:
