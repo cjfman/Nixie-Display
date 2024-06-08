@@ -77,7 +77,7 @@ class KeyWatcher:
                 elif self.active:
                     ## Only add event to queue if it's not a trigger or release
                     self.queue.put(k_event)
-            elif k_event.keystate == KeyEvent.key_up:
+            elif k_event.keystate == KeyEvent.key_up and k_event.keycode in self.keys_down:
                 self.keys_down.remove(k_event.keycode)
             elif k_event.keystate == KeyEvent.key_hold:
                 self.keys_down.add(k_event.keycode) ## Add just in case it was somehow missed before

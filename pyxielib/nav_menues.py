@@ -11,7 +11,7 @@ class IpItem(SubcommandItem):
 
     def run(self) -> str:
         output = super().run().strip()
-        match = re.match(r"$\d{1,3}(\.\d{1,3}){3}$", output)
+        match = re.match(r"^\d{1,3}(\.\d{1,3}){3}$", output)
         if match:
             return output
 
