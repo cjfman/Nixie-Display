@@ -8,14 +8,16 @@ from pyxielib.program import Program
 
 
 class UserMenuProgram(Program):
-    def __init__(self, event_path):
+    def __init__(self, event_path, *, size=16):
         super().__init__("User Control")
+        self.event_path       = event_path
+        self.size             = size
         self.active           = False
         self.old_msg          = None
         self.should_exit      = False
         self.should_interrupt = False
         self.watcher = KeyWatcher(
-            event_path,
+            self.event_path,
             owner=self,
             hold=False,
             trigger={
@@ -97,7 +99,10 @@ class UserMenuProgram(Program):
             return msg
 
         ## Make the actual animation
-        return animationlib.MarqueeAnimation.fromText(msg, 16, freeze=True)
+        if self.navigator.crop and len(msg) > self.size:
+            msg = msg[-16:]
+
+        return animationlib.MarqueeAnimation.fromText(msg, self.size, freeze=True)
 
     def menu_exit(self):
         """Handle an exit request from the user"""

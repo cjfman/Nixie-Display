@@ -10,11 +10,12 @@ class MenuError(PyxieError):
 
 class MenuItem:
     """An entry in a menu"""
-    def __init__(self, name:str, parent=None, *, display_name=None):
-        self.name = name
-        self.parent = parent
+    def __init__(self, name:str, parent=None, *, display_name=None, crop=False):
+        self.name         = name
+        self.parent       = parent
         self.display_name = display_name or name
-        self.done = False
+        self.crop         = crop
+        self.done         = False
 
     def for_display(self) -> str:
         """Return what should currently be displayed"""
@@ -210,7 +211,7 @@ class ListItem(MenuItem):
 class MirrorItem(MenuItem):
     """Mirror whatever is typed. Exits on ESC and not backspace"""
     def __init__(self, name="Mirror", **kwargs):
-        super().__init__(name, **kwargs)
+        super().__init__(name, **kwargs, crop=True)
         self.msg = ""
         self._msg = ""
         self.bracket = False
@@ -360,6 +361,10 @@ class Navigator:
     def for_display(self) -> str:
         """The current text that should be displayed"""
         return self.node.for_display()
+
+    @property
+    def crop(self):
+        return self.node.crop
 
     def current_menu(self) -> Menu:
         """The current active menu. Could be any nested menu"""
