@@ -5,6 +5,7 @@ from pyxielib.animation import Animation
 from pyxielib.key_watcher import KeyWatcher
 from pyxielib.navigator import Menu, Navigator
 from pyxielib.program import Program
+from pyxielib.tube_manager import cmdLen
 
 
 class UserMenuProgram(Program):
@@ -99,7 +100,7 @@ class UserMenuProgram(Program):
             return msg
 
         ## Make the actual animation
-        if self.navigator.crop and len(msg) > self.size:
+        if self.navigator.crop and cmdLen(msg) > self.size:
             msg = msg[-16:]
 
         return animationlib.MarqueeAnimation.fromText(msg, self.size, freeze=True)

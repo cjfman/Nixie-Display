@@ -1,3 +1,6 @@
+import re
+from typing import List
+
 from pyxielib import decoder
 from pyxielib.pyxieutil import PyxieError
 
@@ -7,7 +10,8 @@ class DecodeError(PyxieError):
     pass
 
 
-def cmdDecodePrint(cmd):
+def cmdDecodePrint(cmd) -> List[int]:
+    ## pylint: disable=too-many-branches
     out = []
     token = ''
     state = 'start'
@@ -64,10 +68,15 @@ def cmdDecodePrint(cmd):
     return out
 
 
-def cmdDecodeToken(token):
+def cmdDecodeToken(token) -> int:
+    """Turn a hex/bin token into an int"""
     if token[:2] in ("0x", "0X"):
         return int(token, 16)
-    elif token[:2] in ("0b", "0B"):
+    if token[:2] in ("0b", "0B"):
         return int(token, 2)
 
     raise DecodeError(f"Invalid token '{token}'")
+
+
+def cmdLen(cmd) -> int:
+    return len(re.sub(r"\{[^\}]*\}|!", '', cmd))
