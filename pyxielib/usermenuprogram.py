@@ -68,11 +68,13 @@ class UserMenuProgram(Program):
             key = None
             try:
                 key = self.watcher.pop()
-                if key is not None:
-                    msg = self.navigator.key_entry(key)
             except KeyboardInterrupt:
                 self.menu_exit()
                 return None
+
+        ## Enter key into the navigator
+        if key is not None:
+            msg = self.navigator.key_entry(key)
 
         ## If the key watcher didn't return a key, check the
         ## menu for an update anyway
