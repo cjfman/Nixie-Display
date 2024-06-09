@@ -12,7 +12,6 @@ import yfinance as yf
 from pyxielib.animation import Animation, MarqueeAnimation
 from pyxielib.program import Program
 
-DEBUG = False
 DEFAULT_SYMBOLS = ['AAPL', 'MGM']
 
 
@@ -47,7 +46,7 @@ def getSp500Symbols():
 
 
 class StockTicker(Program):
-    def __init__(self, *, symbols=None, delay=5):
+    def __init__(self, *, symbols=None, delay=5, quick_start=True):
         super().__init__("Stock Ticker")
         self.symbols      = None
         self.delay        = delay
@@ -58,6 +57,7 @@ class StockTicker(Program):
         self.query_idx    = 0
         self.shown_idx    = 0
         self.max_failures = 10
+        self.quick_start  = quick_start
         self.thread       = threading.Thread(target=self.handler)
         self.lock         = threading.Lock()
         self.cv           = threading.Condition(lock=self.lock)
@@ -140,6 +140,7 @@ class StockTicker(Program):
                 print(f"Failed to update stocks: {e}")
                 failures += 1
 
+            self.quick_start = False
             ## Increase wait time between cycles based on
             ## the number consecutive failures
             if self.running:
@@ -155,6 +156,7 @@ class StockTicker(Program):
         that was next after the failed one.
         """
         failures = 0
+        delay = self.delay if not self.quick_start else 1
         if self.query_idx >= len(self.symbols):
             self.query_idx = 0
 
@@ -174,7 +176,7 @@ class StockTicker(Program):
 
                 ## Store the result
                 self.stocks[sym] = stock
-                self.cv.wait(self.delay)
+                self.cv.wait(delay)
             except Exception as e:
                 print(f"Failed to query stock {sym}: {e}")
                 failures += 1
