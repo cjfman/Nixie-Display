@@ -1,3 +1,4 @@
 croniter
-feedparser
 evdev
+feedparser
+yfinance

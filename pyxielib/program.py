@@ -11,8 +11,9 @@ from pyxielib.pyxieutil import PyxieUnimplementedError, flattenHTML
 
 class Program:
     ## pylint: disable=no-self-use
-    def __init__(self, name):
+    def __init__(self, name, size=16):
         self.name:str = name
+        self.size:int = size
         self.old_animation:Animation = None
         self.failed = False
 
@@ -30,7 +31,7 @@ class Program:
         self.failed = False
 
     def done(self):
-        return (self.failed or self._done)
+        return (self.failed or self._done())
 
     def _done(self):
         return False
@@ -120,12 +121,11 @@ class ClockProgram(Program):
 
 
 class RssProgram(Program):
-    def __init__(self, url, *, name=None, size:int=16, max_entries=-1, \
-            use_title=True, use_titles:bool=False, use_content=False, loop:bool=True
+    def __init__(self, url, *, name=None, max_entries=-1, \
+            use_title=True, use_titles:bool=False, use_content=False, loop:bool=True, **kwargs,
         ):
-        super().__init__(name or f"RSS {url}")
+        super().__init__(name or f"RSS {url}", **kwargs)
         self.url         = url
-        self.size        = size
         self.max_entries = max_entries
         self.use_title   = use_title
         self.use_titles  = use_titles
@@ -180,7 +180,7 @@ class RssProgram(Program):
 
 
 class WeatherProgram(RssProgram):
-    def __init__(self, *, zipcode=None, nws_code=None, url=None, size=16):
+    def __init__(self, *, zipcode=None, nws_code=None, url=None, **kwargs):
         self.zipcode  = zipcode
         self.nws_code = nws_code
         self.url      = None
@@ -197,7 +197,7 @@ class WeatherProgram(RssProgram):
 
         RssProgram.__init__(self, self.url,
             name='Weather', use_titles=True, use_content=True,
-            size=size, max_entries=2, loop=False
+            max_entries=2, loop=False, **kwargs,
         )
 
     def escapeText(self, txt):
