@@ -122,7 +122,7 @@ class ClockProgram(Program):
 
 class RssProgram(Program):
     def __init__(self, url, *, name=None, max_entries=-1, \
-            use_title=True, use_titles:bool=False, use_content=False, loop:bool=True, **kwargs,
+            use_title=True, use_titles:bool=False, use_content=False, loop:bool=False, **kwargs,
         ):
         super().__init__(name or f"RSS {url}", **kwargs)
         self.url         = url
