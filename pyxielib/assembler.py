@@ -27,6 +27,9 @@ class Assembler:
         self.cv.notify_all()
         self.cv.release()
 
+    def clearAnimation(self):
+        self.animation = None
+
     def rerun(self):
         self.cv.acquire()
         self.animation.reset()

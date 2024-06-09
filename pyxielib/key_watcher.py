@@ -75,6 +75,10 @@ class KeyWatcher:
         """Returns True if any of the shift keys are being held"""
         return any(x in self.keys_down for x in ('KEY_LEFTSHIFT', 'KEY_RIGHTSHIFT'))
 
+    def empty_queue(self):
+        while not self.queue.empty():
+            self.queue.get()
+
     @staticmethod
     def make_shifted(key) -> str:
         """Make a key shifted assuing US keyboard"""
@@ -140,6 +144,7 @@ class KeyWatcher:
                         self.owner.wake()
                 elif self.release and self.release == self.keys_down and self.active:
                     self.active = False
+                    self.empty_queue()
                     self.queue.put('USER_INTERRUPT')
                     print("KeyWatcher interrupted")
                     if self.owner is not None:
