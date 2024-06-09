@@ -120,14 +120,14 @@ class Scheduler:
         if program is None:
             return
 
-        if program.update():
-            ani = program.getAnimation()
-            if ani is not None:
-                self.assembler.setAnimation(ani)
-        elif program.done():
+        if program.done():
             self.assembler.clearAnimation()
             program.reset()
             self.idle()
+        elif program.update():
+            ani = program.getAnimation()
+            if ani is not None:
+                self.assembler.setAnimation(ani)
 
     def handler(self):
         self.cv.acquire()

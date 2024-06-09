@@ -1,5 +1,6 @@
 import os
 import requests
+import time
 import threading
 
 from dataclasses import dataclass
@@ -11,7 +12,7 @@ import yfinance as yf
 from pyxielib.animation import Animation, MarqueeAnimation
 from pyxielib.program import Program
 
-DEBUG = True
+DEBUG = False
 DEFAULT_SYMBOLS = ['AAPL', 'MGM']
 
 
@@ -56,6 +57,7 @@ class StockTicker(Program):
         self.query_idx    = 0
         self.shown_idx    = 0
         self.max_failures = 10
+        self.last_check   = 0
         self.thread       = threading.Thread(target=self.handler)
         self.lock         = threading.Lock()
         self.cv           = threading.Condition(lock=self.lock)
@@ -63,8 +65,7 @@ class StockTicker(Program):
         if isinstance(symbols, str):
             if os.path.isfile(symbols):
                 ## Load from a file
-                ## XXX
-                pass
+                raise ValueError("Loading stock symbols from file not supported")
             else:
                 self.symbols = symbols.split(',')
         elif symbols is None:
@@ -104,7 +105,8 @@ class StockTicker(Program):
         self.shutdown = True
 
     def _done(self):
-        return (not self.stocks)
+        time_since = time.time() - self.last_check
+        return (not self.stocks or time_since < 60)
 
     def handler(self):
         print("Stock ticker thread starting")
@@ -129,11 +131,14 @@ class StockTicker(Program):
         if not self.stocks:
             return None
 
+        self.cv.acquire()
+        self.last_check = time.time()
         quotes = []
         for sym in self.symbols[self.shown_idx:]:
             if sym in self.stocks:
                 quotes.append(str(self.stocks[sym]))
 
+        self.cv.release()
         ani = MarqueeAnimation.fromText("  -  ".join(quotes), size=self.size)
         return ani
 
