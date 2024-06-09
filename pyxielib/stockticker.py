@@ -1,8 +1,12 @@
 import os
+import requests
 import threading
 
 from dataclasses import dataclass
 
+import bs4 as bs
+import lxml
+import pickle
 import yfinance as yf
 from pyxielib.animation import Animation, MarqueeAnimation
 from pyxielib.program import Program
@@ -22,6 +26,22 @@ class Stock:
         diff = self.current - self.close
         perc = abs(diff / self.close * 100)
         return f"{self.symbol} ${diff:.2f}/{perc:.2f}%"
+
+
+def getSp500Symbols():
+    try:
+        resp = requests.get('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')
+        soup = bs.BeautifulSoup(resp.text, 'html.parser')
+        table = soup.find('table', {'class': 'wikitable sortable'})
+        tickers = []
+        for row in table.findAll('tr')[1:]:
+            ticker = row.findAll('td')[0].text.strip()
+            tickers.append(ticker)
+
+        return sorted(tickers)
+    except Exception as e:
+        print(f"Failed to get S&P500 symbols: {e}")
+        return []
 
 
 class StockTicker(Program):
@@ -48,7 +68,7 @@ class StockTicker(Program):
             else:
                 self.symbols = symbols.split(',')
         elif symbols is None:
-            self.symbols = DEFAULT_SYMBOLS
+            self.symbols = getSp500Symbols() or DEFAULT_SYMBOLS
         else:
             raise ValueError(f"Type {type(symbols)} not supported for stocks parameter")
 
