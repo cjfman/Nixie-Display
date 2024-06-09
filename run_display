@@ -48,7 +48,7 @@ nyt_prgm = program.RssProgram("https://rss.nytimes.com/services/xml/rss/nyt/US.x
 weather_prgm = program.WeatherProgram(nws_code="KBOS")
 user_prgm = None
 if args.keyboard_event_file is not None:
-    user_prgm = usermenuprogram.UserMenuProgram(args.keyboard_event_file, ani_path=args.animation_dir)
+    user_prgm = usermenuprogram.UserMenuProgram(args.keyboard_event_file, ani_path=args.animations_dir)
 
 schl = (
     ("*/5 * * * *",  1, clock_prgm),
