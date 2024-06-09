@@ -1,8 +1,10 @@
 import re
+import os
 import subprocess
 
 from pyxielib.navigator import DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
+from pyxielib.animation import Animation, FileAnimation
 
 
 class IpItem(SubcommandItem):
@@ -287,3 +289,39 @@ class MirrorItem(MenuItem):
         if self.bracket:
             ## Close bracket on external message
             self.msg += '}'
+
+
+class AnimationLibraryItem(ListItem):
+    def __init__(self, path, **kwargs):
+        super().__init__("Animations", **kwargs)
+        self.path = path
+        self.ani_paths = None
+        self.selected = None
+
+    def for_display(self) -> Animation:
+        if self.selected is None:
+            return super().for_display()
+
+        ## Only return once
+        selected = self.selected
+        self.selected = None
+        return selected
+
+    def reset(self):
+        super().reset()
+        self.ani_paths = None
+        self.selected = None
+
+    def activate(self):
+        try:
+            paths = [x for x in os.listdir(self.path) if x.endswith(".ani")]
+            names = [x[:-4] for x in paths]
+            self.set_values(names)
+            self.ani_paths = dict(zip(names, paths))
+        except:
+            pass
+
+    def key_enter(self):
+        name = self.current_value()
+        if name in self.ani_paths:
+            self.selected = FileAnimation(os.path.join(self.path, self.ani_paths[name]))

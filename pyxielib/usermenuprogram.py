@@ -8,7 +8,7 @@ from pyxielib.tube_manager import cmdLen
 
 
 class UserMenuProgram(Program):
-    def __init__(self, event_path, *, size=16):
+    def __init__(self, event_path, *, size=16, ani_path='animations'):
         super().__init__("User Control")
         self.event_path       = event_path
         self.size             = size
@@ -34,6 +34,7 @@ class UserMenuProgram(Program):
             nav_menues.IpItem(),
             nav_menues.WiFiMenu(),
             nav_menues.MirrorItem("Mirror Mode"),
+            nav_menues.AnimationLibraryItem(ani_path),
             nav_menues.RebootItem(),
             nav_menues.ShutdownItem(),
             nav_menues.ExitItem("Exit Program"),
@@ -59,6 +60,14 @@ class UserMenuProgram(Program):
 
     def done(self) -> bool:
         return self.should_exit
+
+    def menu_exit(self):
+        """Handle an exit request from the user"""
+        print("User requested exit from menu")
+        self.should_exit = True
+        self.active = False
+        self.watcher.reset()
+        self.navigator.reset()
 
     def makeAnimation(self) -> Animation:
         """Make the menu animation"""
@@ -103,11 +112,3 @@ class UserMenuProgram(Program):
             msg = msg[-16:]
 
         return animationlib.MarqueeAnimation.fromText(msg, self.size, freeze=True)
-
-    def menu_exit(self):
-        """Handle an exit request from the user"""
-        print("User requested exit from menu")
-        self.should_exit = True
-        self.active = False
-        self.watcher.reset()
-        self.navigator.reset()
