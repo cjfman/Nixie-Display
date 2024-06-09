@@ -13,6 +13,7 @@ from pyxielib.animation import Animation, MarqueeAnimation
 from pyxielib.program import Program
 
 DEFAULT_SYMBOLS = ['AAPL', 'MGM']
+DEBUG = False
 
 
 @dataclass
