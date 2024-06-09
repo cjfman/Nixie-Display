@@ -50,5 +50,6 @@ try:
 except KeyboardInterrupt:
     print("User requested exit")
 
+ticker_prgm.stop()
 asmlr.stop()
 schdlr.stop()

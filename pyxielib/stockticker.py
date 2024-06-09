@@ -1,13 +1,12 @@
 import os
-import requests
 import time
 import threading
 
 from dataclasses import dataclass
 
+import requests
+
 import bs4 as bs
-import lxml
-import pickle
 import yfinance as yf
 from pyxielib.animation import Animation, MarqueeAnimation
 from pyxielib.program import Program
@@ -62,12 +61,13 @@ class StockTicker(Program):
         self.lock         = threading.Lock()
         self.cv           = threading.Condition(lock=self.lock)
 
+        ## Dedermin the list of stock symbols
         if isinstance(symbols, str):
             if os.path.isfile(symbols):
                 ## Load from a file
                 raise ValueError("Loading stock symbols from file not supported")
-            else:
-                self.symbols = symbols.split(',')
+
+            self.symbols = symbols.split(',')
         elif symbols is None:
             self.symbols = getSp500Symbols() or DEFAULT_SYMBOLS
         else:
@@ -94,9 +94,10 @@ class StockTicker(Program):
             self.thread.start()
 
     def stop(self):
-        if self.running:
+        if not self.running:
             return
 
+        print("Stopping the StockTicker thread")
         self.running = False
         self.cv.acquire()
         self.cv.notify_all()
@@ -105,29 +106,11 @@ class StockTicker(Program):
         self.shutdown = True
 
     def _done(self):
-        time_since = time.time() - self.last_check
-        return (not self.stocks or time_since < 60)
-
-    def handler(self):
-        print("Stock ticker thread starting")
-        failures = 0
-        self.cv.acquire()
-        while self.running:
-            try:
-                if self.updateStocks():
-                    failures = 0
-                else:
-                    failures += 1
-            except Exception as e:
-                print(f"Failed to update stocks: {e}")
-                failures += 1
-
-            self.cv.wait(2**failures)
-
-        print("Stock ticker thread exiting")
-        self.cv.release()
+        too_soon = ((time.time() - self.last_check) < 60)
+        return (not self.stocks or too_soon)
 
     def makeAnimation(self) -> Animation:
+        """Take a list of stocks and turn it into a marquee"""
         if not self.stocks:
             return None
 
@@ -142,20 +125,54 @@ class StockTicker(Program):
         ani = MarqueeAnimation.fromText("  -  ".join(quotes), size=self.size)
         return ani
 
+    def handler(self):
+        """The main stock loop"""
+        print("Stock ticker thread starting")
+        failures = 0 ## Consecutive failures
+        self.cv.acquire()
+        while self.running:
+            try:
+                if self.updateStocks():
+                    failures = 0
+                else:
+                    failures += 1
+            except Exception as e:
+                print(f"Failed to update stocks: {e}")
+                failures += 1
+
+            ## Increase wait time between cycles based on
+            ## the number consecutive failures
+            if self.running:
+                self.cv.wait(2**failures)
+
+        print("Exiting stock ticker thread")
+        self.cv.release()
+
     def updateStocks(self):
+        """
+        Get new stock information. Returns True if every stock was updated
+        Returns False on the first failure. When called again, pick up with stock
+        that was next after the failed one.
+        """
         failures = 0
         if self.query_idx >= len(self.symbols):
             self.query_idx = 0
 
+        ## Start off from where we left off
         for sym in self.symbols[self.query_idx:]:
+            if not self.running:
+                return True
+
             self.query_idx += 1
             try:
+                ## Get the current stock quotes
                 ticker = yf.Ticker(sym)
                 info = ticker.fast_info
                 stock = Stock(sym, info['lastPrice'], info['open'], info['previousClose'])
                 if DEBUG:
                     print(f"Got stock {stock}")
 
+                ## Store the result
                 self.stocks[sym] = stock
                 self.cv.wait(self.delay)
             except Exception as e:
