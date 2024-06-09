@@ -1,3 +1,4 @@
+import random
 import os
 import time
 import threading
@@ -73,8 +74,6 @@ class StockTicker(Program):
         else:
             raise ValueError(f"Type {type(symbols)} not supported for stocks parameter")
 
-        self.run()
-
     def reset(self):
         super().reset()
         self.cv.acquire()
@@ -117,7 +116,10 @@ class StockTicker(Program):
         self.cv.acquire()
         self.last_check = time.time()
         quotes = []
-        for sym in self.symbols[self.shown_idx:]:
+        #for sym in self.symbols[self.shown_idx:]:
+        symbols = self.symbols[:]
+        random.shuffle(symbols)
+        for sym in symbols:
             if sym in self.stocks:
                 quotes.append(str(self.stocks[sym]))
 

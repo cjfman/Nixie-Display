@@ -26,6 +26,7 @@ else:
 
 clock_prgm = program.ClockProgram(flash=False)
 ticker_prgm = stockticker.StockTicker()
+ticker_prgm.run()
 schl = (
     ("*/1 * * * *", 1, ticker_prgm),
 )
