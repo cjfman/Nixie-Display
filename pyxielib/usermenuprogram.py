@@ -96,16 +96,19 @@ class UserMenuProgram(Program):
 
             msg = self.navigator.for_display()
 
+        ## Return now if this is an animation
+        if isinstance(msg, Animation):
+            ## Allow animation to complete
+            self.should_interrupt = False
+            self.old_msg = None
+            return msg
+
         ## Exit if there's no change
         if msg == self.old_msg:
             return None
 
         ## Process msg
         self.old_msg = msg
-        if isinstance(msg, Animation):
-            ## Allow animation to complete
-            self.should_interrupt = False
-            return msg
 
         ## Make the actual animation
         if self.navigator.crop and cmdLen(msg) > self.size:

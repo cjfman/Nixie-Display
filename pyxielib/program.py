@@ -1,5 +1,6 @@
 import datetime
 import re
+import traceback
 
 import feedparser
 
@@ -43,6 +44,7 @@ class Program:
             new_animation = self.makeAnimation()
         except Exception as e:
             print(f"Program '{self.name}' failed: {e}")
+            traceback.print_exc()
             self.failed = True
             return False
 
