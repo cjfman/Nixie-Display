@@ -26,7 +26,8 @@ class Stock:
     def __str__(self):
         diff = self.current - self.close
         perc = abs(diff / self.close * 100)
-        return f"{self.symbol} ${diff:.2f}/{perc:.2f}%"
+        sign = '+' if diff >= 0 else '-'
+        return f"{self.symbol} {sign}${abs(diff):.2f}/{perc:.2f}%"
 
 
 def getSp500Symbols():
@@ -57,7 +58,6 @@ class StockTicker(Program):
         self.query_idx    = 0
         self.shown_idx    = 0
         self.max_failures = 10
-        self.last_check   = 0
         self.thread       = threading.Thread(target=self.handler)
         self.lock         = threading.Lock()
         self.cv           = threading.Condition(lock=self.lock)
@@ -105,8 +105,7 @@ class StockTicker(Program):
         self.shutdown = True
 
     def _done(self):
-        too_soon = ((time.time() - self.last_check) < 60)
-        return (not self.stocks or too_soon)
+        return not self.stocks
 
     def makeAnimation(self) -> Animation:
         """Take a list of stocks and turn it into a marquee"""
@@ -114,7 +113,6 @@ class StockTicker(Program):
             return None
 
         self.cv.acquire()
-        self.last_check = time.time()
         quotes = []
         #for sym in self.symbols[self.shown_idx:]:
         symbols = self.symbols[:]
