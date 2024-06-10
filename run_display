@@ -62,8 +62,7 @@ schl = (
 asmlr = assembler.Assembler(controller=ctrl)
 schdlr = scheduler.CronScheduler(schl, asmlr, default=clock_prgm, user_menu=user_prgm)
 
-print("Stopping program")
-ticker_prgm.stop()
+print("Starting program")
 schdlr.run()
 asmlr.start()
 time.sleep(1)
@@ -80,5 +79,6 @@ try:
 except KeyboardInterrupt:
     print("User requested exit")
 
+ticker_prgm.stop()
 asmlr.stop()
 schdlr.stop()
