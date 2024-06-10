@@ -24,10 +24,13 @@ class Stock:
     close:   float=None
 
     def __str__(self):
-        diff = self.current - self.close
-        perc = abs(diff / self.close * 100)
-        sign = '+' if diff >= 0 else '-'
-        return f"{self.symbol} {sign}${abs(diff):.2f}/{perc:.2f}%"
+        try:
+            diff = self.current - self.open
+            perc = abs(diff / self.close * 100)
+            sign = '+' if diff >= 0 else '-'
+            return f"{self.symbol} {sign}${abs(diff):.2f}/{perc:.2f}%"
+        except:
+            return f"{self.symbol} ${self.current:.2f}"
 
 
 def getSp500Symbols():
@@ -123,7 +126,7 @@ class StockTicker(Program):
                 quotes.append(str(self.stocks[sym]))
 
         self.cv.release()
-        ani = MarqueeAnimation.fromText("  -  ".join(quotes), size=self.size)
+        ani = MarqueeAnimation.fromText(" | ".join(quotes), size=self.size)
         return ani
 
     def handler(self):

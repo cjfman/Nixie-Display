@@ -7,14 +7,14 @@ import time
 
 sys.path.append("/home/charles/Projects/nixie")
 
-from pyxielib import assembler, controller, program, scheduler, usermenuprogram
+from pyxielib import assembler, controller, program, scheduler, stockticker, usermenuprogram
 
 
 DEBUG = True
 RASPI = True
 ctrl = None
 if DEBUG:
-    ctrl = controller.TerminalController(clear_screen=False, print_code=True)
+    ctrl = controller.TerminalController(clear_screen=True, print_code=False)
 elif RASPI:
     print("Using the RaspberryPi outputs directly")
     ctrl = controller.RaspberryPiController(debug=True, speed=10**6)
@@ -31,10 +31,19 @@ if os.getuid() == 0:
 clock_prgm = program.ClockProgram(flash=False)
 nyt_prgm = program.RssProgram("https://rss.nytimes.com/services/xml/rss/nyt/US.xml", size=16)
 weather_prgm = program.WeatherProgram(nws_code="KBOS")
+ticker_prgm = stockticker.StockTicker()
+ticker_prgm.run()
+#schl = (
+#    ("*/5 * * * *",  1, clock_prgm),
+#    ("*/20 * * * *", 3, nyt_prgm),
+#    ("*/15 * * * *", 2, weather_prgm),
+#)
+
 schl = (
-    ("*/5 * * * *",  1, clock_prgm),
-    ("*/20 * * * *", 3, nyt_prgm),
-    ("*/15 * * * *", 2, weather_prgm),
+    ("*/5 * * * *",  1, ticker_prgm),
+    ("*/10 * * * *", 2, clock_prgm),
+    ("*/20 * * * *", 4, nyt_prgm),
+    ("*/15 * * * *", 3, weather_prgm),
 )
 
 asmlr = assembler.Assembler(controller=ctrl)
@@ -57,5 +66,6 @@ try:
 except KeyboardInterrupt:
     print("User requested exit")
 
+ticker_prgm.stop()
 asmlr.stop()
 schdlr.stop()
