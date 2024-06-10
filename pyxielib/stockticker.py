@@ -1,9 +1,9 @@
 import random
 import os
-import time
 import threading
 
 from dataclasses import dataclass
+from datetime import datetime
 
 import requests
 
@@ -51,6 +51,13 @@ def getSp500Symbols():
         return []
 
 
+def isMarketOpen() -> bool:
+    now = datetime.now()
+    start = now.replace(hour=9, minute=30, second=0)
+    end = now.replace(hour=16, second=0)
+    return (start <= now < end)
+
+
 class StockTicker(Program):
     def __init__(self, *, symbols=None, delay=5, quick_start=True):
         super().__init__("Stock Ticker")
@@ -61,7 +68,7 @@ class StockTicker(Program):
         self.running      = True
         self.shutdown     = False
         self.query_idx    = 0
-        self.shown_idx    = 0
+        #self.shown_idx    = 0
         self.max_failures = 10
         self.quick_start  = quick_start
         self.thread       = threading.Thread(target=self.handler)
@@ -84,7 +91,7 @@ class StockTicker(Program):
         super().reset()
         self.cv.acquire()
         self.query_idx = 0
-        self.shown_idx = 0
+        #self.shown_idx = 0
         self.cv.release()
 
     def isRunning(self):
@@ -111,11 +118,17 @@ class StockTicker(Program):
         self.shutdown = True
 
     def _done(self):
-        return (not self.stocks or not self.running or not self.started)
+        return (not self.stocks or not self.running or not self.started or not isMarketOpen())
+
+    def clearStocks(self):
+        now = datetime.now()
+        start = now.replace(hour=9, minute=30, second=0)
+        if now < start and self.stocks:
+            self.stocks = {}
 
     def makeAnimation(self) -> Animation:
         """Take a list of stocks and turn it into a marquee"""
-        if not self.stocks:
+        if not self.stocks or not isMarketOpen():
             return None
 
         self.cv.acquire()
@@ -137,6 +150,13 @@ class StockTicker(Program):
         failures = 0 ## Consecutive failures
         self.cv.acquire()
         while self.running:
+            ## Don't run if the market isn't open
+            if not isMarketOpen():
+                self.clearStocks()
+                self.cv.wait(1)
+                continue
+
+            ## Try and update all of the stocks
             try:
                 if self.updateStocks():
                     failures = 0
