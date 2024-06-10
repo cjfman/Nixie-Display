@@ -28,9 +28,11 @@ class Stock:
             diff = self.current - self.open
             perc = abs(diff / self.close * 100)
             sign = '+' if diff >= 0 else '-'
-            return f"{self.symbol} {sign}${abs(diff):.2f}/{perc:.2f}%"
+            #return f"{self.symbol} {sign}${abs(diff):.2f}/{perc:.2f}%"
+            return f"{self.symbol} {sign}{perc:.2f}%"
         except:
-            return f"{self.symbol} ${self.current:.2f}"
+            price = self.current or 0
+            return f"{self.symbol} ${price:.2f}"
 
 
 def getSp500Symbols():
@@ -109,7 +111,7 @@ class StockTicker(Program):
         self.shutdown = True
 
     def _done(self):
-        return not self.stocks
+        return (not self.stocks or not self.running or not self.started)
 
     def makeAnimation(self) -> Animation:
         """Take a list of stocks and turn it into a marquee"""
