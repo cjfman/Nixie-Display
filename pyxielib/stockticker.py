@@ -117,8 +117,8 @@ class StockTicker(Program):
         self.thread.join()
         self.shutdown = True
 
-    def _done(self):
-        return (not self.stocks or not self.running or not self.started or not isMarketOpen())
+    def ready(self):
+        return (self.running and self.stocks and isMarketOpen() )
 
     def clearStocks(self):
         now = datetime.now()

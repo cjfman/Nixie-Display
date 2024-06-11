@@ -30,6 +30,9 @@ class Program:
         self.old_animation = None
         self.failed = False
 
+    def ready(self):
+        return True
+
     def done(self):
         return (self.failed or self._done())
 

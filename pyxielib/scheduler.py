@@ -111,29 +111,41 @@ class Scheduler:
         """This is called when the current animation and program are done"""
 
     def pollProgram(self):
+        """Check the current program to see if it has a new animation"""
+        ## Pick the program
+        ## The user menu takes precident
         program = None
         if self.user_menu is not None and self.user_menu.active:
             program = self.user_menu
         else:
             program = self.getProgram()
 
+        ## Return now if there no program was selected
         if program is None:
             return
 
+        ## Check to see if the program is done
         if program.done():
+            ## Clear the last animation and reset the program
             self.assembler.clearAnimation()
             program.reset()
             self.idle()
         elif program.update():
+            ## Get the next animation
             ani = program.getAnimation()
             if ani is not None:
                 self.assembler.setAnimation(ani)
 
     def handler(self):
+        """The main scheduler loop"""
         self.cv.acquire()
         print("Starting scheduler thread")
         try:
             while self.running:
+                ## Poll the program if
+                ## - a new program has been scheduled
+                ## - the current animation has completed
+                ## - the user menu is reqeusting an interrupt
                 if self.checkSchedule() or self.assembler.animationDone() or (self.user_menu is not None and self.user_menu.interrupt()):
                     try:
                         self.pollProgram()
@@ -198,7 +210,7 @@ class CronScheduler(Scheduler):
             return self.schedule[0].nextTimeSlot()
 
         now = time.time()
-        slots = sorted([entry.nextTimeSlot(now) for entry in self.schedule])
+        slots = sorted([entry.nextTimeSlot(now) for entry in self.schedule if entry.program.ready()])
         return slots[0]
 
     def checkSchedule(self):
