@@ -12,9 +12,9 @@ def rgcd(nums):
     """Recursive math.gcd"""
     if not nums:
         raise ValueError("rgcd cannot take an empty list")
-    elif len(nums) == 1:
+    if len(nums) == 1:
         return nums[0]
-    elif len(nums) == 2:
+    if len(nums) == 2:
         return math.gcd(nums[0], nums[1])
 
     return math.gcd(nums[0], rgcd(nums[1:]))
@@ -684,7 +684,8 @@ class FullFrameAnimation(Animation):
             ## Multiply list
             frames = self.frames*x
             return TubeSequence(self.frames*x)
-        elif isinstance(x, float):
+
+        if isinstance(x, float):
             ## Mulitply list by integer part
             frames = self.frames*int(x)
             f = x - int(x)
@@ -849,7 +850,6 @@ class MarqueeAnimation(Animation):
 
 class FileAnimationError(PixieAnimationError):
     """Use for errors found when parsing an animation file"""
-    pass
 
 
 class FileAnimation(FullFrameAnimation):
@@ -857,8 +857,12 @@ class FileAnimation(FullFrameAnimation):
         self.path    = path
         self.size    = size
         self.scale   = 1
-        self.sprites = {}
-        self.fullframes: TimeFullFrame = []
+        self.sequence = None
+        self.sprites: Dict[str, Frame] = {}
+        self.sequences:  Dict[str, List[TimeFullFrame]] = {}
+        self.active:     List[TimeFullFrame] = None
+        self.fullframes: List[TimeFullFrame] = []
+        self.active = self.fullframes
         FullFrameAnimation.__init__(self, self.loadFrames(path))
 
     def loadFrames(self, path):
@@ -867,13 +871,12 @@ class FileAnimation(FullFrameAnimation):
             with open(path, 'r') as ani_file:
                 return self._loadFramesHelper(ani_file)
         except FileAnimationError as e:
-            raise PixieAnimationError(f"Failed to load animation file {path}: " + e.what())
+            raise PixieAnimationError(f"Failed to load animation file {path}: " + e.what()) from e
         except Exception as e:
-            raise PixieAnimationError(f"Failed to load animation file {path}: " + str(e))
+            raise PixieAnimationError(f"Failed to load animation file {path}: " + str(e)) from e
 
     def _loadFramesHelper(self, ani_file):
         """Load animation from a sequence of strings"""
-        self.frames = []
         ## Parse file line by line
         line_no = 0
         errors = []
@@ -897,18 +900,21 @@ class FileAnimation(FullFrameAnimation):
                 break
 
             handlers = {
-                'sprite': (2, self._parseSprite),
-                'frame': (2, self._parseFrame),
-                'scale': (1, self._parseScale),
+                'sprite':   (2, 0, self._parseSprite),
+                'frame':    (2, 0, self._parseFrame),
+                'scale':    (1, 0, self._parseScale),
+                'sequence': (1, 1, self._parseSequence),
             }
             try:
                 if cmd not in handlers:
                     errors.append((line_no, f"No such command '{cmd}'"))
                     continue
 
-                num, hdlr = handlers[cmd]
-                if len(args) != num:
-                    errors.append((line_no, f"Command '{cmd}' takes exactly {num} arguments"))
+                num_req, num_opt, hdlr = handlers[cmd]
+                max_num = num_req + num_opt
+                num_args = len(args)
+                if num_args < num_req or num_args > max_num:
+                    errors.append((line_no, f"Command '{cmd}' takes {num_req} required arguments and {num_opt} optional ones"))
                     continue
 
                 hdlr(*args)
@@ -932,6 +938,7 @@ class FileAnimation(FullFrameAnimation):
             raise FileAnimationError("Failed to convert sprite code: " + str(e))
 
         self.sprites[name] = HexFrame(code)
+        print(f"Found sprite '{name}'")
 
     def _parseFrame(self, length, line):
         """Parse a frame line"""
@@ -974,15 +981,44 @@ class FileAnimation(FullFrameAnimation):
         elif num_frames < self.size:
             missing = self.size - num_frames
             frames += [Frame()]*missing
-        self.fullframes.append((length, FullFrame(frames)))
+        self.active.append((length, FullFrame(frames)))
 
     def _parseScale(self, scale):
         """Parse a sprite line"""
         ## Convert code to int
         try:
             self.scale = float(scale)
+            print(f"Setting scale {self.scale}")
         except Exception as e:
             raise FileAnimationError("Failed to convert scale to float: " + str(e))
+
+    def _parseSequence(self, subcmd, name=None):
+        if subcmd == 'start':
+            if name is None:
+                raise PixieAnimationError("Cannot start a sequence without a name")
+            if self.sequence is not None:
+                raise PixieAnimationError(f"Cannot start new sequence '{name}' before finishing the current one")
+            if name in self.sequences:
+                raise PixieAnimationError(f"Sequence already exists with name '{name}'")
+
+            sequence = []
+            self.sequences[name] = sequence
+            self.active = sequence
+            self.sequence = name
+            print(f"Starting sequence '{name}'")
+        elif subcmd == 'end':
+            if self.sequence is None:
+                raise PixieAnimationError("There is no sequence to end")
+
+            self.sequence = None
+            self.active = self.fullframes
+            print(f"Completed sequence '{name}'")
+        elif subcmd == 'insert':
+            if name not in self.sequences:
+                raise PixieAnimationError(f"Sequence '{name}' doesn't exist")
+
+            self.active.extend(self.sequences[name])
+            print(f"Inserted sequence '{name}'")
 
     @staticmethod
     def _tokenize(line):
