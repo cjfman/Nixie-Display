@@ -2,6 +2,7 @@ import math
 import re
 import time
 
+from copy import copy
 from typing import Dict, List, Sequence, Tuple
 
 from pyxielib import tube_manager as tm
@@ -75,6 +76,18 @@ class Frame:
         except:
             raise PixieAnimationError(f"Failed to decode '{self.getCode()}'")
 
+    def overlay(self, other):
+        """Overlay a frame on top of another"""
+        if self.code == ' ':
+            return copy(other)
+        if other.code == ' ':
+            return copy(self)
+
+        raise ValueError("Only overlaying of HexFrames is supported at this time")
+
+    def copy(self):
+        return Frame(self.code)
+
     def __str__(self):
         return self.code
 
@@ -89,6 +102,19 @@ class HexFrame(Frame):
     """A frame from a hex code"""
     def __init__(self, hex_code=0x0):
         Frame.__init__(self, '{' + hex(0xFFFF & hex_code) + '}')
+        self.hex_code = hex_code
+
+    def overlay(self, other):
+        """Overlay a frame on top of another"""
+        if self.code == ' ':
+            return copy(other)
+        if other.code == ' ':
+            return copy(self)
+
+        if not isinstance(other, HexFrame):
+            raise ValueError("Only overlaying of HexFrames is supported at this time")
+
+        return HexFrame(self.hex_code | other.hex_code)
 
 
 class TextFrame(Frame):
@@ -134,11 +160,30 @@ class FullFrame():
         """Get the frames"""
         return self.frames[:] ## Make copy
 
+    def overlay(self, other):
+        base = None
+        overlay = None
+        if len(self) > len(other):
+            base = self.frames.copy()
+            overlay = other.frames
+        else:
+            base = other.frames.copy()
+            overlay = self.frames
+
+        ## pylint: disable=consider-using-enumerate
+        for i in range(len(overlay)):
+            base[i] = base[i].overlay(overlay[i])
+
+        return FullFrame(base)
+
     def clone(self):
         return FullFrame(self.frames[:])
 
     def __eq__(self, other):
         return (self.frames == other.frames)
+
+    def __len__(self):
+        return len(self.frames)
 
     def __copy__(self):
         return self.clone()
@@ -981,7 +1026,16 @@ class FileAnimation(FullFrameAnimation):
         elif num_frames < self.size:
             missing = self.size - num_frames
             frames += [Frame()]*missing
-        self.active.append((length, FullFrame(frames)))
+
+        if length:
+            ## Add the frames
+            self.active.append((length, FullFrame(frames)))
+        else:
+            ## Overlay the frames
+            print(self.active[-1])
+            print(FullFrame(frames))
+            self.active[-1] = (self.active[-1][0], self.active[-1][1].overlay(FullFrame(frames)))
+            print(self.active[-1])
 
     def _parseScale(self, scale):
         """Parse a sprite line"""
