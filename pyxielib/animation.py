@@ -947,7 +947,7 @@ class FileAnimation(FullFrameAnimation):
 
             handlers = {
                 'sprite':   (2, 0, self._parseSprite),
-                'segment':  (1, 0, self._parseSegment),
+                'segment':  (2, 0, self._parseSegment),
                 'frame':    (2, 0, self._parseFrame),
                 'scale':    (1, 0, self._parseScale),
                 'sequence': (1, 1, self._parseSequence),

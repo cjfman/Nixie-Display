@@ -1,5 +1,5 @@
-sprite|hill_b|0x2214
-sprite|hill_t|0x2222
+sprite|hill_btm|0x2214
+sprite|hill_top|0x2222
 sprite|line_ctr|0x2200
 sprite|line_top|0x0001
 sprite|line_btm|0x0008
@@ -7,49 +7,51 @@ sprite|line_ctr_top|0x2100
 sprite|line_ctr_btm|0x2400
 sprite|line_top_ctr|0x0240
 sprite|line_btm_ctr|0x1200
+segment|wedge_btm|{line_btm_ctr}{line_ctr}{line_ctr_btm}
+segment|wedge_top|{line_top_ctr}{line_ctr}{line_ctr_top}
 scale|0.1
-sequence|start|hill_b_swipe
-frame|1| {15}{hill_b}
-frame|1| {14}{hill_b}
-frame|1| {13}{hill_b}
-frame|1| {12}{hill_b}
-frame|1| {11}{hill_b}
-frame|1| {10}{hill_b}
-frame|1| {9}{hill_b}
-frame|1| {8}{hill_b}
-frame|1| {7}{hill_b}
-frame|1| {6}{hill_b}
-frame|1| {5}{hill_b}
-frame|1| {5}{hill_b}
-frame|1| {4}{hill_b}
-frame|1| {3}{hill_b}
-frame|1| {2}{hill_b}
-frame|1| {hill_b}
-frame|1|{hill_b}
+sequence|start|wedge_btm_swipe
+frame|1| {15}{wedge_btm}
+frame|1| {14}{wedge_btm}
+frame|1| {13}{wedge_btm}
+frame|1| {12}{wedge_btm}
+frame|1| {11}{wedge_btm}
+frame|1| {10}{wedge_btm}
+frame|1| {9}{wedge_btm}
+frame|1| {8}{wedge_btm}
+frame|1| {7}{wedge_btm}
+frame|1| {6}{wedge_btm}
+frame|1| {5}{wedge_btm}
+frame|1| {5}{wedge_btm}
+frame|1| {4}{wedge_btm}
+frame|1| {3}{wedge_btm}
+frame|1| {2}{wedge_btm}
+frame|1| {wedge_btm}
+frame|1|{wedge_btm}
 sequence|end
-sequence|start|hill_t_swipe
-frame|1| {15}{hill_t}
-frame|1| {14}{hill_t}
-frame|1| {13}{hill_t}
-frame|1| {12}{hill_t}
-frame|1| {11}{hill_t}
-frame|1| {10}{hill_t}
-frame|1| {9}{hill_t}
-frame|1| {8}{hill_t}
-frame|1| {7}{hill_t}
-frame|1| {6}{hill_t}
-frame|1| {5}{hill_t}
-frame|1| {5}{hill_t}
-frame|1| {4}{hill_t}
-frame|1| {3}{hill_t}
-frame|1| {2}{hill_t}
-frame|1| {hill_t}
-frame|1|{hill_t}
+sequence|start|wedge_top_swipe
+frame|1| {15}{wedge_top}
+frame|1| {14}{wedge_top}
+frame|1| {13}{wedge_top}
+frame|1| {12}{wedge_top}
+frame|1| {11}{wedge_top}
+frame|1| {10}{wedge_top}
+frame|1| {9}{wedge_top}
+frame|1| {8}{wedge_top}
+frame|1| {7}{wedge_top}
+frame|1| {6}{wedge_top}
+frame|1| {5}{wedge_top}
+frame|1| {5}{wedge_top}
+frame|1| {4}{wedge_top}
+frame|1| {3}{wedge_top}
+frame|1| {2}{wedge_top}
+frame|1| {wedge_top}
+frame|1|{wedge_top}
 sequence|end
-#sequence|insert|hill_b_swipe
-frame|4|
-#sequence|insert|hill_t_swipe
-frame|4|
+#sequence|insert|wedge_btm_swipe
+#frame|4|
+#sequence|insert|wedge_top_swipe
+#frame|4|
 
 ## Draw line onto the screen
 frame|1|{line_ctr}
@@ -60,39 +62,39 @@ frame|1|{line_ctr}{5}
 frame|1|{line_ctr}{6}
 
 ## Bring first obsticle
-frame|1| {15}{hill_b}
+frame|1| {15}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {14}{hill_b}
+frame|1| {14}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {13}{hill_b}
+frame|1| {13}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {12}{hill_b}
+frame|1| {12}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {11}{hill_b}
+frame|1| {11}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {10}{hill_b}
+frame|1| {10}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {10}{hill_b}
+frame|1| {10}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {9}{hill_b}
+frame|1| {9}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {8}{hill_b}
+frame|1| {8}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {7}{hill_b}
+frame|1| {7}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {6}{hill_b}
+frame|1| {6}{hill_btm}
 frame|0|{line_ctr}{5}{line_ctr_top}
-frame|1| {5}{hill_b}
+frame|1| {5}{hill_btm}
 frame|0|{line_ctr}{4}{line_ctr_top}{line_top}
-frame|1| {4}{hill_b}
+frame|1| {4}{hill_btm}
 frame|0|{line_ctr}{3}{line_ctr_top}{line_top}{2}
-frame|1| {3}{hill_b}
+frame|1| {3}{hill_btm}
 frame|0|{line_ctr}{2}{line_ctr_top}{line_top}{3}
-frame|1| {2}{hill_b}
+frame|1| {2}{hill_btm}
 frame|0|{line_ctr}{line_ctr_top}{line_top}{3}{line_top_ctr}
-frame|1| {1}{hill_b}
+frame|1| {1}{hill_btm}
 frame|0|{line_ctr_top}{line_top}{3}{line_top_ctr}{line_ctr}
-frame|1|{hill_b}
+frame|1|{hill_btm}
 frame|0|{line_top}{3}{line_top_ctr}{line_ctr}{2}
 frame|1|{line_top}{2}{line_top_ctr}{line_ctr}{3}
 frame|1|{line_top}{1}{line_top_ctr}{line_ctr}{4}
@@ -100,39 +102,39 @@ frame|1|{line_top_ctr}{line_ctr}{5}
 frame|5|{line_ctr}{6}
 
 ## Bring second obsticle
-frame|1| {15}{hill_t}
+frame|1| {15}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {14}{hill_t}
+frame|1| {14}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {13}{hill_t}
+frame|1| {13}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {12}{hill_t}
+frame|1| {12}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {11}{hill_t}
+frame|1| {11}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {10}{hill_t}
+frame|1| {10}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {10}{hill_t}
+frame|1| {10}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {9}{hill_t}
+frame|1| {9}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {8}{hill_t}
+frame|1| {8}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {7}{hill_t}
+frame|1| {7}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {6}{hill_t}
+frame|1| {6}{hill_top}
 frame|0|{line_ctr}{5}{line_ctr_btm}
-frame|1| {5}{hill_t}
+frame|1| {5}{hill_top}
 frame|0|{line_ctr}{4}{line_ctr_btm}{line_btm}
-frame|1| {4}{hill_t}
+frame|1| {4}{hill_top}
 frame|0|{line_ctr}{3}{line_ctr_btm}{line_btm}{2}
-frame|1| {3}{hill_t}
+frame|1| {3}{hill_top}
 frame|0|{line_ctr}{2}{line_ctr_btm}{line_btm}{3}
-frame|1| {2}{hill_t}
+frame|1| {2}{hill_top}
 frame|0|{line_ctr}{line_ctr_btm}{line_btm}{3}{line_btm_ctr}
-frame|1| {1}{hill_t}
+frame|1| {1}{hill_top}
 frame|0|{line_ctr_btm}{line_btm}{3}{line_btm_ctr}{line_ctr}
-frame|1|{hill_t}
+frame|1|{hill_top}
 frame|0|{line_btm}{3}{line_btm_ctr}{line_ctr}{2}
 frame|1|{line_btm}{2}{line_btm_ctr}{line_ctr}{3}
 frame|1|{line_btm}{1}{line_btm_ctr}{line_ctr}{4}
@@ -140,50 +142,131 @@ frame|1|{line_btm_ctr}{line_ctr}{5}
 frame|5|{line_ctr}{6}
 
 ## Two at once
-frame|1| {15}{hill_b}
+frame|1| {15}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {14}{hill_b}
+frame|1| {14}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {13}{hill_b}
+frame|1| {13}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {12}{hill_b}
+frame|1| {12}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {11}{hill_b}
+frame|1| {11}{hill_btm}
 frame|0|{line_ctr}{6}
-frame|1| {10}{hill_b} {4}{hill_t}
+frame|1| {10}{hill_btm} {4}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {10}{hill_b} {4}{hill_t}
+frame|1| {10}{hill_btm} {4}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {9}{hill_b} {4}{hill_t}
+frame|1| {9}{hill_btm} {4}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {8}{hill_b} {4}{hill_t}
+frame|1| {8}{hill_btm} {4}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {7}{hill_b} {4}{hill_t}
+frame|1| {7}{hill_btm} {4}{hill_top}
 frame|0|{line_ctr}{6}
-frame|1| {6}{hill_b} {4}{hill_t}
+frame|1| {6}{hill_btm} {4}{hill_top}
 frame|0|{line_ctr}{5}{line_ctr_top}
-frame|1| {5}{hill_b} {4}{hill_t}
+frame|1| {5}{hill_btm} {4}{hill_top}
 frame|0|{line_ctr}{4}{line_ctr_top}{line_top}
-frame|1| {4}{hill_b} {4}{hill_t}
+frame|1| {4}{hill_btm} {4}{hill_top}
 frame|0|{line_ctr}{3}{line_ctr_top}{line_top}{2}
-frame|1| {3}{hill_b} {4}{hill_t}
+frame|1| {3}{hill_btm} {4}{hill_top}
 frame|0|{line_ctr}{2}{line_ctr_top}{line_top}{2}{line_top_ctr}
-frame|1| {2}{hill_b} {4}{hill_t}
+frame|1| {2}{hill_btm} {4}{hill_top}
 frame|0|{line_ctr}{line_ctr_top}{line_top}{2}{line_top_ctr}{line_ctr}
-frame|1| {1}{hill_b} {4}{hill_t}
+frame|1| {1}{hill_btm} {4}{hill_top}
 frame|0|{line_ctr_top}{line_top}{2}{line_top_ctr}{line_ctr}{line_ctr_btm}
-frame|1|{hill_b} {4}{hill_t}
+frame|1|{hill_btm} {4}{hill_top}
 frame|0|{line_top}{2}{line_top_ctr}{line_ctr}{line_ctr_btm}{line_btm}
-frame|1| {4}{hill_t}
+frame|1| {4}{hill_top}
 frame|0|{line_top}{1}{line_top_ctr}{line_ctr}{line_ctr_btm}{line_btm}{3}
-frame|1| {3}{hill_t}
+frame|1| {3}{hill_top}
 frame|0|{line_ctr}{line_ctr_btm}{line_btm}{3}{line_btm_ctr}
-frame|1| {2}{hill_t}
+frame|1| {2}{hill_top}
 frame|0|{line_ctr_btm}{line_btm}{3}{line_btm_ctr}{line_ctr}
-frame|1| {1}{hill_t}
+frame|1| {1}{hill_top}
 frame|0|{line_btm}{3}{line_btm_ctr}{line_ctr}{2}
-frame|1|{hill_t}
+frame|1|{hill_top}
 frame|0|{line_btm}{2}{line_btm_ctr}{line_ctr}{3}
 frame|1|{line_btm}{1}{line_btm_ctr}{line_ctr}{4}
 frame|1|{line_btm_ctr}{line_ctr}{5}
-frame|20|{line_ctr}{6}
+frame|5|{line_ctr}{6}
+
+## Try with wedges
+## First wedge
+frame|1| {15}{wedge_btm}
+frame|0|{line_ctr}{6}
+frame|1| {14}{wedge_btm}
+frame|0|{line_ctr}{6}
+frame|1| {13}{wedge_btm}
+frame|0|{line_ctr}{6}
+frame|1| {12}{wedge_btm}
+frame|0|{line_ctr}{6}
+frame|1| {11}{wedge_btm}
+frame|0|{line_ctr}{6}
+frame|1| {10}{wedge_btm}
+frame|0|{line_ctr}{6}
+frame|1| {10}{wedge_btm}
+frame|0|{line_ctr}{6}
+frame|1| {9}{wedge_btm}
+frame|0|{line_ctr}{6}
+frame|1| {8}{wedge_btm}
+frame|0|{line_ctr}{6}
+frame|1| {7}{wedge_btm}
+frame|0|{line_ctr}{6}
+frame|1| {6}{wedge_btm}
+frame|0|{line_ctr}{5}{line_ctr_top}
+frame|1| {5}{wedge_btm}
+frame|0|{line_ctr}{4}{line_ctr_top}{line_top}
+frame|1| {4}{wedge_btm}
+frame|0|{line_ctr}{3}{line_ctr_top}{line_top}{2}
+frame|1| {3}{wedge_btm}
+frame|0|{line_ctr}{2}{line_ctr_top}{line_top}{3}
+frame|1| {2}{wedge_btm}
+frame|0|{line_ctr}{line_ctr_top}{line_top}{3}{line_top_ctr}
+frame|1| {1}{wedge_btm}
+frame|0|{line_ctr_top}{line_top}{3}{line_top_ctr}{line_ctr}
+frame|1|{wedge_btm}
+frame|0|{line_top}{3}{line_top_ctr}{line_ctr}{2}
+frame|1|{line_top}{2}{line_top_ctr}{line_ctr}{3}
+frame|1|{line_top}{1}{line_top_ctr}{line_ctr}{4}
+frame|1|{line_top_ctr}{line_ctr}{5}
+frame|5|{line_ctr}{6}
+
+## Second wedge
+frame|1| {15}{wedge_top}
+frame|0|{line_ctr}{6}
+frame|1| {14}{wedge_top}
+frame|0|{line_ctr}{6}
+frame|1| {13}{wedge_top}
+frame|0|{line_ctr}{6}
+frame|1| {12}{wedge_top}
+frame|0|{line_ctr}{6}
+frame|1| {11}{wedge_top}
+frame|0|{line_ctr}{6}
+frame|1| {10}{wedge_top}
+frame|0|{line_ctr}{6}
+frame|1| {10}{wedge_top}
+frame|0|{line_ctr}{6}
+frame|1| {9}{wedge_top}
+frame|0|{line_ctr}{6}
+frame|1| {8}{wedge_top}
+frame|0|{line_ctr}{6}
+frame|1| {7}{wedge_top}
+frame|0|{line_ctr}{6}
+frame|1| {6}{wedge_top}
+frame|0|{line_ctr}{5}{line_ctr_btm}
+frame|1| {5}{wedge_top}
+frame|0|{line_ctr}{4}{line_ctr_btm}{line_btm}
+frame|1| {4}{wedge_top}
+frame|0|{line_ctr}{3}{line_ctr_btm}{line_btm}{2}
+frame|1| {3}{wedge_top}
+frame|0|{line_ctr}{2}{line_ctr_btm}{line_btm}{3}
+frame|1| {2}{wedge_top}
+frame|0|{line_ctr}{line_ctr_btm}{line_btm}{3}{line_btm_ctr}
+frame|1| {1}{wedge_top}
+frame|0|{line_ctr_btm}{line_btm}{3}{line_btm_ctr}{line_ctr}
+frame|1|{wedge_top}
+frame|0|{line_btm}{3}{line_btm_ctr}{line_ctr}{2}
+frame|1|{line_btm}{2}{line_btm_ctr}{line_ctr}{3}
+frame|1|{line_btm}{1}{line_btm_ctr}{line_ctr}{4}
+frame|1|{line_btm_ctr}{line_ctr}{5}
+frame|5|{line_ctr}{6}
