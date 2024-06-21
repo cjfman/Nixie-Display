@@ -903,8 +903,9 @@ class FileAnimation(FullFrameAnimation):
         self.size    = size
         self.scale   = 1
         self.sequence = None
-        self.sprites: Dict[str, Frame] = {}
+        self.sprites:    Dict[str, Frame] = {}
         self.sequences:  Dict[str, List[TimeFullFrame]] = {}
+        self.segments:   Dict[str, List[Frame]] = {}
         self.active:     List[TimeFullFrame] = None
         self.fullframes: List[TimeFullFrame] = []
         self.active = self.fullframes
@@ -946,6 +947,7 @@ class FileAnimation(FullFrameAnimation):
 
             handlers = {
                 'sprite':   (2, 0, self._parseSprite),
+                'segment':  (1, 0, self._parseSegment),
                 'frame':    (2, 0, self._parseFrame),
                 'scale':    (1, 0, self._parseScale),
                 'sequence': (1, 1, self._parseSequence),
@@ -985,14 +987,8 @@ class FileAnimation(FullFrameAnimation):
         self.sprites[name] = HexFrame(code)
         print(f"Found sprite '{name}'")
 
-    def _parseFrame(self, length, line):
+    def _parseSegmentHlpr(self, line) -> List[Frame]:
         """Parse a frame line"""
-        ## Parse first argument
-        try:
-            length = float(length)*self.scale
-        except:
-            raise FileAnimationError(f"Argument 'delay' must be a float, not '{length}'")
-
         ## Tokenize the frames
         tokens = self._tokenize(line)
         frames = []
@@ -1004,6 +1000,8 @@ class FileAnimation(FullFrameAnimation):
                 ## Look up token as defined symbol
                 if token in self.sprites:
                     frames.append(self.sprites[token])
+                elif token in self.segments:
+                    frames.extend(self.segments[token])
                 else:
                     raise FileAnimationError(f"Symbol '{token}' not defined")
             elif t_type == 'multiplier':
@@ -1013,11 +1011,27 @@ class FileAnimation(FullFrameAnimation):
                 if not frames:
                     raise FileAnimationError(f"No previous frame to multiply")
                 ## Add token-1 more of the last frame
-                for x in range(token-1):
+                for _ in range(token-1):
                     frames.append(frames[-1])
             else:
                 raise PyxieError(f"Unrecognized token type '{t_type}'")
 
+        return frames
+
+    def _parseSegment(self, name, line):
+        if name in self.segments:
+            raise PyxieError(f"Segment '{name}' already exists")
+
+        self.segments[name] = self._parseSegmentHlpr(line)
+
+    def _parseFrame(self, length, line):
+        ## Parse first argument
+        try:
+            length = float(length)*self.scale
+        except:
+            raise FileAnimationError(f"Argument 'delay' must be a float, not '{length}'")
+
+        frames = self._parseSegmentHlpr(line)
 
         ## Fix number of frames
         num_frames = len(frames)
