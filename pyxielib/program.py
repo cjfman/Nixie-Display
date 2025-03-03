@@ -135,6 +135,8 @@ class RssProgram(Program):
         self.use_content = use_content
         self.animation   = None
         self.loop        = loop
+        self.banned_rx   = r"\b" + r"\b|\b".join(BANNED) + r"\b"
+
 
     def reset(self):
         super().reset()
@@ -158,6 +160,7 @@ class RssProgram(Program):
             return
 
         for entry in entries:
+            ## Check for banned terms
             ## Default is to sow the summary
             value = flattenHTML(entry['summary'])
             if self.use_content and 'content' in entry:
@@ -167,9 +170,10 @@ class RssProgram(Program):
                 ## Only add the title if the content isn't used
                 value = entry['title'] + ": " + value
 
-            values.append(value)
+            if re.search(self.banned_rx, value, re.IGNORECASE) is None:
+                values.append(value)
 
-        msg = (' '*(self.size//2)).join(values)
+        msg = (' '*(self.size//2)).join(values) or "Nothing fit to print!"
         if self.use_title and 'title' in rss['feed']:
             msg = rss['feed']['title'] + " || " + msg
 
@@ -216,3 +220,13 @@ class WeatherProgram(RssProgram):
             r"< <\d+.>.>": '',
         }
         return escapeText(txt, replace, regex_rep)
+
+BANNED = (
+    'trump',
+    'musk',
+    'donald',
+    'elon',
+    'united states',
+    'putin',
+    'russia',
+)
