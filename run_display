@@ -55,7 +55,7 @@ if args.keyboard_event_file is not None:
 schl = (
     ("*/5 * * * *",  1, ticker_prgm),
     ("*/10 * * * *", 2, clock_prgm),
-    ("*/20 * * * *", 4, nyt_prgm),
+    #("*/20 * * * *", 4, nyt_prgm),
     ("*/15 * * * *", 3, weather_prgm),
 )
 
