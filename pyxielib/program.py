@@ -229,4 +229,6 @@ BANNED = (
     'united states',
     'putin',
     'russia',
+    'president',
+    'america',
 )
