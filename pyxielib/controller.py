@@ -31,7 +31,7 @@ class Controller:
 class TerminalController(Controller):
     def __init__(self, *, clear_screen=False, print_code=False):
         Controller.__init__(self)
-        self.clear_screen = clear_screen
+        self.clear_screen = (clear_screen and not print_code)
         self.print_code   = print_code
 
     @staticmethod

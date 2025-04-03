@@ -1,5 +1,6 @@
 bs4
 croniter
-evdev
 feedparser
 yfinance
+requests
+evdev
