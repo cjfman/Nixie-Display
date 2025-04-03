@@ -50,7 +50,13 @@ ticker_prgm = stockticker.StockTicker()
 ticker_prgm.run()
 user_prgm = None
 if args.keyboard_event_file is not None:
-    user_prgm = usermenuprogram.UserMenuProgram(args.keyboard_event_file, ani_path=args.animations_dir)
+    program_map = {
+        "Clock":          clock_prgm,
+        "New Yort Times": nyt_prgm,
+        "Weather Boston": weather_prgm,
+        "SP500 Ticker":   ticker_prgm,
+    }
+    user_prgm = usermenuprogram.UserMenuProgram(args.keyboard_event_file, ani_path=args.animations_dir, program_map=program_map)
 
 schl = (
     ("*/5 * * * *",  1, ticker_prgm),

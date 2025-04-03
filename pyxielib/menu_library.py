@@ -325,3 +325,21 @@ class AnimationLibraryItem(ListItem):
         name = self.current_value()
         if name in self.ani_paths:
             self.selected = FileAnimation(os.path.join(self.path, self.ani_paths[name]))
+
+class ProgramListItem(ListItem):
+    def __init__(self, programs, **kwargs):
+        super().__init__("Programs", sorted(programs.keys()), **kwargs)
+        self.programs = programs
+
+    def for_display(self) -> Animation:
+        if self.selected is None:
+            return super().for_display()
+
+        program = self.programs[self.selected]
+        program.reset()
+
+        ani = program.getAnimation()
+        if ani is None:
+            return super().for_display()
+
+        return ani
