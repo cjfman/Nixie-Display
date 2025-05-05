@@ -8,7 +8,7 @@ from pyxielib.tube_manager import cmdLen
 
 
 class UserMenuProgram(Program):
-    def __init__(self, event_path, *, ani_path='animations', **kwargs):
+    def __init__(self, event_path, *, program_map=None, ani_path='animations', **kwargs):
         super().__init__("User Control", **kwargs)
         self.event_path       = event_path
         self.program_map      = program_map or {}
