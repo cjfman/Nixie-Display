@@ -34,7 +34,7 @@ def create_controller(c_type, serial, print_code, verbose):
     """Create c_type"""
     ctrl = None
     if c_type == 'terminal':
-        ctrl = controller.TerminalController(clear_screen=True, print_code=print_code)
+        ctrl = controller.TerminalController(clear_screen=True, print_code=print_code, verbose=verbose)
     elif c_type == 'raspi':
         print("Using the RaspberryPi outputs directly")
         ctrl = c_type.RaspberryPiController(speed=10**6, debug=verbose, print_code=print_code)
@@ -56,6 +56,8 @@ def main(args):
     clock_prgm = program.ClockProgram(flash=True, underscore=True)
     nyt_prgm = program.RssProgram("https://rss.nytimes.com/services/xml/rss/nyt/US.xml", size=16)
     weather_prgm = program.WeatherProgram(nws_code="KBOS")
+    sleep_prgm = program.SleepProgram(ctrl)
+    wake_prgm = program.WakeProgram(ctrl)
     ticker_prgm = stockticker.StockTicker()
     ticker_prgm.run()
     user_prgm = None
@@ -63,10 +65,12 @@ def main(args):
         user_prgm = usermenuprogram.UserMenuProgram(args.keyboard_event_file, ani_path=args.animations_dir)
 
     schl = (
-        ("*/5 * * * *",  1, ticker_prgm),
-        ("*/10 * * * *", 2, clock_prgm),
-        ("*/20 * * * *", 4, nyt_prgm),
-        ("*/15 * * * *", 3, weather_prgm),
+        ("*/5  * * * *", 10, ticker_prgm),
+        ("*/10 * * * *", 20, clock_prgm),
+        ("*/20 * * * *", 40, nyt_prgm),
+        ("*/15 * * * *", 30, weather_prgm),
+        #("30   17 * * *", 98, sleep_prgm),
+        #("31   17 * * *", 99, wake_prgm),
     )
 
     asmlr = assembler.Assembler(controller=ctrl)

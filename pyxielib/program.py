@@ -1,11 +1,12 @@
 import datetime
 import re
+import time
 import traceback
 
 import feedparser
 
 import pyxielib.animation_library as animationlib
-from pyxielib.animation import Animation, MarqueeAnimation, escapeText
+from pyxielib.animation import Animation, EmtpyAnimation, MarqueeAnimation, escapeText
 from pyxielib.pyxieutil import PyxieUnimplementedError, flattenHTML
 
 
@@ -63,6 +64,23 @@ class Program:
 
     def __repr__(self):
         return "<Program: " + str(self) + ">"
+
+
+class MessageProgram(Program):
+    def __init__(self, msg, duration:float):
+        super().__init__("Message")
+        self.msg       = msg
+        self.duration  = duration
+        self.animation = None
+
+    def makeAnimation(self):
+        if self.animation is None:
+            self.animation = MarqueeAnimation.fromText(self.msg, self.size, freeze=self.duration)
+
+        return self.animation
+
+    def _done(self):
+        return (self.animation is not None and self.animation.done())
 
 
 class ClockProgram(Program):
@@ -220,6 +238,52 @@ class WeatherProgram(RssProgram):
             r"< <\d+.>.>": '',
         }
         return escapeText(txt, replace, regex_rep)
+
+
+class SleepProgram(Program):
+    def __init__(self, controller, *, msg="Sleeping...", duration:float=5):
+        super().__init__("Sleep")
+        self.msg        = msg
+        self.duration   = duration
+        self.controller = controller
+        self.animation  = None
+
+    def makeAnimation(self):
+        if not self.controller.enabled:
+            self.animation = EmtpyAnimation()
+        elif self.animation is None:
+            self.animation = MarqueeAnimation.fromText(self.msg, self.size, freeze=self.duration)
+
+        return self.animation
+
+    def _done(self):
+        done = (self.animation is not None and self.animation.done())
+        if done and self.controller.enabled:
+            self.controller.disable()
+
+        return done
+
+
+class WakeProgram(Program):
+    def __init__(self, controller, *, msg="Waking...", duration:float=2):
+        super().__init__("Wake")
+        self.msg        = msg
+        self.duration   = duration
+        self.controller = controller
+        self.animation  = None
+
+    def makeAnimation(self):
+        if self.controller.enabled:
+            self.animation = EmtpyAnimation()
+        elif self.animation is None:
+            self.controller.enable()
+            self.animation = MarqueeAnimation.fromText(self.msg, self.size, freeze=self.duration)
+
+        return self.animation
+
+    def _done(self):
+        return (self.animation is not None and self.animation.done())
+
 
 BANNED = (
     'trump',

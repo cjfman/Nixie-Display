@@ -1,4 +1,4 @@
-import datetime
+import datetime as dt
 import time
 import threading
 import traceback
@@ -33,8 +33,8 @@ class TimeSlot:
         return True
 
     def __str__(self):
-        dt = datetime.datetime.fromtimestamp(self.timestamp)
-        return dt.strftime(f"%d/%m %H:%M:%S") + " : " + self.program.getName()
+        stamp = dt.datetime.fromtimestamp(self.timestamp)
+        return stamp.strftime(f"%m/%d %H:%M:%S") + " : " + self.program.getName()
 
 
 class ScheduleEntry:
@@ -48,6 +48,7 @@ class ScheduleEntry:
         if now is None:
             now = time.time()
 
+        #return croniter(self.timecode, now, ret_type=dt.datetime).get_next()
         return croniter(self.timecode, now).get_next()
 
     def nextTimeStamps(self, n, now=None) -> List[float]:
