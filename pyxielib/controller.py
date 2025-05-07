@@ -28,10 +28,10 @@ class Controller:
         pass
 
     def enable(self):
-        pass
+        self.enabled = True
 
     def disable(self):
-        pass
+        self.enabled = False
 
 
 class TerminalController(Controller):
@@ -39,7 +39,6 @@ class TerminalController(Controller):
         Controller.__init__(self)
         self.clear_screen = (clear_screen and not print_code)
         self.print_code   = print_code
-        self.enabled      = True
         self.verbose      = verbose
 
     @staticmethod
@@ -50,14 +49,14 @@ class TerminalController(Controller):
         if not self.enabled and self.verbose:
             print("Terminal enabled")
 
-        self.enabled = True
+        Controller.enable(self)
 
     def disable(self):
         if self.enabled and self.verbose:
             print("Terminal disabled")
         if self.clear_screen:
             self.clearScreen()
-        self.enabled = False
+        Controller.disable(self)
 
     def send(self, code):
         if not self.enabled:
@@ -183,8 +182,9 @@ class RaspberryPiController(Controller):
 
     def enable(self):
         try:
-            GPIO.output(self.oe_pin, True)     ## Disable strobe
+            GPIO.output(self.oe_pin, True)     ## Enable output
             GPIO.output(self.strobe_pin, True) ## Disable strobe
+            Controller.enable(self)
         except Exception as e:
             msg = "Failed to enable display"
             if self.debug:
@@ -195,6 +195,7 @@ class RaspberryPiController(Controller):
     def disable(self):
         try:
             GPIO.output(self.oe_pin, False)
+            Controller.disable(self)
         except Exception as e:
             msg = "Failed to disable display"
             if self.debug:
@@ -230,9 +231,11 @@ class RaspberryPiController(Controller):
             lsb = bitmap & 0xFF
             data += [msb, lsb]
 
+        enabled = self.enabled
         self.disable()
         self.spi.xfer(data)
-        self.enable()
+        if enabled:
+            self.enable()
 
     def __del__(self):
         self.spi.close()

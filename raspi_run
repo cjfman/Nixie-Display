@@ -7,5 +7,9 @@ git pull -f || echo "Failed to pull latest code from git"
 cd $HOME
 /home/nixie/Nixie-Display/send_text -n -c raspi "Starting..."
 /home/nixie/Nixie-Display/run_display -c raspi --keyboard-event-file /dev/input/event0 > logs/nixie.log 2>logs/nixie.stderr
-/home/nixie/Nixie-Display/send_text -n -c raspi "Waiting..."
+if [[ $? -ne 0 ]]; then
+    /home/nixie/Nixie-Display/send_text -n -c raspi "Crashed"
+else
+    /home/nixie/Nixie-Display/send_text -n -c raspi "Waiting..."
+fi
 exit 1
