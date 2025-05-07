@@ -31,7 +31,7 @@ class UserMenuProgram(Program):
             }
         )
         self.navigator = Navigator(Menu("Nixie Menu", [
-            menulib.ProgramListItem(program_map),
+            menulib.ProgramListItem(self.program_map),
             menulib.MirrorItem("Mirror Mode"),
             menulib.AnimationLibraryItem(ani_path),
             menulib.IpItem(),
