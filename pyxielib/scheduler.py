@@ -19,7 +19,7 @@ class SchedulerError(PyxieError):
 CronTimeCode = str
 
 class TimeSlot:
-    def __init__(self, timestamp:float, program:Program, priority:int=1):
+    def __init__(self, timestamp:dt.datetime, program:Program, priority:int=1):
         self.timestamp = timestamp
         self.program   = program
         self.priority  = priority
@@ -33,8 +33,7 @@ class TimeSlot:
         return True
 
     def __str__(self):
-        stamp = dt.datetime.fromtimestamp(self.timestamp)
-        return stamp.strftime(f"%m/%d %H:%M:%S") + " : " + self.program.getName()
+        return self.timestamp.strftime(f"%m/%d %H:%M:%S") + " : " + self.program.getName()
 
 
 class ScheduleEntry:
@@ -46,21 +45,20 @@ class ScheduleEntry:
     def nextTimeStamp(self, now=None) -> float:
         """Returns the timestamp of the next event"""
         if now is None:
-            now = time.time()
+            now = dt.datetimem.now()
 
-        #return croniter(self.timecode, now, ret_type=dt.datetime).get_next()
-        return croniter(self.timecode, now).get_next()
+        return croniter(self.timecode, now, ret_type=dt.datetime).get_next()
 
     def nextTimeStamps(self, n, now=None) -> List[float]:
         """Returns list of the timestamps of the next n events"""
         if now is None:
-            now = time.time()
+            now = dt.datetime.now()
 
-        return [croniter(self.timecode, now).get_next() for x in range(n)]
+        return [croniter(self.timecode, now, ret_type=dt.datetime).get_next() for x in range(n)]
 
     def nextTimeSlot(self, now=None) -> TimeSlot:
         if now is None:
-            now = time.time()
+            now = dt.datetime.now()
 
         return TimeSlot(self.nextTimeStamp(now), self.program, self.priority)
 
@@ -178,7 +176,7 @@ class SingleProgramScheduler(Scheduler):
         return self.program
 
     def nextScheduledEntry(self) -> TimeSlot:
-        return (time.time(), self.program)
+        return (dt.datetime.now(), self.program)
 
     def checkSchedule(self):
         pass
@@ -191,12 +189,13 @@ class CronScheduler(Scheduler):
         self.program  = None
         self.default  = default
         self.printSchedule()
+        self.last_update = 0
 
     def getProgram(self):
         return self.program
 
     def printSchedule(self):
-        now = time.time()
+        now = dt.datetime.now()
         print("Cron Program Schedule")
         slots = sorted([entry.nextTimeSlot(now) for entry in self.schedule])
         for slot in slots:
@@ -210,27 +209,32 @@ class CronScheduler(Scheduler):
         if len(self.schedule) == 1:
             return self.schedule[0].nextTimeSlot()
 
-        now = time.time()
+        now = dt.datetime.now()
         slots = sorted([entry.nextTimeSlot(now) for entry in self.schedule if entry.program.ready()])
         return slots[0]
 
     def checkSchedule(self):
         """Return True if a new event should be started"""
+        if time.time() - self.last_update < 1:
+            return False
+
         slot = self.nextScheduledEntry()
         name = slot.program.getName()
-        now = time.time() + 1 ## Ugly hack. Don't miss start of time slot
         ## Set program now if nothing else is running
         if self.program is None:
-            self.program = slot.program
-            print(f"Starting with program '{name}'")
+            self.program = self.default if self.default is not None else slot.program
+            print(f"Starting with program '{self.program.name}'")
             self.program.reset()
+            self.last_update = time.time()
             return True
 
         ## Update program if it's scheduled to run now
+        now = dt.datetime.now() + dt.timedelta(seconds=1) ## Ugly hack. Don't miss start of time slot
         if slot.timestamp <= now and slot.program != self.program:
             print(f"Switch to program '{name}'")
             self.program = slot.program
             self.program.reset()
+            self.last_update = time.time()
             return True
 
         return False
