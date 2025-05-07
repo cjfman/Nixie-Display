@@ -37,10 +37,10 @@ def create_controller(c_type, serial, print_code, verbose):
         ctrl = controller.TerminalController(clear_screen=True, print_code=print_code, verbose=verbose)
     elif c_type == 'raspi':
         print("Using the RaspberryPi outputs directly")
-        ctrl = c_type.RaspberryPiController(speed=10**6, debug=verbose, print_code=print_code)
+        ctrl = controller.RaspberryPiController(speed=10**6, debug=verbose, print_code=print_code)
     elif c_type == 'serial':
         print("Opening connection to Nixie Control Board")
-        ctrl = c_type.SerialController(serial, debug=verbose)
+        ctrl = controller.SerialController(serial, debug=verbose)
         print("Connection established")
     else:
         print(f"Unsupported c_type type: {c_type}")
