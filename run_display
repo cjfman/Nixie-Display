@@ -3,88 +3,114 @@
 
 import argparse
 import sys
-import time
 import os
+import time
+import traceback
 
 from pyxielib import assembler, controller, program, scheduler, stockticker, usermenuprogram
 
 file_dir = os.path.dirname(os.path.realpath(__file__))
 
-parser = argparse.ArgumentParser(description='Nixie tube controller')
-parser.add_argument('-c', '--controller', required=True, choices=('terminal', 'raspi', 'serial'), help="The type of controller")
-parser.add_argument('-p', '--print-code', action='store_true', help="Print the code to the output")
-parser.add_argument('-s', '--serial', help="The serial device path. Overrides --controller")
-parser.add_argument('-v', '--verbose', action='store_true', help="Be verbose in output")
-parser.add_argument('--keyboard-event-file', help="The /dev/input/event file that represents keyboard input")
-parser.add_argument('--animations-dir', default=os.path.join(file_dir, 'animations'), help="Directory of animations files")
-args = parser.parse_args()
+def get_args():
+    parser = argparse.ArgumentParser(description='Nixie tube controller')
+    parser.add_argument('-c', '--controller', required=True, help="The type of controller <terminal,raspi,serial>")
+    parser.add_argument('-p', '--print-code', action='store_true', help="Print the code to the output")
+    parser.add_argument('-s', '--serial', help="The serial device path. Overrides --controller")
+    parser.add_argument('-v', '--verbose', action='store_true', help="Be verbose in output")
+    parser.add_argument('--keyboard-event-file', help="The /dev/input/event file that represents keyboard input")
+    parser.add_argument('--animations-dir', default=os.path.join(file_dir, 'animations'), help="Directory of animations files")
+    args = parser.parse_args()
+
+    ## Fix controler argument
+    if args.serial is not None:
+        args.controller = 'serial'
+    else:
+        args.controller = args.controller.lower()
+
+    return args
 
 
-## Fix controler argument
-if args.serial is not None:
-    args.controller = 'serial'
-else:
-    args.controller = args.controller.lower()
+def create_controller(c_type, serial, print_code, verbose):
+    """Create c_type"""
+    ctrl = None
+    if c_type == 'terminal':
+        ctrl = controller.TerminalController(clear_screen=True, print_code=print_code, verbose=verbose)
+    elif c_type == 'raspi':
+        print("Using the RaspberryPi outputs directly")
+        ctrl = c_type.RaspberryPiController(speed=10**6, debug=verbose, print_code=print_code)
+    elif c_type == 'serial':
+        print("Opening connection to Nixie Control Board")
+        ctrl = c_type.SerialController(serial, debug=verbose)
+        print("Connection established")
+    else:
+        print(f"Unsupported c_type type: {c_type}")
+
+    return ctrl
 
 
-## Create controller
-ctrl = None
-if args.controller == 'terminal':
-    ctrl = controller.TerminalController(clear_screen=True, print_code=args.print_code)
-elif args.controller == 'raspi':
-    print("Using the RaspberryPi outputs directly")
-    ctrl = controller.RaspberryPiController(speed=10**6, debug=args.verbose, print_code=args.print_code)
-elif args.controller == 'serial':
-    print("Opening connection to Nixie Control Board")
-    ctrl = controller.SerialController(args.serial, debug=args.verbose)
-    print("Connection established")
-else:
-    print(f"Unsupported controller type: {args.controller}")
-    sys.exit(1)
+def main(args):
+    ctrl = create_controller(args.controller, args.serial, args.print_code, args.verbose)
+    if ctrl is None:
+        return 1
 
+    clock_prgm = program.ClockProgram(flash=True, underscore=True)
+    nyt_prgm = program.RssProgram("https://rss.nytimes.com/services/xml/rss/nyt/US.xml", size=16)
+    weather_prgm = program.WeatherProgram(nws_code="KBOS")
+    sleep_prgm = program.SleepProgram(ctrl)
+    wake_prgm = program.WakeProgram(ctrl)
+    ticker_prgm = stockticker.StockTicker()
+    ticker_prgm.run()
+    user_prgm = None
+    if args.keyboard_event_file is not None:
+        user_prgm = usermenuprogram.UserMenuProgram(args.keyboard_event_file, ani_path=args.animations_dir)
 
-clock_prgm = program.ClockProgram(flash=True, underscore=True)
-nyt_prgm = program.RssProgram("https://rss.nytimes.com/services/xml/rss/nyt/US.xml", size=16)
-weather_prgm = program.WeatherProgram(nws_code="KBOS")
-ticker_prgm = stockticker.StockTicker()
-ticker_prgm.run()
-user_prgm = None
-if args.keyboard_event_file is not None:
-    program_map = {
-        "Clock":          clock_prgm,
-        "New Yort Times": nyt_prgm,
-        "Weather Boston": weather_prgm,
-        "SP500 Ticker":   ticker_prgm,
-    }
-    user_prgm = usermenuprogram.UserMenuProgram(args.keyboard_event_file, ani_path=args.animations_dir, program_map=program_map)
+    schl = (
+        ("*/5   * * * *",  10, ticker_prgm),
+        ("*/10  * * * *",  20, clock_prgm),
+        ("*/20  * * * *",  40, nyt_prgm),
+        ("*/15  * * * *",  30, weather_prgm),
+        ("10   18 * * *", 98, sleep_prgm),
+        ("15   18 * * *", 99, wake_prgm),
+    )
 
-schl = (
-    ("*/5 * * * *",  1, ticker_prgm),
-    ("*/10 * * * *", 2, clock_prgm),
-    ("*/20 * * * *", 4, nyt_prgm),
-    ("*/15 * * * *", 3, weather_prgm),
-)
+    asmlr = assembler.Assembler(controller=ctrl)
+    schdlr = scheduler.CronScheduler(schl, asmlr, default=clock_prgm, user_menu=user_prgm)
 
-asmlr = assembler.Assembler(controller=ctrl)
-schdlr = scheduler.CronScheduler(schl, asmlr, default=clock_prgm, user_menu=user_prgm)
+    print("Starting program")
+    schdlr.run()
+    asmlr.start()
+    time.sleep(1)
 
-print("Starting program")
-schdlr.run()
-asmlr.start()
-time.sleep(1)
+    error = False
+    try:
+        while True:
+            if not asmlr.isRunning():
+                print("Assembler stopped unexpectedly")
+                break
+            if not schdlr.isRunning():
+                print("Scheduler stopped unexpectedly")
+                break
+            time.sleep(0.1)
+    except Exception as e:
+        print(f"Unhandled error: {e}")
+        traceback.print_exc()
+        error = True
+    except KeyboardInterrupt:
+        print("User requested exit")
 
-try:
-    while True:
-        if not asmlr.isRunning():
-            print("Assembler stopped unexpectedly")
-            break
-        if not schdlr.isRunning():
-            print("Scheduler stopped unexpectedly")
-            break
-        time.sleep(0.1)
-except KeyboardInterrupt:
-    print("User requested exit")
+    things_to_stop = (ticker_prgm, asmlr, schdlr)
+    for thing in things_to_stop:
+        try:
+            thing.stop()
+        except Exception as e:
+            print(f"Failed to stop {thing}: {e}")
+            traceback.print_exc()
+            error = True
 
-ticker_prgm.stop()
-asmlr.stop()
-schdlr.stop()
+    if error:
+        return 1
+
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main(get_args()))

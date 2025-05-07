@@ -411,6 +411,34 @@ class Animation:
         """The last frame has loaded"""
         raise PyxieUnimplementedError(self)
 
+class EmtpyAnimation:
+    def __init__(self):
+        Animation.__init__(self)
+
+    def reset(self):
+        """Reset the start time of the first frame"""
+        pass
+
+    def length(self):
+        """Time length of the animation set"""
+        return 0
+
+    def tubeCount(self):
+        """Get the number of tubes supported by this animation"""
+        return 0
+
+    def getCode(self):
+        """Get the code to send to the decoder"""
+        return None
+
+    def updateFrameSet(self):
+        """Update the frame set based upon the current time. Return True if updated"""
+        return False
+
+    def done(self):
+        """The last frame has loaded"""
+        return True
+
 #    @staticmethod
 #    def _makeCode(frames, start=0, end=None):
 #        if end is None:
@@ -835,12 +863,12 @@ class ComboAnimation(Animation):
 
 
 class MarqueeAnimation(Animation):
-    def __init__(self, frames:Sequence[Frame], size:int, delay:float=0.5, freeze=False):
+    def __init__(self, frames:Sequence[Frame], size:int, delay:float=0.5, freeze:float=0):
         super().__init__()
         self.frames     = frames
         self.size       = size
         self.delay      = delay
-        self.freeze     = (freeze and len(frames) <= size)
+        self.freeze     = freeze if len(frames) <= size else 0
         self.index      = None
         self.start_time = time.time()
 
@@ -884,8 +912,7 @@ class MarqueeAnimation(Animation):
     def done(self):
         """The last frame has loaded"""
         if self.freeze:
-            ## Always done when frozen
-            return True
+            return (time.time() - self.start_time > self.freeze)
 
         ## Return true if the last frame has shifted off the screen
         elapsed = time.time() - self.start_time

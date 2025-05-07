@@ -22,23 +22,47 @@ class ControllerError(PyxieError):
 
 class Controller:
     def __init__(self):
-        pass
+        self.enabled = True
 
     def send(self, code):
         pass
 
+    def enable(self):
+        pass
+
+    def disable(self):
+        pass
+
 
 class TerminalController(Controller):
-    def __init__(self, *, clear_screen=False, print_code=False):
+    def __init__(self, *, clear_screen=False, print_code=False, verbose=False):
         Controller.__init__(self)
         self.clear_screen = (clear_screen and not print_code)
         self.print_code   = print_code
+        self.enabled      = True
+        self.verbose      = verbose
 
     @staticmethod
     def clearScreen():
         print("\033[2J")
 
+    def enable(self):
+        if not self.enabled and self.verbose:
+            print("Terminal enabled")
+
+        self.enabled = True
+
+    def disable(self):
+        if self.enabled and self.verbose:
+            print("Terminal disabled")
+        if self.clear_screen:
+            self.clearScreen()
+        self.enabled = False
+
     def send(self, code):
+        if not self.enabled:
+            return
+
         if self.clear_screen:
             self.clearScreen()
 
