@@ -39,11 +39,21 @@ def getSp500Symbols():
     try:
         resp = requests.get('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')
         soup = bs.BeautifulSoup(resp.text, 'html.parser')
-        table = soup.find('table', {'class': 'wikitable sortable'})
+        table = soup.find('table', {'id': 'constituents'})
+        rows = table.findAll('tr') or []
+        if rows:
+            rows = rows[1:]
+
         tickers = []
-        for row in table.findAll('tr')[1:]:
-            ticker = row.findAll('td')[0].text.strip()
-            tickers.append(ticker)
+        for row in rows:
+            try:
+                ticker = row.findAll('td')[0].text.strip()
+                tickers.append(ticker)
+            except Exception as e:
+                print(f"Failed to parse symbol: {e}")
+
+        if not tickers:
+            print("Didn't find any S&P500 symbols")
 
         return sorted(tickers)
     except Exception as e:

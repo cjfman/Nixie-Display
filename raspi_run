@@ -1,0 +1,11 @@
+#!/bin/bash
+cd $HOME/Nixie-Display
+#/home/nixie/Nixie-Display/send_text -n -c raspi "$(ip route get 8.8.8.8 | head -1 | cut -d' ' -f7)" && sleep 10
+/home/nixie/Nixie-Display/send_text -n -c raspi "Pulling from Git"
+git checkout nixie-live
+git pull -f || echo "Failed to pull latest code from git"
+cd $HOME
+/home/nixie/Nixie-Display/send_text -n -c raspi "Starting..."
+/home/nixie/Nixie-Display/run_display -c raspi --keyboard-event-file /dev/input/event0 > logs/nixie.log 2>logs/nixie.stderr
+/home/nixie/Nixie-Display/send_text -n -c raspi "Waiting..."
+exit 1

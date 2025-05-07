@@ -11,6 +11,7 @@ class UserMenuProgram(Program):
     def __init__(self, event_path, *, ani_path='animations', **kwargs):
         super().__init__("User Control", **kwargs)
         self.event_path       = event_path
+        self.program_map      = program_map or {}
         self.active           = False
         self.old_msg          = None
         self.should_exit      = False
@@ -30,13 +31,14 @@ class UserMenuProgram(Program):
             }
         )
         self.navigator = Navigator(Menu("Nixie Menu", [
-            menulib.IpItem(),
-            menulib.WiFiMenu(),
+            menulib.ProgramListItem(program_map),
             menulib.MirrorItem("Mirror Mode"),
             menulib.AnimationLibraryItem(ani_path),
+            menulib.IpItem(),
+            menulib.ExitItem("Exit Program"),
+            menulib.WiFiMenu(),
             menulib.RebootItem(),
             menulib.ShutdownItem(),
-            menulib.ExitItem("Exit Program"),
         ]))
 
     def reset(self):

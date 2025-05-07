@@ -3,9 +3,16 @@ import time
 
 from queue import Queue
 
-import evdev as ev
-from evdev.events import KeyEvent
-#from evdev import categorize, event_factory, ecodes
+from .pyxieutil import PyxieError
+
+ENABLED = True
+try:
+    import evdev as ev
+    from evdev.events import KeyEvent
+    #from evdev import categorize, event_factory, ecodes
+except Exception as e:
+    print(f"Failed to initialize the key_watcher package. Disabling it {e}")
+    ENABLED = False
 
 DEBUG = False
 SHIFTS = {
@@ -49,6 +56,9 @@ SPECIAL_KEYS = {
 
 class KeyWatcher:
     def __init__(self, event_path, *, owner=None, trigger=None, release=None, hold=True):
+        if not ENABLED:
+            raise PyxieError(f"Cannot instantiate a {self.__class__.__name__}. The key_watcher package is disabled")
+
         self.event_path = event_path
         self.owner = owner
         self.trigger = set(trigger or {})
