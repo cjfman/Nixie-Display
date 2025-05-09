@@ -162,6 +162,7 @@ class RaspberryPiController(Controller):
         self.print_code = print_code
         self.cleanup    = cleanup
         self.spi        = None
+        self.hv_on      = False
 
         ## Setup GPIO
         GPIO.setwarnings(False)
@@ -171,6 +172,7 @@ class RaspberryPiController(Controller):
         GPIO.output(self.strobe_pin, True)    ## Disable strobe
         GPIO.setup(self.hv_pin, GPIO.OUT)
         GPIO.output(self.hv_pin, True)        ## Enable high voltage
+        self.hv_on = True
 
         ## Setup SPI controller
         self.spi = spidev.SpiDev()
@@ -184,6 +186,10 @@ class RaspberryPiController(Controller):
         try:
             GPIO.output(self.oe_pin, True)     ## Enable output
             GPIO.output(self.strobe_pin, True) ## Disable strobe
+            if not self.hv_on:
+                self.hv_on = True
+                GPIO.output(self.hv_pin, True)
+
             Controller.enable(self)
         except Exception as e:
             msg = "Failed to enable display"
@@ -192,9 +198,13 @@ class RaspberryPiController(Controller):
 
             raise ControllerError(msg)
 
-    def disable(self):
+    def disable(self, *, hv_off=True):
         try:
             GPIO.output(self.oe_pin, False)
+            if hv_off and self.hv_on:
+                self.hv_on = False
+                GPIO.output(self.hv_pin, False)
+
             Controller.disable(self)
         except Exception as e:
             msg = "Failed to disable display"
@@ -232,7 +242,7 @@ class RaspberryPiController(Controller):
             data += [msb, lsb]
 
         enabled = self.enabled
-        self.disable()
+        self.disable(hv_off=False)
         self.spi.xfer(data)
         if enabled:
             self.enable()
