@@ -74,8 +74,8 @@ def main(args):
         ("0    17 * * *", 98, sleep_prgm),
 
         ## Test
-        ("15  15 16 5 5", 99, wake_prgm),
-        ("18  15 16 5 5", 98, sleep_prgm),
+        ("13  15 16 5 5", 99, wake_prgm),
+        ("15  15 16 5 5", 98, sleep_prgm),
     )
 
     asmlr = assembler.Assembler(controller=ctrl)
