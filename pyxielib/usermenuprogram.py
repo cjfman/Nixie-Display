@@ -8,10 +8,11 @@ from pyxielib.tube_manager import cmdLen
 
 
 class UserMenuProgram(Program):
-    def __init__(self, event_path, *, program_map=None, ani_path='animations', **kwargs):
+    def __init__(self, event_path, *, program_map=None, ani_path='animations', controller=None, **kwargs):
         super().__init__("User Control", **kwargs)
         self.event_path       = event_path
         self.program_map      = program_map or {}
+        self.controller       = controller
         self.active           = False
         self.old_msg          = None
         self.should_exit      = False
@@ -37,6 +38,7 @@ class UserMenuProgram(Program):
             menulib.IpItem(),
             menulib.ExitItem("Exit Program"),
             menulib.WiFiMenu(),
+            menulib.SleepItem(self.controller),
             menulib.RebootItem(),
             menulib.ShutdownItem(),
         ]))
@@ -58,6 +60,8 @@ class UserMenuProgram(Program):
     def wake(self):
         self.active = True
         self.should_interrupt = True
+        if self.controller is not None:
+            self.controller.enable()
 
     def done(self) -> bool:
         return self.should_exit

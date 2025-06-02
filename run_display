@@ -62,7 +62,7 @@ def main(args):
     ticker_prgm.run()
     user_prgm = None
     if args.keyboard_event_file is not None:
-        user_prgm = usermenuprogram.UserMenuProgram(args.keyboard_event_file, ani_path=args.animations_dir)
+        user_prgm = usermenuprogram.UserMenuProgram(args.keyboard_event_file, ani_path=args.animations_dir, controller=ctrl)
 
     schl = (
         ("*/5   * * * *", 10, ticker_prgm),

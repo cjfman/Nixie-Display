@@ -35,6 +35,27 @@ class ExitItem(MenuItem):
         raise KeyboardInterrupt()
 
 
+class SleepItem(MenuItem):
+    def __init__(self, controller, **kwargs):
+        super().__init__("Sleep Display", **kwargs)
+        self.controller = controller
+
+    def activate(self):
+        self.controller.disable()
+
+    def key_char(self, c):
+        ## pylint: disable=unused-argument
+        self.set_done()
+
+    def key_arrow(self, d):
+        ## pylint: disable=unused-argument
+        self.set_done()
+
+    def set_done(self):
+        self.controller.enable()
+        super().set_done()
+
+
 class WiFiScanItem(ListItem):
     def __init__(self, device='wlan0', sudo=True, show_passwd=False, wifi=None, **kwargs):
         super().__init__("Add WiFi Network", **kwargs)

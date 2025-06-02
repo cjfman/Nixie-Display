@@ -37,17 +37,21 @@ class MenuItem:
         """Should be called once when the menu item is activated"""
         ## Should be overridden
 
-    def key_up(self):
+    def key_arrow(self, d):
+        ## pylint: disable=unused-argument
         pass
+
+    def key_up(self):
+        self.key_arrow('U')
 
     def key_down(self):
-        pass
+        self.key_arrow('D')
 
     def key_right(self):
-        pass
+        self.key_arrow('R')
 
     def key_left(self):
-        pass
+        self.key_arrow('L')
 
     def key_enter(self):
         """Set done on enter"""
