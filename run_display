@@ -61,11 +61,15 @@ def main(args):
     ticker_prgm = stockticker.StockTicker()
     ticker_prgm.run()
     user_prgm = None
+    program_map = {
+        'New York Times': nyt_prgm,
+    }
     if args.controller == 'terminal' or args.keyboard_event_file is not None:
         user_prgm = usermenuprogram.UserMenuProgram(
             args.keyboard_event_file,
             ani_path=args.animations_dir,
             controller=ctrl,
+            program_map=program_map,
         )
 
     # m h dom mon dow

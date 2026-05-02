@@ -195,7 +195,6 @@ class ListItem(MenuItem):
 
     def reset(self):
         super().reset()
-        self.values = ["Empty List"]
         self.idx = 0
 
     def current_value(self) -> str:

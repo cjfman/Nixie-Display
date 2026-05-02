@@ -70,6 +70,7 @@ class WiFiScanItem(ListItem):
 
     def reset(self):
         super().reset()
+        self.set_values(None)
         self.proc   = None
         self.state  = None
         self.ssid   = None
@@ -188,6 +189,7 @@ class WiFiSelectItem(ListItem):
 
     def reset(self):
         super().reset()
+        self.set_values(None)
         self.state = 'select'
 
     def poll(self):
@@ -328,6 +330,7 @@ class AnimationLibraryItem(ListItem):
 
     def reset(self):
         super().reset()
+        self.set_values(None)
         self.ani_paths = None
         self.selected = None
 
@@ -345,20 +348,34 @@ class AnimationLibraryItem(ListItem):
         if name in self.ani_paths:
             self.selected = FileAnimation(os.path.join(self.path, self.ani_paths[name]))
 
+
 class ProgramListItem(ListItem):
     def __init__(self, programs, **kwargs):
         super().__init__("Programs", sorted(programs.keys()), **kwargs)
         self.programs = programs
+        self.selected = None
 
     def for_display(self) -> Animation:
         if self.selected is None:
             return super().for_display()
 
-        program = self.programs[self.selected]
-        program.reset()
-
-        ani = program.getAnimation()
-        if ani is None:
+        program = self.selected
+        if program.done():
+            program.reset()
             return super().for_display()
+        elif program.update():
+            ## Get the next animation
+            return program.getAnimation()
 
-        return ani
+        return None
+
+    def key_enter(self):
+        name = self.current_value()
+        if name in self.programs:
+            self.selected = self.programs[name]
+
+    def reset(self):
+        super().reset()
+        if self.selected:
+            self.selected.reset()
+        self.selected = None

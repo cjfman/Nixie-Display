@@ -116,7 +116,7 @@ class UserMenuProgram(Program):
             return msg
 
         ## Exit if there's no change
-        if msg == self.old_msg:
+        if msg == self.old_msg or msg is None:
             return None
 
         ## Process msg
