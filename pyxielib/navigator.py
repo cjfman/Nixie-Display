@@ -77,6 +77,21 @@ class MenuItem:
         return f"<{self}>"
 
 
+class DisabledItem(MenuItem):
+    """A menu item unavailable in the current context.
+    Displays 'Disabled' when entered and exits back on any key press.
+    """
+
+    def for_display(self) -> str:
+        return "Disabled"
+
+    def key_char(self, c):
+        self.set_done()
+
+    def key_arrow(self, d):
+        self.set_done()
+
+
 class MsgItem(MenuItem):
     """
     A menu item that just displays a simple message.

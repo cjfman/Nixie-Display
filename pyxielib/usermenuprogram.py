@@ -2,7 +2,7 @@ import pyxielib.animation_library as animationlib
 from pyxielib import menu_library as menulib
 from pyxielib.animation import Animation
 from pyxielib.key_watcher import KeyWatcher, TerminalKeyWatcher
-from pyxielib.navigator import Menu, Navigator
+from pyxielib.navigator import DisabledItem, Menu, Navigator
 from pyxielib.program import Program
 from pyxielib.tube_manager import cmdLen
 
@@ -34,6 +34,7 @@ class UserMenuProgram(Program):
             )
         else:
             self.watcher = TerminalKeyWatcher(owner=self)
+        terminal_mode = (event_path is None)
         self.navigator = Navigator(Menu("Nixie Menu", [
             menulib.ProgramListItem(self.program_map),
             menulib.MirrorItem("Mirror Mode"),
@@ -42,8 +43,8 @@ class UserMenuProgram(Program):
             menulib.WiFiMenu(),
             menulib.SleepItem(self.controller),
             menulib.ExitItem("Exit Program"),
-            menulib.RebootItem(),
-            menulib.ShutdownItem(),
+            menulib.RebootItem() if not terminal_mode else DisabledItem("Reboot"),
+            menulib.ShutdownItem() if not terminal_mode else DisabledItem("Shutdown"),
         ]))
 
     def reset(self):
