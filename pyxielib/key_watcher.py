@@ -1,3 +1,5 @@
+import os
+import sys
 import threading
 import time
 
@@ -13,6 +15,14 @@ try:
 except Exception as e:
     print(f"Failed to initialize the key_watcher package. Disabling it {e}")
     ENABLED = False
+
+TERMINAL_ENABLED = True
+try:
+    import termios
+    import tty
+    import select as _select
+except ImportError:
+    TERMINAL_ENABLED = False
 
 DEBUG = False
 SHIFTS = {
@@ -200,3 +210,100 @@ class KeyWatcher:
             pass
 
         return self.thread.join(timeout=5)
+
+
+class TerminalKeyWatcher:
+    """Reads keyboard input from stdin for terminal-mode debugging.
+
+    Press ESC to open the menu. Arrow keys, enter, backspace, and printable
+    characters are forwarded while the menu is active. ESC at the root menu
+    closes the menu. Ctrl+C exits the process via SIGINT as normal.
+    """
+
+    def __init__(self, *, owner=None):
+        if not TERMINAL_ENABLED:
+            raise PyxieError("TerminalKeyWatcher requires termios/tty (Unix only)")
+        if not sys.stdin.isatty():
+            raise PyxieError("TerminalKeyWatcher requires stdin to be a TTY")
+
+        self.owner   = owner
+        self.active  = False
+        self.queue   = Queue()
+        self.running = True
+        self.stopped = False
+        self._fd     = sys.stdin.fileno()
+        self.thread  = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def reset(self):
+        """Deactivate and discard pending keystrokes"""
+        self.active = False
+        self.queue = Queue()
+
+    def can_pop(self) -> bool:
+        return not self.queue.empty()
+
+    def pop(self):
+        if self.queue.empty():
+            return None
+        return self.queue.get()
+
+    def stop(self):
+        self.running = False
+        self.thread.join(timeout=2)
+
+    def _run(self):
+        old_settings = termios.tcgetattr(self._fd)
+        try:
+            tty.setcbreak(self._fd)
+            while self.running:
+                r, _, _ = _select.select([self._fd], [], [], 0.1)
+                if r:
+                    self._handle_byte(os.read(self._fd, 1))
+        finally:
+            termios.tcsetattr(self._fd, termios.TCSADRAIN, old_settings)
+        self.stopped = True
+
+    def _peek(self, timeout=0.05):
+        """Return the next stdin byte if one arrives within timeout, else None."""
+        r, _, _ = _select.select([self._fd], [], [], timeout)
+        return os.read(self._fd, 1) if r else None
+
+    def _handle_byte(self, b: bytes):
+        if b == b'\x1b':
+            b2 = self._peek()
+            if b2 is None:
+                ## Bare ESC: toggle menu
+                if not self.active:
+                    self.active = True
+                    if self.owner is not None:
+                        self.owner.wake()
+                else:
+                    self.queue.put('ESC')
+                return
+
+            if b2 != b'[':
+                return  ## Unrecognised sequence; ignore
+
+            direction = self._peek()
+            if direction is not None and self.active:
+                arrow_map = {b'A': 'UP', b'B': 'DOWN', b'C': 'RIGHT', b'D': 'LEFT'}
+                key = arrow_map.get(direction)
+                if key:
+                    self.queue.put(key)
+            return
+
+        if not self.active:
+            return
+
+        if b in (b'\n', b'\r'):
+            self.queue.put('ENTER')
+        elif b in (b'\x7f', b'\x08'):
+            self.queue.put('BACKSPACE')
+        else:
+            try:
+                c = b.decode('utf-8')
+                if c.isprintable():
+                    self.queue.put(c)
+            except UnicodeDecodeError:
+                pass

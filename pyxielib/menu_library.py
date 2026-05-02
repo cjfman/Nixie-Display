@@ -231,7 +231,6 @@ class WiFiMenu(Menu):
     def __init__(self):
         super().__init__("WiFi Settings")
         self.wifi = WiFiController('wlan0', sudo=True)
-        self.wifi.load()
 
         ## Add submenues
         ssid = lambda: self.wifi.connected_to() or "No Network"

@@ -1,14 +1,14 @@
 import pyxielib.animation_library as animationlib
 from pyxielib import menu_library as menulib
 from pyxielib.animation import Animation
-from pyxielib.key_watcher import KeyWatcher
+from pyxielib.key_watcher import KeyWatcher, TerminalKeyWatcher
 from pyxielib.navigator import Menu, Navigator
 from pyxielib.program import Program
 from pyxielib.tube_manager import cmdLen
 
 
 class UserMenuProgram(Program):
-    def __init__(self, event_path, *, program_map=None, ani_path='animations', controller=None, **kwargs):
+    def __init__(self, event_path=None, *, program_map=None, ani_path='animations', controller=None, **kwargs):
         super().__init__("User Control", **kwargs)
         self.event_path       = event_path
         self.program_map      = program_map or {}
@@ -17,20 +17,23 @@ class UserMenuProgram(Program):
         self.old_msg          = None
         self.should_exit      = False
         self.should_interrupt = False
-        self.watcher = KeyWatcher(
-            self.event_path,
-            owner=self,
-            hold=False,
-            trigger={
-                'KEY_LEFTCTRL',
-                'KEY_LEFTALT',
-                'KEY_F4',
-            },
-            release={
-                'KEY_LEFTCTRL',
-                'KEY_C',
-            }
-        )
+        if event_path is not None:
+            self.watcher = KeyWatcher(
+                self.event_path,
+                owner=self,
+                hold=False,
+                trigger={
+                    'KEY_LEFTCTRL',
+                    'KEY_LEFTALT',
+                    'KEY_F4',
+                },
+                release={
+                    'KEY_LEFTCTRL',
+                    'KEY_C',
+                }
+            )
+        else:
+            self.watcher = TerminalKeyWatcher(owner=self)
         self.navigator = Navigator(Menu("Nixie Menu", [
             menulib.ProgramListItem(self.program_map),
             menulib.MirrorItem("Mirror Mode"),
@@ -65,6 +68,9 @@ class UserMenuProgram(Program):
 
     def done(self) -> bool:
         return self.should_exit
+
+    def stop(self):
+        self.watcher.stop()
 
     def menu_exit(self):
         """Handle an exit request from the user"""

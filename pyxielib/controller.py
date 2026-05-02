@@ -1,8 +1,13 @@
-import serial
-
 from pyxielib import decoder
 from pyxielib import tube_manager as tm
 from pyxielib.pyxieutil import PyxieError
+
+SERIAL_ENABLED = False
+try:
+    import serial
+    SERIAL_ENABLED = True
+except:
+    pass
 
 
 USE_RASPI=False
@@ -73,6 +78,9 @@ class TerminalController(Controller):
 
 class SerialController(Controller):
     def __init__(self, port:str, *, baud:int=115200, timeout:int=5, endl="\n\r", debug=False):
+        if not SERIAL_ENABLED:
+            raise PyxieError("Cannot start a SerialController as the 'serial' module is missing")
+
         Controller.__init__(self)
         self.port      = port
         self.baud      = baud

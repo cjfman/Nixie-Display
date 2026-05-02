@@ -61,8 +61,12 @@ def main(args):
     ticker_prgm = stockticker.StockTicker()
     ticker_prgm.run()
     user_prgm = None
-    if args.keyboard_event_file is not None:
-        user_prgm = usermenuprogram.UserMenuProgram(args.keyboard_event_file, ani_path=args.animations_dir, controller=ctrl)
+    if args.controller == 'terminal' or args.keyboard_event_file is not None:
+        user_prgm = usermenuprogram.UserMenuProgram(
+            args.keyboard_event_file,
+            ani_path=args.animations_dir,
+            controller=ctrl,
+        )
 
     # m h dom mon dow
     schl = (
@@ -103,7 +107,11 @@ def main(args):
     except KeyboardInterrupt:
         print("User requested exit")
 
-    for thing in (ticker_prgm, asmlr, schdlr):
+    things_to_stop = [ticker_prgm, asmlr, schdlr]
+    if user_prgm is not None:
+        things_to_stop.append(user_prgm)
+
+    for thing in things_to_stop:
         try:
             thing.stop()
         except Exception as e:
