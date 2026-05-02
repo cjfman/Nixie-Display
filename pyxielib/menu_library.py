@@ -249,7 +249,6 @@ class WiFiMenu(Menu):
 
     def reset(self):
         super().reset()
-        self.wifi.load(force=True)
 
 
 class MirrorItem(MenuItem):
