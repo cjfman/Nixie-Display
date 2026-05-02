@@ -97,8 +97,8 @@ The wire format between Python and the display is a plain string where:
 
 Files in `animations/` use a custom DSL parsed by `FileAnimation`:
 - `sprite|name|0xHEX` — define a named 16-bit bitmap
-- `segment|name|{sprite1}{sprite2}...` — define a named sequence of frames
-- `frame|delay_secs|<content>` — add a full frame; delay=0 overlays on previous frame
+- `segment|name|{sprite1}{sprite2}...` — define a named sequence of characters and sprites
+- `frame|delay_secs|<content>` — add a full frame composed of characters, sprites, and segments; delay=0 overlays on previous frame
 - `scale|factor` — multiply all delays
 - `sequence|start|name` / `sequence|end` / `sequence|insert|name` — named reusable frame sequences
 - `{N}` in content is a multiplier; `{sprite_name}` expands a named sprite/segment
