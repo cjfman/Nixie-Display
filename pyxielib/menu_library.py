@@ -370,9 +370,10 @@ class ProgramListItem(ListItem):
         return None
 
     def key_enter(self):
-        name = self.current_value()
-        if name in self.programs:
-            self.selected = self.programs[name]
+        if self.selected is None:
+            name = self.current_value()
+            if name in self.programs:
+                self.selected = self.programs[name]
 
     def reset(self):
         super().reset()

@@ -59,7 +59,7 @@ class UserMenuProgram(Program):
 
     def interrupt(self) -> bool:
         """Returns true if active animations and programs should be interrupted to check the user menu"""
-        return self.should_interrupt
+        return self.should_interrupt or (self.active and self.watcher.can_pop())
 
     def wake(self):
         self.active = True
