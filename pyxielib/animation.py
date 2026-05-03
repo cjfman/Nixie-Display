@@ -40,10 +40,6 @@ def escapeText(txt, overrides:Dict[str, str]=None, regex_rep:Dict[str, str]=None
         '(': '<',
         ')': '>',
         '?': ' !',
-        '“': '"',
-        '”': '"',
-        "’": "'",
-        "‘": "'",
     }
     if overrides is not None:
         replace.update(overrides)

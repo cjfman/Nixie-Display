@@ -1,5 +1,15 @@
 NOCODE = 0x3FFF
 
+## Unicode characters that have explicit segment bitmaps.
+## Smart quotes: left (“) mirrors plain “ by swapping right-outer-upper (0x0002)
+## for left-outer-upper (0x0020); right (“) maps to plain “ (0x0082).
+unicode_codes = {
+    '“': 0x00A0,  # “ left double quotation mark — mirror of plain “
+    '”': 0x0082,  # ” right double quotation mark — same as plain “
+    '‘': 0x0040,  # ‘ left single quotation mark — mirror of plain '
+    '’': 0x0100,  # ’ right single quotation mark — same as plain '
+}
+
 ## Array of ascii codes decoded into 14-segments
 ## Stats at ascii code 0x20. Ends at 0x7F inclusive
 codes = (
@@ -30,11 +40,11 @@ codes = (
 )
 
 def decodeChar(c):
-    c = ord(c)
-    if c < 0x20 or 0x7f < c:
-        return NOCODE ## Non-printable code
+    cp = ord(c)
+    if cp < 0x20 or 0x7f < cp:
+        return unicode_codes.get(c, NOCODE)
 
-    return codes[c - 0x20]
+    return codes[cp - 0x20]
 
 
 ##  ___   Line 0
