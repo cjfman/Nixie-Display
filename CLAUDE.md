@@ -103,6 +103,18 @@ Files in `animations/` use a custom DSL parsed by `FileAnimation`:
 - `sequence|start|name` / `sequence|end` / `sequence|insert|name` — named reusable frame sequences
 - `{N}` in content is a multiplier; `{sprite_name}` expands a named sprite/segment
 
+Grammar:
+literal    : Printable ASCII text (no `{` or `}`) — each character is one tube
+sprite     : A named hexadecimal 16-bit bitmap
+multiplier : A positive integer
+macro      : `{name}` — expands a named sprite (one tube) or segment (N tubes)
+rep        : `{multiplier}` — repeats the previous tube N times
+content    : (literal | macro | rep)*
+segment    : content
+frame      : content
+sequence   : frame+
+comment    : `#` rest of line
+
 ### Production deployment
 
 The production system runs on a Raspberry Pi. `raspi_run` is the startup script: it pulls `nixie-live` branch from git, then launches `run_display -c raspi`. Logs go to `~/logs/nixie.log` and `~/logs/nixie.stderr`.
