@@ -63,6 +63,7 @@ def main(args):
     user_prgm = None
     program_map = {
         'New York Times': nyt_prgm,
+        'Stock Ticker': ticker_prgm,
     }
     if args.controller == 'terminal' or args.keyboard_event_file is not None:
         user_prgm = usermenuprogram.UserMenuProgram(

@@ -37,7 +37,8 @@ class Stock:
 
 def getSp500Symbols():
     try:
-        resp = requests.get('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')
+        headers = {'User-Agent': 'Mozilla/5.0 (compatible; nixie-display/1.0)'}
+        resp = requests.get('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies', headers=headers)
         soup = bs.BeautifulSoup(resp.text, 'html.parser')
         table = soup.find('table', {'id': 'constituents'})
         rows = table.findAll('tr') or []
