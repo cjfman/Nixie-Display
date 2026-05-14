@@ -1,4 +1,5 @@
 import datetime as dt
+import logging
 import time
 import threading
 import traceback
@@ -8,6 +9,8 @@ from croniter import croniter
 
 from pyxielib.assembler import Assembler
 from pyxielib.program import Program
+
+logger = logging.getLogger(__name__)
 from pyxielib.pyxieutil import PyxieError, PyxieUnimplementedError
 from pyxielib.usermenuprogram import UserMenuProgram
 
@@ -138,7 +141,7 @@ class Scheduler:
     def handler(self):
         """The main scheduler loop"""
         self.cv.acquire()
-        print("Starting scheduler thread")
+        logger.info("Starting scheduler thread")
         try:
             while self.running:
                 ## Poll the program if
@@ -151,17 +154,17 @@ class Scheduler:
                     except KeyboardInterrupt:
                         break
                     except Exception as e:
-                        print("Failed to poll program: ", e)
+                        logger.error(f"Failed to poll program: {e}")
                         traceback.print_exc()
                         self.idle()
 
                 self.cv.wait(self.period)
         except Exception as e:
-            print("Fatal error in scheduler thread: ", e)
+            logger.error(f"Fatal error in scheduler thread: {e}")
             traceback.print_exc()
 
         self.cv.release()
-        print("Exiting scheduler thread")
+        logger.info("Exiting scheduler thread")
 
     def __del__(self):
         self.stop()
@@ -196,10 +199,10 @@ class CronScheduler(Scheduler):
 
     def printSchedule(self):
         now = dt.datetime.now()
-        print("Cron Program Schedule")
+        logger.info("Cron Program Schedule")
         slots = sorted([entry.nextTimeSlot(now) for entry in self.schedule])
         for slot in slots:
-            print(str(slot))
+            logger.info(str(slot))
 
     def nextScheduledEntry(self) -> TimeSlot:
         if not self.schedule:
@@ -223,7 +226,7 @@ class CronScheduler(Scheduler):
         ## Set program now if nothing else is running
         if self.program is None:
             self.program = self.default if self.default is not None else slot.program
-            print(f"Starting with program '{self.program.name}'")
+            logger.info(f"Starting with program '{self.program.name}'")
             self.program.reset()
             self.last_update = time.time()
             return True
@@ -231,7 +234,7 @@ class CronScheduler(Scheduler):
         ## Update program if it's scheduled to run now
         now = dt.datetime.now() + dt.timedelta(seconds=1) ## Ugly hack. Don't miss start of time slot
         if slot.timestamp <= now and slot.program != self.program:
-            print(f"Switch to program '{name}'")
+            logger.info(f"Switch to program '{name}'")
             self.program = slot.program
             self.program.reset()
             self.last_update = time.time()
@@ -240,5 +243,5 @@ class CronScheduler(Scheduler):
         return False
 
     def idle(self):
-        print("Activating default program")
+        logger.info("Activating default program")
         self.program = self.default

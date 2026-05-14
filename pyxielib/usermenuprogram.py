@@ -1,3 +1,5 @@
+import logging
+
 import pyxielib.animation_library as animationlib
 from pyxielib import menu_library as menulib
 from pyxielib.animation import Animation
@@ -5,6 +7,8 @@ from pyxielib.key_watcher import KeyWatcher, TerminalKeyWatcher
 from pyxielib.navigator import DisabledItem, Menu, Navigator
 from pyxielib.program import Program
 from pyxielib.tube_manager import cmdLen
+
+logger = logging.getLogger(__name__)
 
 
 class UserMenuProgram(Program):
@@ -75,7 +79,7 @@ class UserMenuProgram(Program):
 
     def menu_exit(self):
         """Handle an exit request from the user"""
-        print("User requested exit from menu")
+        logger.info("User requested exit from menu")
         self.should_exit = True
         self.active = False
         self.watcher.reset()

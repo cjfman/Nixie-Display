@@ -1,3 +1,4 @@
+import logging
 import math
 import re
 import time
@@ -7,6 +8,8 @@ from typing import Dict, List, Sequence, Tuple
 
 from pyxielib import tube_manager as tm
 from pyxielib.pyxieutil import PyxieError, PyxieUnimplementedError, strToInt
+
+logger = logging.getLogger(__name__)
 
 
 def rgcd(nums):
@@ -1008,7 +1011,7 @@ class FileAnimation(FullFrameAnimation):
             raise FileAnimationError("Failed to convert sprite code: " + str(e))
 
         self.sprites[name] = HexFrame(code)
-        print(f"Found sprite '{name}'")
+        logger.debug(f"Found sprite '{name}'")
 
     def _parseSegmentHlpr(self, line) -> List[Frame]:
         """Parse a frame line"""
@@ -1069,17 +1072,17 @@ class FileAnimation(FullFrameAnimation):
             self.active.append((length, FullFrame(frames)))
         else:
             ## Overlay the frames
-            print(self.active[-1])
-            print(FullFrame(frames))
+            logger.debug("%s", self.active[-1])
+            logger.debug("%s", FullFrame(frames))
             self.active[-1] = (self.active[-1][0], self.active[-1][1].overlay(FullFrame(frames)))
-            print(self.active[-1])
+            logger.debug("%s", self.active[-1])
 
     def _parseScale(self, scale):
         """Parse a sprite line"""
         ## Convert code to int
         try:
             self.scale = float(scale)
-            print(f"Setting scale {self.scale}")
+            logger.debug(f"Setting scale {self.scale}")
         except Exception as e:
             raise FileAnimationError("Failed to convert scale to float: " + str(e))
 
@@ -1096,20 +1099,20 @@ class FileAnimation(FullFrameAnimation):
             self.sequences[name] = sequence
             self.active = sequence
             self.sequence = name
-            print(f"Starting sequence '{name}'")
+            logger.debug(f"Starting sequence '{name}'")
         elif subcmd == 'end':
             if self.sequence is None:
                 raise PixieAnimationError("There is no sequence to end")
 
             self.sequence = None
             self.active = self.fullframes
-            print(f"Completed sequence '{name}'")
+            logger.debug(f"Completed sequence '{name}'")
         elif subcmd == 'insert':
             if name not in self.sequences:
                 raise PixieAnimationError(f"Sequence '{name}' doesn't exist")
 
             self.active.extend(self.sequences[name])
-            print(f"Inserted sequence '{name}'")
+            logger.debug(f"Inserted sequence '{name}'")
 
     @staticmethod
     def _tokenize(line):

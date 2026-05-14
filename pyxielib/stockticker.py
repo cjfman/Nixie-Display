@@ -1,3 +1,4 @@
+import logging
 import random
 import os
 import threading
@@ -12,8 +13,9 @@ import yfinance as yf
 from pyxielib.animation import Animation, MarqueeAnimation
 from pyxielib.program import Program
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_SYMBOLS = ['AAPL', 'MGM']
-DEBUG = False
 
 
 @dataclass
@@ -51,14 +53,14 @@ def getSp500Symbols():
                 ticker = row.findAll('td')[0].text.strip()
                 tickers.append(ticker)
             except Exception as e:
-                print(f"Failed to parse symbol: {e}")
+                logger.warning(f"Failed to parse symbol: {e}")
 
         if not tickers:
-            print("Didn't find any S&P500 symbols")
+            logger.warning("Didn't find any S&P500 symbols")
 
         return sorted(tickers)
     except Exception as e:
-        print(f"Failed to get S&P500 symbols: {e}")
+        logger.error(f"Failed to get S&P500 symbols: {e}")
         return []
 
 
@@ -120,7 +122,7 @@ class StockTicker(Program):
         if not self.running:
             return
 
-        print("Stopping the StockTicker thread")
+        logger.info("Stopping the StockTicker thread")
         self.running = False
         self.cv.acquire()
         self.cv.notify_all()
@@ -157,7 +159,7 @@ class StockTicker(Program):
 
     def handler(self):
         """The main stock loop"""
-        print("Stock ticker thread starting")
+        logger.info("Stock ticker thread starting")
         failures = 0 ## Consecutive failures
         self.cv.acquire()
         while self.running:
@@ -174,7 +176,7 @@ class StockTicker(Program):
                 else:
                     failures += 1
             except Exception as e:
-                print(f"Failed to update stocks: {e}")
+                logger.error(f"Failed to update stocks: {e}")
                 failures += 1
 
             self.quick_start = False
@@ -183,7 +185,7 @@ class StockTicker(Program):
             if self.running:
                 self.cv.wait(2**failures)
 
-        print("Exiting stock ticker thread")
+        logger.info("Exiting stock ticker thread")
         self.cv.release()
 
     def updateStocks(self):
@@ -208,17 +210,15 @@ class StockTicker(Program):
                 ticker = yf.Ticker(sym)
                 info = ticker.fast_info
                 stock = Stock(sym, info['lastPrice'], info['open'], info['previousClose'])
-                if DEBUG:
-                    print(f"Got stock {stock}")
-
+                logger.debug(f"Got stock {stock}")
                 ## Store the result
                 self.stocks[sym] = stock
                 self.cv.wait(delay)
             except Exception as e:
-                print(f"Failed to query stock {sym}: {e}")
+                logger.warning(f"Failed to query stock {sym}: {e}")
                 failures += 1
                 if failures > self.max_failures:
-                    print(f"Failed too many times. Resting")
+                    logger.warning("Failed too many times. Reseting")
                     return False
 
         return True

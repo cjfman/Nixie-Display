@@ -1,8 +1,11 @@
+import logging
 import threading
 import traceback
 
 from pyxielib.controller import Controller, TerminalController
 from pyxielib.animation import Animation
+
+logger = logging.getLogger(__name__)
 
 class Assembler:
     def __init__(self, *, controller: Controller=None, animation: Animation=None):
@@ -38,7 +41,7 @@ class Assembler:
 
     def handler(self):
         self.cv.acquire()
-        print("Starting assembler thread")
+        logger.info("Starting assembler thread")
         try:
             while self.running:
                 if self.animation and self.animation.updateFrameSet():
@@ -46,11 +49,11 @@ class Assembler:
 
                 self.cv.wait(0.01)
         except Exception as e:
-            print("Fatal error in assembler thread: ", e)
+            logger.error(f"Fatal error in assembler thread: {e}")
             traceback.print_exc()
 
         self.cv.release()
-        print("Exiting assembler thread")
+        logger.info("Exiting assembler thread")
         self.shutdown = True
 
     def animationDone(self):

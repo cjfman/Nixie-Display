@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 import threading
@@ -7,13 +8,15 @@ from queue import Queue
 
 from .pyxieutil import PyxieError
 
+logger = logging.getLogger(__name__)
+
 ENABLED = True
 try:
     import evdev as ev
     from evdev.events import KeyEvent
     #from evdev import categorize, event_factory, ecodes
 except Exception as e:
-    print(f"Failed to initialize the key_watcher package. Disabling it {e}")
+    logger.warning(f"Failed to initialize the key_watcher package. Disabling it {e}")
     ENABLED = False
 
 TERMINAL_ENABLED = True
@@ -24,7 +27,6 @@ try:
 except ImportError:
     TERMINAL_ENABLED = False
 
-DEBUG = False
 SHIFTS = {
     "`": "~",
     "1": "!",
@@ -123,23 +125,23 @@ class KeyWatcher:
 
     def run(self):
         """Main watcher loop"""
-        print("KeyWatcher thread starting")
+        logger.info("KeyWatcher thread starting")
         while self.running:
             try:
                 if self.dev is None:
-                    print(f"Opening '{self.event_path}'")
+                    logger.info(f"Opening '{self.event_path}'")
                     self.dev = ev.InputDevice(self.event_path)
-                    print(f"Opened '{self.event_path}'")
+                    logger.info(f"Opened '{self.event_path}'")
 
                 self.read_loop()
             except FileNotFoundError:
                 ## File wasn't found try again after a nap
-                print(f"Failed to open '{self.event_path}'")
+                logger.warning(f"Failed to open '{self.event_path}'")
                 self.dev = None
                 time.sleep(1)
 
         self.stopped = True
-        print("KeyWatcher thread stopped")
+        logger.info("KeyWatcher thread stopped")
 
     def read_loop(self):
         """Read key events"""
@@ -153,20 +155,19 @@ class KeyWatcher:
             k_event = ev.categorize(event)
             ## Update set of down keys
             if k_event.keystate == KeyEvent.key_down:
-                if DEBUG:
-                    print(k_event)
+                logger.debug("%s", k_event)
                 self.keys_down.add(k_event.keycode)
                 ## Check for trigger or release key combo
                 if self.trigger and self.trigger == self.keys_down:
                     self.active = True
-                    print("KeyWatcher triggered")
+                    logger.info("KeyWatcher triggered")
                     if self.owner is not None:
                         self.owner.wake()
                 elif self.release and self.release == self.keys_down and self.active:
                     self.active = False
                     self.empty_queue()
                     self.queue.put('USER_INTERRUPT')
-                    print("KeyWatcher interrupted")
+                    logger.info("KeyWatcher interrupted")
                     if self.owner is not None:
                         self.owner.wake()
                 elif self.active:

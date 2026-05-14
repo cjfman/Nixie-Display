@@ -1,7 +1,10 @@
+import logging
 import subprocess
 from typing import List, Sequence, Tuple
 
 from pyxielib.pyxieutil import PyxieError
+
+logger = logging.getLogger(__name__)
 
 
 class MenuError(PyxieError):
@@ -391,7 +394,7 @@ class Navigator:
 
         ## Check if done
         if self.node.is_done():
-            print(f'Node "{self.node.name}" is done')
+            logger.debug(f'Node "{self.node.name}" is done')
             if not self.back():
                 return None
 

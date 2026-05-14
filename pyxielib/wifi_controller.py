@@ -1,8 +1,11 @@
+import logging
 import re
 import subprocess
 
 from dataclasses import dataclass, field
 from typing import Dict, Set
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -216,9 +219,9 @@ class WiFiController:
             cmd = self.cmd + cmd
 
         if blocking:
-            print(" ".join(cmd))
+            logger.debug(" ".join(cmd))
             res = subprocess.run(cmd, capture_output=True, check=False)
-            print(res.stdout)
+            logger.debug("%s", res.stdout)
             if check:
                 return (b"OK" == res.stdout.strip())
 

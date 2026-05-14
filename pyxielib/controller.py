@@ -1,6 +1,10 @@
+import logging
+
 from pyxielib import decoder
 from pyxielib import tube_manager as tm
 from pyxielib.pyxieutil import PyxieError
+
+logger = logging.getLogger(__name__)
 
 SERIAL_ENABLED = False
 try:
@@ -17,7 +21,7 @@ try:
     GPIO.setmode(GPIO.BOARD)
     USE_RASPI=True
 except:
-    print("Warn: There is no 'spidev' library. The 'RaspberryPi' controller will not work")
+    logger.warning("There is no 'spidev' library. The 'RaspberryPi' controller will not work")
     USE_RASPI=False
 
 
@@ -52,13 +56,13 @@ class TerminalController(Controller):
 
     def enable(self):
         if not self.enabled and self.verbose:
-            print("Terminal enabled")
+            logger.info("Terminal enabled")
 
         Controller.enable(self)
 
     def disable(self):
         if self.enabled and self.verbose:
-            print("Terminal disabled")
+            logger.info("Terminal disabled")
         if self.clear_screen:
             self.clearScreen()
         Controller.disable(self)
@@ -138,7 +142,7 @@ class SerialController(Controller):
             raise ControllerError("Can't find Nixie controller prompt")
 
         if self.debug:
-            print(f"Command '{code}'")
+            logger.debug(f"Command '{code}'")
 
         msg = f"print:{code}{self.endl}"
         self.serial.write(msg.encode('utf8'))
@@ -146,7 +150,7 @@ class SerialController(Controller):
         self.on_prompt = False
         line = self.readline()
         if self.debug:
-            print(f"Read '{line}'")
+            logger.debug(f"Read '{line}'")
 
 
 class RaspberryPiController(Controller):
@@ -224,7 +228,7 @@ class RaspberryPiController(Controller):
     def send(self, code):
         """Decode and send bitmaps over SPI"""
         if self.print_code:
-            print(f"Command '{code}'")
+            logger.debug(f"Command '{code}'")
 
         ## Ignore all errors
         try:

@@ -1,4 +1,5 @@
 import datetime
+import logging
 import re
 import time
 import traceback
@@ -6,6 +7,8 @@ import traceback
 import feedparser
 
 import pyxielib.animation_library as animationlib
+
+logger = logging.getLogger(__name__)
 from pyxielib.animation import Animation, EmtpyAnimation, MarqueeAnimation, escapeText
 from pyxielib.pyxieutil import PyxieUnimplementedError, flattenHTML
 
@@ -48,7 +51,7 @@ class Program:
         try:
             new_animation = self.makeAnimation()
         except Exception as e:
-            print(f"Program '{self.name}' failed: {e}")
+            logger.error(f"Program '{self.name}' failed: {e}")
             traceback.print_exc()
             self.failed = True
             return False
@@ -168,11 +171,11 @@ class RssProgram(Program):
         return escapeText(txt)
 
     def makeRssAnimation(self):
-        print(f"Querying RSS feed {self.url}")
+        logger.info(f"Querying RSS feed {self.url}")
         rss = feedparser.parse(self.url)
         entries = rss['entries'][:self.max_entries]
         values = []
-        print(f"Found {len(entries)} entries")
+        logger.info(f"Found {len(entries)} entries")
         if not entries:
             self.animation = MarqueeAnimation.fromText("There is no weather", self.size)
             return
