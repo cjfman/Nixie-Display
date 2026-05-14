@@ -123,15 +123,34 @@ class KeyWatcher:
 
         return key
 
+    def _find_keyboard(self):
+        """Scan /dev/input for a device with full keyboard capabilities."""
+        for path in sorted(ev.list_devices()):
+            try:
+                dev = ev.InputDevice(path)
+                keys = dev.capabilities().get(ev.ecodes.EV_KEY, [])
+                dev.close()
+                if ev.ecodes.KEY_A in keys and ev.ecodes.KEY_Z in keys:
+                    return path
+            except OSError:
+                pass
+        return None
+
     def run(self):
         """Main watcher loop"""
         logger.info("KeyWatcher thread starting")
         while self.running:
             try:
                 if self.dev is None:
-                    logger.info(f"Opening '{self.event_path}'")
-                    self.dev = ev.InputDevice(self.event_path)
-                    logger.info(f"Opened '{self.event_path}'")
+                    path = self.event_path
+                    if not os.path.exists(path):
+                        found = self._find_keyboard()
+                        if found:
+                            logger.info(f"'{path}' not found, using '{found}'")
+                            path = found
+                    logger.info(f"Opening '{path}'")
+                    self.dev = ev.InputDevice(path)
+                    logger.info(f"Opened '{path}'")
 
                 self.read_loop()
             except OSError as e:
