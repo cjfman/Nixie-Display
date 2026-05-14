@@ -19,6 +19,8 @@ PROGRAMS = ['clock', 'nyt', 'sleep', 'stocks', 'wake', 'weather']
 def make_parser():
     parser = argparse.ArgumentParser(description='Run a single nixie display program for testing')
     parser.add_argument('program', choices=PROGRAMS, help="The program to run")
+    parser.add_argument('--extended-hours', action='store_true',
+        help="Show pre-market and after-market data (stocks program only)")
     parser.add_argument('--logfile', help="Write logs to this file instead of stdout")
     parser.add_argument('--loglevel', default='info',
         choices=['debug', 'info', 'warning', 'error', 'critical'],
@@ -37,7 +39,7 @@ def setup_logging(logfile=None, loglevel='info'):
         format='%(asctime)s %(levelname)-8s %(name)s: %(message)s')
 
 
-def make_program(name, ctrl):
+def make_program(name, ctrl, extended_hours=False):
     if name == 'clock':
         return program.ClockProgram(flash=True, underscore=True)
     if name == 'nyt':
@@ -45,7 +47,7 @@ def make_program(name, ctrl):
     if name == 'sleep':
         return program.SleepProgram(ctrl)
     if name == 'stocks':
-        prgm = stockticker.StockTicker()
+        prgm = stockticker.StockTicker(extended_hours=extended_hours)
         prgm.run()
         return prgm
     if name == 'wake':
@@ -57,7 +59,7 @@ def make_program(name, ctrl):
 
 def main(args):
     ctrl = controller.TerminalController(clear_screen=True)
-    prgm = make_program(args.program, ctrl)
+    prgm = make_program(args.program, ctrl, extended_hours=args.extended_hours)
 
     asmlr = assembler.Assembler(controller=ctrl)
     schdlr = scheduler.SingleProgramScheduler(prgm, asmlr)

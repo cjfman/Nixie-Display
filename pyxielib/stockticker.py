@@ -68,18 +68,31 @@ def getSp500Symbols():
         return []
 
 
-def fetchStock(symbol, session, crumb) -> Stock:
+def fetchStock(symbol, session, crumb, *, extended_hours=False) -> Stock:
     """Fetch current quote for symbol from Yahoo Finance."""
     url = YAHOO_CHART_URL.format(symbol)
-    resp = session.get(url, params={'interval': '1d', 'range': '1d', 'crumb': crumb})
-    resp.raise_for_status()
-    result = resp.json()['chart']['result'][0]
-    meta = result['meta']
-    quote = result['indicators']['quote'][0]
-    current = meta['regularMarketPrice']
-    open_price = (quote.get('open') or [None])[0]
-    prev_close = meta['chartPreviousClose']
-    return Stock(symbol, current, open_price, prev_close)
+    if extended_hours and not isMarketOpen():
+        params = {'interval': '1m', 'range': '1d', 'includePrePost': 'true', 'crumb': crumb}
+        resp = session.get(url, params=params)
+        resp.raise_for_status()
+        result = resp.json()['chart']['result'][0]
+        meta = result['meta']
+        closes = result['indicators']['quote'][0].get('close') or []
+        current = next((c for c in reversed(closes) if c is not None), meta['regularMarketPrice'])
+        ## Compare to regular close for post-market; to previous close for pre-market
+        ref = meta['regularMarketPrice'] if isPostMarket() else meta['chartPreviousClose']
+        return Stock(symbol, current, ref, ref)
+    else:
+        params = {'interval': '1d', 'range': '1d', 'crumb': crumb}
+        resp = session.get(url, params=params)
+        resp.raise_for_status()
+        result = resp.json()['chart']['result'][0]
+        meta = result['meta']
+        quote = result['indicators']['quote'][0]
+        current = meta['regularMarketPrice']
+        open_price = (quote.get('open') or [None])[0]
+        prev_close = meta['chartPreviousClose']
+        return Stock(symbol, current, open_price, prev_close)
 
 
 def isMarketOpen() -> bool:
@@ -89,8 +102,26 @@ def isMarketOpen() -> bool:
     return (start <= now < end)
 
 
+def isPreMarket() -> bool:
+    now = datetime.now()
+    start = now.replace(hour=4, minute=0, second=0)
+    end = now.replace(hour=9, minute=30, second=0)
+    return (start <= now < end)
+
+
+def isPostMarket() -> bool:
+    now = datetime.now()
+    start = now.replace(hour=16, minute=0, second=0)
+    end = now.replace(hour=20, minute=0, second=0)
+    return (start <= now < end)
+
+
+def isExtendedHours() -> bool:
+    return isPreMarket() or isPostMarket()
+
+
 class StockTicker(Program):
-    def __init__(self, *, symbols=None, delay=5, quick_start=True):
+    def __init__(self, *, symbols=None, delay=5, quick_start=True, extended_hours=False):
         super().__init__("Stock Ticker")
         self.symbols      = None
         self.delay        = delay
@@ -99,9 +130,10 @@ class StockTicker(Program):
         self.running      = True
         self.shutdown     = False
         self.query_idx    = 0
-        self.max_failures = 10
-        self.quick_start  = quick_start
-        self.session      = None
+        self.max_failures   = 10
+        self.quick_start    = quick_start
+        self.extended_hours = extended_hours
+        self.session        = None
         self.crumb        = None
         self.thread       = threading.Thread(target=self.handler)
         self.lock         = threading.Lock()
@@ -159,17 +191,22 @@ class StockTicker(Program):
         self.shutdown = True
 
     def ready(self):
-        return (self.running and self.stocks and isMarketOpen())
+        active = isMarketOpen() or (self.extended_hours and isExtendedHours())
+        return (self.running and self.stocks and active)
 
     def clearStocks(self):
         now = datetime.now()
-        start = now.replace(hour=9, minute=30, second=0)
+        if self.extended_hours:
+            start = now.replace(hour=4, minute=0, second=0)
+        else:
+            start = now.replace(hour=9, minute=30, second=0)
         if now < start and self.stocks:
             self.stocks = {}
 
     def makeAnimation(self) -> Animation:
         """Take a list of stocks and turn it into a marquee"""
-        if not isMarketOpen():
+        active = isMarketOpen() or (self.extended_hours and isExtendedHours())
+        if not active:
             return animationlib.makeTextAnimation("Market closed", length=1)
         if not self.stocks:
             return MarqueeAnimation.fromText("No quotes loaded", size=self.size)
@@ -188,8 +225,9 @@ class StockTicker(Program):
         failures = 0
         self.cv.acquire()
         while self.running:
-            ## Don't run if the market isn't open
-            if not isMarketOpen():
+            ## Don't run outside active trading hours
+            active = isMarketOpen() or (self.extended_hours and isExtendedHours())
+            if not active:
                 self.clearStocks()
                 self.cv.wait(1)
                 continue
@@ -232,7 +270,7 @@ class StockTicker(Program):
 
             self.query_idx += 1
             try:
-                stock = fetchStock(sym, self.session, self.crumb)
+                stock = fetchStock(sym, self.session, self.crumb, extended_hours=self.extended_hours)
                 logger.debug(f"Got stock {stock}")
                 self.stocks[sym] = stock
                 self.cv.wait(delay)

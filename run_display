@@ -22,6 +22,8 @@ def make_parser():
     parser.add_argument('-v', '--verbose', action='store_true', help="Be verbose in output")
     parser.add_argument('--keyboard-event-file', help="The /dev/input/event file that represents keyboard input")
     parser.add_argument('--animations-dir', default=os.path.join(file_dir, 'animations'), help="Directory of animations files")
+    parser.add_argument('--extended-hours', action='store_true',
+        help="Show pre-market and after-market stock data")
     parser.add_argument('--logfile', help="Write logs to this file instead of stdout")
     parser.add_argument('--loglevel', default='info',
         choices=['debug', 'info', 'warning', 'error', 'critical'],
@@ -76,7 +78,7 @@ def main(args):
     weather_prgm = program.WeatherProgram(nws_code="KBOS")
     sleep_prgm = program.SleepProgram(ctrl)
     wake_prgm = program.WakeProgram(ctrl)
-    ticker_prgm = stockticker.StockTicker()
+    ticker_prgm = stockticker.StockTicker(extended_hours=args.extended_hours)
     ticker_prgm.run()
     user_prgm = None
     program_map = {
