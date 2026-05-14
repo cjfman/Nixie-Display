@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+##pylint: disable=wrong-import-position
+
+import argparse
+import logging
+import sys
+import os
+import time
+import traceback
+
+from pyxielib import assembler, controller, program, scheduler, stockticker
+
+file_dir = os.path.dirname(os.path.realpath(__file__))
+logger = logging.getLogger(__name__)
+
+PROGRAMS = ['clock', 'nyt', 'sleep', 'stocks', 'wake', 'weather']
+
+
+def make_parser():
+    parser = argparse.ArgumentParser(description='Run a single nixie display program for testing')
+    parser.add_argument('program', choices=PROGRAMS, help="The program to run")
+    parser.add_argument('--logfile', help="Write logs to this file instead of stdout")
+    parser.add_argument('--loglevel', default='info',
+        choices=['debug', 'info', 'warning', 'error', 'critical'],
+        help="Set the log level (default: info)")
+    return parser
+
+
+def get_args():
+    return make_parser().parse_args()
+
+
+def setup_logging(logfile=None, loglevel='info'):
+    level = getattr(logging, loglevel.upper())
+    handler = logging.FileHandler(logfile) if logfile else logging.StreamHandler(sys.stdout)
+    logging.basicConfig(level=level, handlers=[handler],
+        format='%(asctime)s %(levelname)-8s %(name)s: %(message)s')
+
+
+def make_program(name, ctrl):
+    if name == 'clock':
+        return program.ClockProgram(flash=True, underscore=True)
+    if name == 'nyt':
+        return program.RssProgram("https://rss.nytimes.com/services/xml/rss/nyt/US.xml", size=16)
+    if name == 'sleep':
+        return program.SleepProgram(ctrl)
+    if name == 'stocks':
+        prgm = stockticker.StockTicker()
+        prgm.run()
+        return prgm
+    if name == 'wake':
+        return program.WakeProgram(ctrl)
+    if name == 'weather':
+        return program.WeatherProgram(nws_code="KBOS")
+    raise ValueError(f"Unknown program: {name}")
+
+
+def main(args):
+    ctrl = controller.TerminalController(clear_screen=True)
+    prgm = make_program(args.program, ctrl)
+
+    asmlr = assembler.Assembler(controller=ctrl)
+    schdlr = scheduler.SingleProgramScheduler(prgm, asmlr)
+
+    logger.info(f"Starting program '{args.program}'")
+    schdlr.run()
+    asmlr.start()
+    time.sleep(1)
+
+    error = False
+    try:
+        while True:
+            if not asmlr.isRunning():
+                logger.error("Assembler stopped unexpectedly")
+                break
+            if not schdlr.isRunning():
+                logger.error("Scheduler stopped unexpectedly")
+                break
+            time.sleep(0.1)
+    except Exception as e:
+        logger.error(f"Unhandled error: {e}")
+        traceback.print_exc()
+        error = True
+    except KeyboardInterrupt:
+        logger.info("User requested exit")
+
+    things_to_stop = [asmlr, schdlr]
+    if hasattr(prgm, 'stop'):
+        things_to_stop.insert(0, prgm)
+
+    for thing in things_to_stop:
+        try:
+            thing.stop()
+        except Exception as e:
+            logger.error(f"Failed to stop {thing}: {e}")
+            traceback.print_exc()
+            error = True
+
+    if error:
+        return 1
+
+    return 0
+
+
+if __name__ == '__main__':
+    args = get_args()
+    setup_logging(args.logfile, args.loglevel)
+    sys.exit(main(args))
