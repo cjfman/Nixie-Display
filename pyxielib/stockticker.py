@@ -9,6 +9,7 @@ from datetime import datetime
 import requests
 import bs4 as bs
 
+import pyxielib.animation_library as animationlib
 from pyxielib.animation import Animation, MarqueeAnimation
 from pyxielib.program import Program
 
@@ -168,8 +169,10 @@ class StockTicker(Program):
 
     def makeAnimation(self) -> Animation:
         """Take a list of stocks and turn it into a marquee"""
-        if not self.stocks or not isMarketOpen():
-            return None
+        if not isMarketOpen():
+            return animationlib.makeTextAnimation("Market closed", length=1)
+        if not self.stocks:
+            return MarqueeAnimation.fromText("No quotes loaded", size=self.size)
 
         self.cv.acquire()
         symbols = self.symbols[:]
