@@ -7,13 +7,17 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import requests
-
 import bs4 as bs
-import yfinance as yf
+
 from pyxielib.animation import Animation, MarqueeAnimation
 from pyxielib.program import Program
 
 logger = logging.getLogger(__name__)
+
+YAHOO_CHART_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/{}'
+YAHOO_CRUMB_URL = 'https://query2.finance.yahoo.com/v1/test/getcrumb'
+YAHOO_COOKIE_URL = 'https://fc.yahoo.com/'
+YAHOO_HEADERS = {'User-Agent': 'Mozilla/5.0 (compatible; nixie-display/1.0)'}
 
 DEFAULT_SYMBOLS = ['AAPL', 'MGM']
 
@@ -30,7 +34,6 @@ class Stock:
             diff = self.current - self.open
             perc = abs(diff / self.close * 100)
             sign = '+' if diff >= 0 else '-'
-            #return f"{self.symbol} {sign}${abs(diff):.2f}/{perc:.2f}%"
             return f"{self.symbol} {sign}{perc:.2f}%"
         except:
             price = self.current or 0
@@ -64,6 +67,20 @@ def getSp500Symbols():
         return []
 
 
+def fetchStock(symbol, session, crumb) -> Stock:
+    """Fetch current quote for symbol from Yahoo Finance."""
+    url = YAHOO_CHART_URL.format(symbol)
+    resp = session.get(url, params={'interval': '1d', 'range': '1d', 'crumb': crumb})
+    resp.raise_for_status()
+    result = resp.json()['chart']['result'][0]
+    meta = result['meta']
+    quote = result['indicators']['quote'][0]
+    current = meta['regularMarketPrice']
+    open_price = (quote.get('open') or [None])[0]
+    prev_close = meta['chartPreviousClose']
+    return Stock(symbol, current, open_price, prev_close)
+
+
 def isMarketOpen() -> bool:
     now = datetime.now()
     start = now.replace(hour=9, minute=30, second=0)
@@ -81,17 +98,17 @@ class StockTicker(Program):
         self.running      = True
         self.shutdown     = False
         self.query_idx    = 0
-        #self.shown_idx    = 0
         self.max_failures = 10
         self.quick_start  = quick_start
+        self.session      = None
+        self.crumb        = None
         self.thread       = threading.Thread(target=self.handler)
         self.lock         = threading.Lock()
         self.cv           = threading.Condition(lock=self.lock)
 
-        ## Dedermin the list of stock symbols
+        ## Determine the list of stock symbols
         if isinstance(symbols, str):
             if os.path.isfile(symbols):
-                ## Load from a file
                 raise ValueError("Loading stock symbols from file not supported")
 
             self.symbols = symbols.split(',')
@@ -100,11 +117,21 @@ class StockTicker(Program):
         else:
             raise ValueError(f"Type {type(symbols)} not supported for stocks parameter")
 
+    def _refreshSession(self):
+        """Obtain a fresh Yahoo Finance session and crumb."""
+        logger.info("Refreshing Yahoo Finance session")
+        session = requests.Session()
+        session.headers.update(YAHOO_HEADERS)
+        session.get(YAHOO_COOKIE_URL)
+        resp = session.get(YAHOO_CRUMB_URL)
+        resp.raise_for_status()
+        self.session = session
+        self.crumb = resp.text.strip()
+
     def reset(self):
         super().reset()
         self.cv.acquire()
         self.query_idx = 0
-        #self.shown_idx = 0
         self.cv.release()
 
     def isRunning(self):
@@ -131,7 +158,7 @@ class StockTicker(Program):
         self.shutdown = True
 
     def ready(self):
-        return (self.running and self.stocks and isMarketOpen() )
+        return (self.running and self.stocks and isMarketOpen())
 
     def clearStocks(self):
         now = datetime.now()
@@ -145,14 +172,9 @@ class StockTicker(Program):
             return None
 
         self.cv.acquire()
-        quotes = []
-        #for sym in self.symbols[self.shown_idx:]:
         symbols = self.symbols[:]
         random.shuffle(symbols)
-        for sym in symbols:
-            if sym in self.stocks:
-                quotes.append(str(self.stocks[sym]))
-
+        quotes = [str(self.stocks[sym]) for sym in symbols if sym in self.stocks]
         self.cv.release()
         ani = MarqueeAnimation.fromText(" | ".join(quotes), size=self.size)
         return ani
@@ -160,7 +182,7 @@ class StockTicker(Program):
     def handler(self):
         """The main stock loop"""
         logger.info("Stock ticker thread starting")
-        failures = 0 ## Consecutive failures
+        failures = 0
         self.cv.acquire()
         while self.running:
             ## Don't run if the market isn't open
@@ -180,8 +202,7 @@ class StockTicker(Program):
                 failures += 1
 
             self.quick_start = False
-            ## Increase wait time between cycles based on
-            ## the number consecutive failures
+            ## Increase wait time between cycles based on consecutive failures
             if self.running:
                 self.cv.wait(2**failures)
 
@@ -190,31 +211,33 @@ class StockTicker(Program):
 
     def updateStocks(self):
         """
-        Get new stock information. Returns True if every stock was updated
-        Returns False on the first failure. When called again, pick up with stock
-        that was next after the failed one.
+        Get new stock information. Returns True if every stock was updated.
+        Returns False on the first failure. When called again, picks up with
+        the stock that was next after the failed one.
         """
         failures = 0
         delay = self.delay if not self.quick_start else 1
         if self.query_idx >= len(self.symbols):
             self.query_idx = 0
 
-        ## Start off from where we left off
+        if self.session is None:
+            self._refreshSession()
+
         for sym in self.symbols[self.query_idx:]:
             if not self.running:
                 return True
 
             self.query_idx += 1
             try:
-                ## Get the current stock quotes
-                ticker = yf.Ticker(sym)
-                info = ticker.fast_info
-                stock = Stock(sym, info['lastPrice'], info['open'], info['previousClose'])
+                stock = fetchStock(sym, self.session, self.crumb)
                 logger.debug(f"Got stock {stock}")
-                ## Store the result
                 self.stocks[sym] = stock
                 self.cv.wait(delay)
             except Exception as e:
+                if isinstance(e, requests.HTTPError) and e.response is not None \
+                        and e.response.status_code in (401, 403):
+                    logger.warning("Auth expired, refreshing session")
+                    self._refreshSession()
                 logger.warning(f"Failed to query stock {sym}: {e}")
                 failures += 1
                 if failures > self.max_failures:
