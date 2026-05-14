@@ -134,9 +134,13 @@ class KeyWatcher:
                     logger.info(f"Opened '{self.event_path}'")
 
                 self.read_loop()
-            except FileNotFoundError:
-                ## File wasn't found try again after a nap
-                logger.warning(f"Failed to open '{self.event_path}'")
+            except OSError as e:
+                logger.warning(f"Device error on '{self.event_path}': {e}, retrying")
+                if self.dev is not None:
+                    try:
+                        self.dev.close()
+                    except OSError:
+                        pass
                 self.dev = None
                 time.sleep(1)
 
