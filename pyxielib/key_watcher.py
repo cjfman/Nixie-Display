@@ -142,12 +142,9 @@ class KeyWatcher:
         while self.running:
             try:
                 if self.dev is None:
-                    path = self.event_path
-                    if not os.path.exists(path):
-                        found = self._find_keyboard()
-                        if found:
-                            logger.info(f"'{path}' not found, using '{found}'")
-                            path = found
+                    path = self._find_keyboard() or self.event_path
+                    if path != self.event_path:
+                        logger.info(f"Keyboard found at '{path}' instead of '{self.event_path}'")
                     logger.info(f"Opening '{path}'")
                     self.dev = ev.InputDevice(path)
                     logger.info(f"Opened '{path}'")
