@@ -206,7 +206,7 @@ class KeyWatcher:
             k_event = ev.categorize(event)
             ## Update set of down keys
             if k_event.keystate == KeyEvent.key_down:
-                logger.debug("%s", k_event)
+                logger.trace("%s", k_event)
                 self.keys_down.add(k_event.keycode)
                 ## Check for trigger or release key combo
                 if self.trigger and self.trigger == self.keys_down:

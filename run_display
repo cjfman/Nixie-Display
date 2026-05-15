@@ -26,7 +26,7 @@ def make_parser():
         help="Show pre-market and after-market stock data")
     parser.add_argument('--logfile', help="Write logs to this file instead of stdout")
     parser.add_argument('--loglevel', default='info',
-        choices=['debug', 'info', 'warning', 'error', 'critical'],
+        choices=['trace', 'debug', 'info', 'warning', 'error', 'critical'],
         help="Set the log level (default: info)")
     return parser
 
@@ -44,7 +44,7 @@ def get_args():
 
 
 def setup_logging(logfile=None, loglevel='info'):
-    level = getattr(logging, loglevel.upper())
+    level = logging.getLevelName(loglevel.upper())
     handler = logging.FileHandler(logfile) if logfile else logging.StreamHandler(sys.stdout)
     logging.basicConfig(level=level, handlers=[handler],
         format='%(asctime)s %(levelname)-8s %(name)s: %(message)s')

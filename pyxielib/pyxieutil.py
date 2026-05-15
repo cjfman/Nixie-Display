@@ -1,6 +1,17 @@
 import inspect
+import logging
 
 from bs4 import BeautifulSoup
+
+TRACE = 5
+logging.addLevelName(TRACE, 'TRACE')
+logging.TRACE = TRACE
+
+def _trace(self, msg, *args, **kwargs):
+    if self.isEnabledFor(TRACE):
+        self._log(TRACE, msg, args, **kwargs)
+
+logging.Logger.trace = _trace
 
 
 class PyxieError(Exception):
