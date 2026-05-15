@@ -14,15 +14,6 @@ except:
     pass
 
 
-USE_RASPI=False
-try:
-    import spidev           ## pylint: disable=import-error
-    import RPi.GPIO as GPIO ## pylint: disable=import-error
-    GPIO.setmode(GPIO.BOARD)
-    USE_RASPI=True
-except:
-    logger.warning("There is no 'spidev' library. The 'RaspberryPi' controller will not work")
-    USE_RASPI=False
 
 
 class ControllerError(PyxieError):
@@ -158,10 +149,14 @@ class RaspberryPiController(Controller):
             spi_ctrl=0, device=0, mode=2, speed=100000, \
             debug=False, print_code=False, cleanup=True):
         """Controller for directly using the RasPis output pins"""
-        if not USE_RASPI:
-            raise ControllerError("Cannot instantiate a 'RasbperryPiController'")
+        try:
+            import spidev           ## pylint: disable=import-error
+            import RPi.GPIO as GPIO ## pylint: disable=import-error
+        except ImportError as e:
+            raise ControllerError(f"Cannot instantiate a 'RaspberryPiController': {e}")
 
         Controller.__init__(self)
+        self._GPIO      = GPIO
         self.num_tubes  = num_tubes
         self.oe_pin     = oe_pin
         self.hv_pin     = hv_pin
@@ -177,6 +172,7 @@ class RaspberryPiController(Controller):
         self.hv_on      = False
 
         ## Setup GPIO
+        GPIO.setmode(GPIO.BOARD)
         GPIO.setwarnings(False)
         GPIO.setup(self.oe_pin, GPIO.OUT)
         GPIO.output(self.oe_pin, False)       ## Disable output
@@ -196,11 +192,11 @@ class RaspberryPiController(Controller):
 
     def enable(self):
         try:
-            GPIO.output(self.oe_pin, True)     ## Enable output
-            GPIO.output(self.strobe_pin, True) ## Disable strobe
+            self._GPIO.output(self.oe_pin, True)     ## Enable output
+            self._GPIO.output(self.strobe_pin, True) ## Disable strobe
             if not self.hv_on:
                 self.hv_on = True
-                GPIO.output(self.hv_pin, True)
+                self._GPIO.output(self.hv_pin, True)
 
             Controller.enable(self)
         except Exception as e:
@@ -212,10 +208,10 @@ class RaspberryPiController(Controller):
 
     def disable(self, *, hv_off=True):
         try:
-            GPIO.output(self.oe_pin, False)
+            self._GPIO.output(self.oe_pin, False)
             if hv_off and self.hv_on:
                 self.hv_on = False
-                GPIO.output(self.hv_pin, False)
+                self._GPIO.output(self.hv_pin, False)
 
             Controller.disable(self)
         except Exception as e:
@@ -262,4 +258,4 @@ class RaspberryPiController(Controller):
     def __del__(self):
         self.spi.close()
         if self.cleanup:
-            GPIO.cleanup()
+            self._GPIO.cleanup()

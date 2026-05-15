@@ -1,8 +1,6 @@
 import inspect
 import logging
 
-from bs4 import BeautifulSoup
-
 TRACE = 5
 logging.addLevelName(TRACE, 'TRACE')
 logging.TRACE = TRACE
@@ -38,6 +36,7 @@ class PyxieUnimplementedError(PyxieError):
 
 def flattenHTML(html):
     """Parse html content and remove the tags"""
+    from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, "html.parser")
     for data in soup(['style', 'script']):
         ## Remove tags
