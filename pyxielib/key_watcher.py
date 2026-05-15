@@ -123,20 +123,71 @@ class KeyWatcher:
 
         return key
 
+    @staticmethod
+    def _parse_input_device_block(block):
+        """Parse one stanza from /proc/bus/input/devices.
+
+        Returns (has_sysrq, '/dev/input/eventN') or (False, None).
+        """
+        has_sysrq = False
+        event_path = None
+        for line in block.splitlines():
+            if line.startswith('H: Handlers='):
+                handlers = line.split('=', 1)[1].split()
+                has_sysrq = 'sysrq' in handlers
+                for handler in handlers:
+                    if handler.startswith('event'):
+                        event_path = f'/dev/input/{handler}'
+        return has_sysrq, event_path
+
+    def _find_keyboard(self, prefer=None):
+        """Find a keyboard event device by reading /proc/bus/input/devices.
+
+        Uses the presence of the 'sysrq' handler as the discriminator: the
+        kernel only registers it for real keyboards, not for HDMI, power
+        buttons, or other virtual devices. If prefer is given and is a
+        keyboard, it is returned first.
+        """
+        try:
+            with open('/proc/bus/input/devices') as f:
+                first = None
+                for block in f.read().strip().split('\n\n'):
+                    has_sysrq, path = self._parse_input_device_block(block)
+                    if has_sysrq and path is not None:
+                        if first is None:
+                            first = path
+                        if path == prefer:
+                            return path
+                return first
+        except OSError:
+            pass
+        return None
+
     def run(self):
         """Main watcher loop"""
         logger.info("KeyWatcher thread starting")
         while self.running:
             try:
                 if self.dev is None:
-                    logger.info(f"Opening '{self.event_path}'")
-                    self.dev = ev.InputDevice(self.event_path)
-                    logger.info(f"Opened '{self.event_path}'")
+                    path = self._find_keyboard(prefer=self.event_path)
+                    if path is None:
+                        logger.warning("No keyboard found, retrying")
+                        time.sleep(1)
+                        continue
+                    if path != self.event_path:
+                        logger.info(f"Keyboard found at '{path}' instead of '{self.event_path}'")
+                    logger.info(f"Opening '{path}'")
+                    self.dev = ev.InputDevice(path)
+                    logger.info(f"Opened '{path}'")
 
                 self.read_loop()
-            except FileNotFoundError:
-                ## File wasn't found try again after a nap
-                logger.warning(f"Failed to open '{self.event_path}'")
+            except OSError as e:
+                logger.warning(f"Device error on '{self.event_path}': {e}, retrying")
+                if self.dev is not None:
+                    try:
+                        self.dev.close()
+                    except OSError:
+                        pass
                 self.dev = None
                 time.sleep(1)
 
