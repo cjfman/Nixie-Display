@@ -5,7 +5,7 @@ import argparse
 import sys
 import time
 
-sys.path.append("/home/charles/Projects/nixie")
+sys.path.append("./")
 
 from pyxielib import assembler, controller, animation
 

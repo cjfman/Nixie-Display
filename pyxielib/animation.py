@@ -929,6 +929,7 @@ class FileAnimation(FullFrameAnimation):
         self.size    = size
         self.scale   = 1
         self.sequence = None
+        self._repeat:    Optional[Tuple[int, List]] = None  ## (count, saved_active) during repeat|start/end
         self.sprites:    Dict[str, Frame] = {}
         self.sequences:  Dict[str, List[TimeFullFrame]] = {}
         self.segments:   Dict[str, List[Frame]] = {}
@@ -977,6 +978,7 @@ class FileAnimation(FullFrameAnimation):
                 'frame':    (2, 0, self._parseFrame),
                 'scale':    (1, 0, self._parseScale),
                 'sequence': (1, 1, self._parseSequence),
+                'repeat':   (1, 1, self._parseRepeat),
             }
             try:
                 if cmd not in handlers:
@@ -1092,6 +1094,8 @@ class FileAnimation(FullFrameAnimation):
                 raise PixieAnimationError("Cannot start a sequence without a name")
             if self.sequence is not None:
                 raise PixieAnimationError(f"Cannot start new sequence '{name}' before finishing the current one")
+            if self._repeat is not None:
+                raise PixieAnimationError("Cannot start a named sequence inside a repeat block")
             if name in self.sequences:
                 raise PixieAnimationError(f"Sequence already exists with name '{name}'")
 
@@ -1113,6 +1117,34 @@ class FileAnimation(FullFrameAnimation):
 
             self.active.extend(self.sequences[name])
             logger.debug(f"Inserted sequence '{name}'")
+
+    def _parseRepeat(self, subcmd, count=None):
+        if subcmd == 'start':
+            if count is None:
+                raise FileAnimationError("repeat|start requires a count")
+            if self._repeat is not None:
+                raise FileAnimationError("Cannot nest repeat blocks")
+            try:
+                n = int(count)
+            except ValueError:
+                raise FileAnimationError(f"repeat count must be an integer, not '{count}'")
+            if n < 1:
+                raise FileAnimationError("repeat count must be a positive integer")
+            self._repeat = (n, self.active)
+            self.active = []
+            logger.debug(f"Starting repeat block (count={n})")
+        elif subcmd == 'end':
+            if self._repeat is None:
+                raise FileAnimationError("No repeat block to end")
+            count, saved_active = self._repeat
+            repeat_frames = self.active
+            self.active = saved_active
+            for _ in range(count):
+                self.active.extend(repeat_frames)
+            logger.debug(f"Ended repeat block ({count}x, {len(repeat_frames)} frames each)")
+            self._repeat = None
+        else:
+            raise FileAnimationError(f"Unknown repeat subcommand '{subcmd}'")
 
     @staticmethod
     def _tokenize(line):

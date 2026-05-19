@@ -101,6 +101,7 @@ Files in `animations/` use a custom DSL parsed by `FileAnimation`:
 - `frame|delay_secs|<content>` — add a full frame composed of characters, sprites, and segments; delay=0 overlays on previous frame
 - `scale|factor` — multiply all delays
 - `sequence|start|name` / `sequence|end` / `sequence|insert|name` — named reusable frame sequences
+- `repeat|start|N` / `repeat|end` — anonymous sequence repeated N times inline; may appear inside a named sequence but named sequences may not be started inside a repeat block
 - `{N}` in content is a multiplier; `{sprite_name}` expands a named sprite/segment
 
 Grammar:
