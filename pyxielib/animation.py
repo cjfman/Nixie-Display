@@ -1032,6 +1032,8 @@ class FileAnimation(FullFrameAnimation):
                     frames.extend(self.segments[token])
                 else:
                     raise FileAnimationError(f"Symbol '{token}' not defined")
+            elif t_type == 'hex':
+                frames.append(HexFrame(strToInt(token)))
             elif t_type == 'multiplier':
                 ## Multipy the previously defined token
                 if token == 0:
@@ -1156,6 +1158,12 @@ class FileAnimation(FullFrameAnimation):
             m = re.search(r"^\{([A-z]\w*)}", line)
             if m:
                 tokens.append(('macro', m.groups()[0]))
+
+            ## Match inline hex literal e.g. {0x1A2B}
+            if m is None:
+                m = re.search(r"^\{(0[xX][0-9A-Fa-f]+)}", line)
+                if m:
+                    tokens.append(('hex', m.groups()[0]))
 
             ## Match multiplier
             if m is None:
