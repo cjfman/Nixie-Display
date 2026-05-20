@@ -1173,7 +1173,7 @@ class FileAnimation(FullFrameAnimation):
 
             ## Match literal
             if m is None:
-                m = re.search(r"^[^\{\}]*", line)
+                m = re.search(r"^[^\{\}]+", line)
                 if m:
                     tokens.append(('literal', m.group()))
 
