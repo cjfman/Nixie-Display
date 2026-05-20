@@ -142,8 +142,8 @@ def bitmapsToDecodedStr(bitmaps):
     for lines in bitmap_lines:
         for i, line in enumerate(lines):
             out_lines[i] += line
-            if len(line) <= 5:
-               out_lines[i] += "   "
+#            if len(line) <= 5:
+#               out_lines[i] += "   "
 
     return "\n".join(out_lines) + "\n"
 
