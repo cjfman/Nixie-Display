@@ -7,7 +7,8 @@ import time
 
 sys.path.append("./")
 
-from pyxielib import assembler, controller, animation
+from pyxielib import assembler, controller
+from pyxielib.animation_file import FileAnimation
 
 parser = argparse.ArgumentParser(description='Nixie Tube Animation Running')
 parser.add_argument('-c', '--controller', choices=['terminal', 'serial'], default='terminal')
@@ -27,7 +28,7 @@ elif args.controller == 'serial':
 else:
     raise Exception(f"Invalid value for argument --controller: {args.controller}")
 
-ani = animation.FileAnimation(args.animation)
+ani = FileAnimation(args.animation)
 asmlr = assembler.Assembler(controller=ctrl)
 asmlr.start()
 asmlr.setAnimation(ani)

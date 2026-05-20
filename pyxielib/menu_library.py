@@ -4,7 +4,8 @@ import subprocess
 
 from pyxielib.navigator import DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
-from pyxielib.animation import Animation, FileAnimation
+from pyxielib.animation import Animation
+from pyxielib.animation_file import FileAnimation
 
 
 class IpItem(SubcommandItem):

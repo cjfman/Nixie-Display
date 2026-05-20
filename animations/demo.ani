@@ -23,6 +23,7 @@ sprite|triangle_left|0x0478
 sprite|triangle_right|0x110e
 segment|full_frame|{l_frame}{tb_rail}{14}{r_frame}
 scale|.01
+sequence|start|startup
 repeat|start|4
 frame|100|_
 frame|100|
@@ -278,23 +279,9 @@ frame|1|{l_frame}{tb_rail}{7}{b_rail}{tb_rail}{6}{r_frame}
 frame|1|{l_frame}{tb_rail}{6}{b_rail}{tb_rail}{7}{r_frame}
 repeat|end
 frame|500|{full_frame}
-sequence|start|collapse
-frame|1|{l_frame}{tb_rail}{6}{depression_left}{depression_right}{tb_rail}{6}{r_frame}
-frame|1|{l_frame}{tb_rail}{6}{slope_left}{slope_right}{tb_rail}{6}{r_frame}
-frame|1|{l_frame}{tb_rail}{5}{depression_left}{step_left}{step_right}{depression_right}{tb_rail}{5}{r_frame}
-frame|1|{l_frame}{tb_rail}{5}{slope_left}{b_rail}{2}{slope_right}{tb_rail}{5}{r_frame}
-frame|1|{l_frame}{tb_rail}{4}{depression_left}{step_left}{b_rail}{2}{step_right}{depression_right}{tb_rail}{4}{r_frame}
-frame|1|{l_frame}{tb_rail}{4}{slope_left}{b_rail}{4}{slope_right}{tb_rail}{4}{r_frame}
-frame|1|{l_frame}{tb_rail}{3}{depression_left}{step_left}{b_rail}{4}{step_right}{depression_right}{tb_rail}{3}{r_frame}
-frame|1|{l_frame}{tb_rail}{3}{slope_left}{b_rail}{6}{slope_right}{tb_rail}{3}{r_frame}
-frame|1|{l_frame}{tb_rail}{2}{depression_left}{step_left}{b_rail}{6}{step_right}{depression_right}{tb_rail}{2}{r_frame}
-frame|1|{l_frame}{tb_rail}{2}{slope_left}{b_rail}{8}{slope_right}{tb_rail}{2}{r_frame}
-frame|1|{l_frame}{tb_rail}{depression_left}{step_left}{b_rail}{8}{step_right}{depression_right}{tb_rail}{r_frame}
-frame|1|{l_frame}{tb_rail}{slope_left}{b_rail}{10}{slope_right}{tb_rail}{r_frame}
-frame|1|{l_frame}{depression_left}{step_left}{b_rail}{10}{step_right}{depression_right}{r_frame}
-frame|1|{l_frame}{slope_left}{b_rail}{12}{slope_right}{r_frame}
-frame|1|{0x0278}{step_left}{b_rail}{12}{step_right}{0x210e}
-frame|1|{triangle_left}{b_rail}{14}{triangle_right}
-frame|1|{0x0038}{b_rail}{14}{0x00e}
-frame|1|{b_rail}{16}
-sequence|end ## collapse
+frame|50|{0x2218}{mb_rail}{14}{0x220c}
+frame|50|_{16}
+frame|50| !{16}
+frame|50|
+sequence|end
+sequence|insert|startup
