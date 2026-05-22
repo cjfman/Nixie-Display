@@ -25,24 +25,24 @@ segment|full_frame|{l_frame}{tb_rail}{14}{r_frame}
 scale|.01
 sequence|start|startup
 repeat|start|4
-frame|100|_
-frame|100|
+frame|50|_
+frame|50|
 repeat|end
-frame|300|_
-frame|300| _
-frame|200| {2}_
-frame|200| {3}_
-frame|150| {4}_
-frame|150| {5}_
-frame|100| {6}_
-frame|90| {7}_
-frame|90| {8}_
-frame|80| {9}_
-frame|80| {10}_
-frame|70| {11}_
-frame|70| {12}_
-frame|60| {13}_
-frame|60| {14}_
+frame|50|_
+frame|50| _
+frame|50| {2}_
+frame|50| {3}_
+frame|50| {4}_
+frame|50| {5}_
+frame|50| {6}_
+frame|50| {7}_
+frame|50| {8}_
+frame|50| {9}_
+frame|50| {10}_
+frame|50| {11}_
+frame|50| {12}_
+frame|50| {13}_
+frame|50| {14}_
 frame|50| {15}_
 frame|50| {15}{0x0004}
 frame|40| {15}{0x0002}
@@ -278,7 +278,7 @@ frame|1|{l_frame}{tb_rail}{8}{b_rail}{tb_rail}{5}{r_frame}
 frame|1|{l_frame}{tb_rail}{7}{b_rail}{tb_rail}{6}{r_frame}
 frame|1|{l_frame}{tb_rail}{6}{b_rail}{tb_rail}{7}{r_frame}
 repeat|end
-frame|500|{full_frame}
+frame|100|{full_frame}
 frame|50|{0x2218}{mb_rail}{14}{0x220c}
 frame|50|_{16}
 frame|50| !{16}
