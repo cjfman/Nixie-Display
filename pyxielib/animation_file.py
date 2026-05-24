@@ -98,7 +98,7 @@ class FileAnimation(FullFrameAnimation):
                 'segment':  (2, 0, self._parseSegment),
                 'frame':    (2, 0, self._parseFrame),
                 'scale':    (1, 0, self._parseScale),
-                'sequence': (1, 1, self._parseSequence),
+                'sequence': (1, 2, self._parseSequence),
                 'repeat':   (1, 1, self._parseRepeat),
                 'import':   (1, 1, self._parseImport),
             }
@@ -215,7 +215,19 @@ class FileAnimation(FullFrameAnimation):
         except Exception as e:
             raise FileAnimationError("Failed to convert scale to float: " + str(e))
 
-    def _parseSequence(self, subcmd, name=None):
+    def _shiftFullFrame(self, full_frame: FullFrame, shift: int) -> FullFrame:
+        frames = full_frame.getFrames()
+        if shift > 0:
+            frames = [Frame()] * shift + frames
+            frames = frames[:self.size]
+        elif shift < 0:
+            frames = frames[abs(shift):]
+        missing = self.size - len(frames)
+        if missing > 0:
+            frames += [Frame()] * missing
+        return FullFrame(frames)
+
+    def _parseSequence(self, subcmd, name=None, shift=None):
         if subcmd == 'start':
             if name is None:
                 raise PixieAnimationError("Cannot start a sequence without a name")
@@ -242,8 +254,21 @@ class FileAnimation(FullFrameAnimation):
             if name not in self.sequences:
                 raise PixieAnimationError(f"Sequence '{name}' doesn't exist")
 
-            self.active.extend(self.sequences[name])
-            logger.debug(f"Inserted sequence '{name}'")
+            if shift is not None:
+                try:
+                    shift_n = int(shift)
+                except ValueError:
+                    raise FileAnimationError(f"sequence|insert shift must be an integer, not '{shift}'")
+            else:
+                shift_n = 0
+
+            if shift_n == 0:
+                self.active.extend(self.sequences[name])
+            else:
+                self.active.extend(
+                    (t, self._shiftFullFrame(f, shift_n)) for t, f in self.sequences[name]
+                )
+            logger.debug(f"Inserted sequence '{name}' (shift={shift_n})")
 
     def _parseRepeat(self, subcmd, count=None):
         if subcmd == 'start':
