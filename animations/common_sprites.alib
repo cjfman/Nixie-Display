@@ -1,0 +1,24 @@
+## Sprites for edges of tubes
+sprite|l_rail|0x0030 ## left
+sprite|r_rail|0x0006 ## right
+sprite|t_rail|0x0001 ## top
+sprite|b_rail|0x0008 ## bottom
+sprite|tb_rail|0x0009 ## top/bottom
+sprite|mb_rail|0x2208 ## middle/bottom
+sprite|l_frame|0x0039 ## top/bottom/left
+sprite|r_frame|0x000f ## top/bottom/right
+sprite|br_corner|0x000c ## bottom-right
+sprite|tr_corner|0x0003 ## top-right
+sprite|tl_corner|0x0021 ## top-left
+sprite|bl_corner|0x0018 ## bottom-left
+sprite|gamma|0x0031
+
+## Slopes
+sprite|depression_left|0x0248
+sprite|depression_right|0x2108
+sprite|slope_left|0x0448
+sprite|slope_right|0x1108
+sprite|step_left|0x2408
+sprite|step_right|0x1208
+sprite|triangle_left|0x0478
+sprite|triangle_right|0x110e

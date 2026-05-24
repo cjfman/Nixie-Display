@@ -1,7 +1,8 @@
 import logging
+import os
 import re
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from pyxielib.animation import (
     Frame, FullFrame, HexFrame, FullFrameAnimation,
@@ -19,18 +20,44 @@ class FileAnimationError(PixieAnimationError):
 
 class FileAnimation(FullFrameAnimation):
     def __init__(self, path, size=16):
-        self.path    = path
-        self.size    = size
-        self.scale   = 1
-        self.sequence = None
-        self._repeat:    Optional[Tuple[int, List]] = None  ## (count, saved_active) during repeat|start/end
-        self.sprites:    Dict[str, Frame] = {}
-        self.sequences:  Dict[str, List[TimeFullFrame]] = {}
-        self.segments:   Dict[str, List[Frame]] = {}
-        self.active:     List[TimeFullFrame] = None
-        self.fullframes: List[TimeFullFrame] = []
-        self.active = self.fullframes
+        self.path          = path
+        self.size          = size
+        self.scale         = 1
+        self.sequence      = None
+        self._repeat:      Optional[Tuple[int, List]] = None  ## (count, saved_active) during repeat|start/end
+        self._library_mode: bool = False
+        self._imported:    Set[str] = set()
+        self.sprites:      Dict[str, Frame] = {}
+        self.sequences:    Dict[str, List[TimeFullFrame]] = {}
+        self.segments:     Dict[str, List[Frame]] = {}
+        self.fullframes:   List[TimeFullFrame] = []
+        self.active:       List[TimeFullFrame] = self.fullframes
         FullFrameAnimation.__init__(self, self.loadFrames(path))
+
+    @classmethod
+    def _load_as_library(cls, path, imported: Set[str], size=16) -> 'FileAnimation':
+        """Parse a .ani file as a library (sprites/segments/sequences only)."""
+        obj = object.__new__(cls)
+        obj.path          = path
+        obj.size          = size
+        obj.scale         = 1
+        obj.sequence      = None
+        obj._repeat       = None
+        obj._library_mode = True
+        obj._imported     = imported
+        obj.sprites       = {}
+        obj.sequences     = {}
+        obj.segments      = {}
+        obj.fullframes    = []
+        obj.active        = obj.fullframes
+        try:
+            with open(path, 'r') as f:
+                obj._loadFramesHelper(f)
+        except FileAnimationError:
+            raise
+        except Exception as e:
+            raise FileAnimationError(f"Failed to load library '{path}': {e}")
+        return obj
 
     def loadFrames(self, path):
         """Load animation from a file given the path"""
@@ -50,7 +77,7 @@ class FileAnimation(FullFrameAnimation):
         for line in ani_file:
             ## Get command and arguments from line
             line_no += 1
-            line = re.sub(r"\s*(?:#.*)", '', line) ## Remove comments from line
+            line = re.sub(r"\s*(?:#.*)", '', line)  ## Remove comments from line
             line = line.strip()
             if not line:
                 continue
@@ -73,6 +100,7 @@ class FileAnimation(FullFrameAnimation):
                 'scale':    (1, 0, self._parseScale),
                 'sequence': (1, 1, self._parseSequence),
                 'repeat':   (1, 1, self._parseRepeat),
+                'import':   (1, 1, self._parseImport),
             }
             try:
                 if cmd not in handlers:
@@ -100,6 +128,7 @@ class FileAnimation(FullFrameAnimation):
 
     def _parseSprite(self, name, code):
         """Parse a sprite line"""
+        ## Convert code to int
         try:
             code = strToInt(code)
         except Exception as e:
@@ -110,12 +139,15 @@ class FileAnimation(FullFrameAnimation):
 
     def _parseSegmentHlpr(self, line) -> List[Frame]:
         """Parse a frame line"""
+        ## Tokenize the frames
         tokens = self._tokenize(line)
         frames = []
         for t_type, token in tokens:
             if t_type == 'literal':
+                ## Treat token as plain text
                 frames.extend(textToFrames(token))
             elif t_type == 'macro':
+                ## Look up token as defined symbol
                 if token in self.sprites:
                     frames.append(self.sprites[token])
                 elif token in self.segments:
@@ -125,10 +157,12 @@ class FileAnimation(FullFrameAnimation):
             elif t_type == 'hex':
                 frames.append(HexFrame(strToInt(token)))
             elif t_type == 'multiplier':
+                ## Multiply the previously defined token
                 if token == 0:
                     raise FileAnimationError(f"Multiplier must be a positive integer")
                 if not frames:
                     raise FileAnimationError(f"No previous frame to multiply")
+                ## Add token-1 more of the last frame
                 for _ in range(token-1):
                     frames.append(frames[-1])
             else:
@@ -143,6 +177,10 @@ class FileAnimation(FullFrameAnimation):
         self.segments[name] = self._parseSegmentHlpr(line)
 
     def _parseFrame(self, length, line):
+        if self._library_mode and self.sequence is None:
+            raise FileAnimationError("frame is only valid inside a sequence in library files")
+
+        ## Parse first argument
         try:
             length = float(length)*self.scale
         except:
@@ -159,6 +197,7 @@ class FileAnimation(FullFrameAnimation):
             frames += [Frame()]*missing
 
         if length:
+            ## Add the frames
             self.active.append((length, FullFrame(frames)))
         else:
             ## Overlay the frames
@@ -168,6 +207,8 @@ class FileAnimation(FullFrameAnimation):
             logger.debug("%s", self.active[-1])
 
     def _parseScale(self, scale):
+        """Parse a sprite line"""
+        ## Convert code to int
         try:
             self.scale = float(scale)
             logger.debug(f"Setting scale {self.scale}")
@@ -231,6 +272,35 @@ class FileAnimation(FullFrameAnimation):
             self._repeat = None
         else:
             raise FileAnimationError(f"Unknown repeat subcommand '{subcmd}'")
+
+    def _parseImport(self, scale_or_path, filepath=None):
+        if filepath is None:
+            import_scale = 1.0
+            filepath = scale_or_path
+        else:
+            try:
+                import_scale = float(scale_or_path)
+            except ValueError:
+                raise FileAnimationError(f"import scale must be a float, not '{scale_or_path}'")
+
+        base_dir = os.path.dirname(os.path.abspath(self.path))
+        full_path = os.path.normpath(os.path.join(base_dir, filepath.strip()))
+        filename = os.path.basename(full_path)
+
+        if filename in self._imported:
+            logger.debug(f"Skipping already-imported library '{filename}'")
+            return
+
+        self._imported.add(filename)
+        logger.debug(f"Importing library '{full_path}' with scale={import_scale}")
+
+        lib = FileAnimation._load_as_library(full_path, self._imported, size=self.size)
+
+        self.sprites.update(lib.sprites)
+        self.segments.update(lib.segments)
+        for name, frames in lib.sequences.items():
+            self.sequences[name] = [(t * import_scale, f) for t, f in frames]
+            logger.debug(f"Imported sequence '{name}'")
 
     @staticmethod
     def _tokenize(line):
