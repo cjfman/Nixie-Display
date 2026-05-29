@@ -22,3 +22,11 @@ sprite|step_left|0x2408
 sprite|step_right|0x1208
 sprite|triangle_left|0x0478
 sprite|triangle_right|0x110e
+
+## Flatten test
+flatten|start|hello
+|h
+| e
+|  ll
+|    o
+flatten|end

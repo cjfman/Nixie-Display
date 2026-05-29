@@ -25,6 +25,7 @@ class FileAnimation(FullFrameAnimation):
         self.scale         = 1
         self.sequence      = None
         self._repeat:      Optional[Tuple[int, List]] = None  ## (count, saved_active) during repeat|start/end
+        self._flatten:     Optional[Tuple[str, List]] = None  ## (name, [segments]) during flatten|start/end
         self._library_mode: bool = False
         self._imported:    Set[str] = set()
         self.sprites:      Dict[str, Frame] = {}
@@ -43,6 +44,7 @@ class FileAnimation(FullFrameAnimation):
         obj.scale         = 1
         obj.sequence      = None
         obj._repeat       = None
+        obj._flatten      = None
         obj._library_mode = True
         obj._imported     = imported
         obj.sprites       = {}
@@ -93,6 +95,20 @@ class FileAnimation(FullFrameAnimation):
             if cmd == 'end':
                 break
 
+            ## Anonymous segment line (|content) inside a flatten block
+            if cmd == '':
+                if self._flatten is None:
+                    errors.append((line_no, "Anonymous segment lines ('|...') are only valid inside a flatten block"))
+                    continue
+                if len(args) != 1:
+                    errors.append((line_no, "Anonymous segment line must have exactly one content field after '|'"))
+                    continue
+                try:
+                    self._flatten[1].append(self._parseSegmentHlpr(args[0]))
+                except FileAnimationError as e:
+                    errors.append((line_no, e.what()))
+                continue
+
             handlers = {
                 'sprite':   (2, 0, self._parseSprite),
                 'segment':  (2, 0, self._parseSegment),
@@ -100,6 +116,7 @@ class FileAnimation(FullFrameAnimation):
                 'scale':    (1, 0, self._parseScale),
                 'sequence': (1, 2, self._parseSequence),
                 'repeat':   (1, 1, self._parseRepeat),
+                'flatten':  (1, 1, self._parseFlatten),
                 'import':   (1, 1, self._parseImport),
             }
             try:
@@ -108,9 +125,9 @@ class FileAnimation(FullFrameAnimation):
                     continue
 
                 num_req, num_opt, hdlr = handlers[cmd]
-                max_num = num_req + num_opt
                 num_args = len(args)
-                if num_args < num_req or num_args > max_num:
+                max_num = None if num_opt is None else num_req + num_opt
+                if num_args < num_req or (max_num is not None and num_args > max_num):
                     errors.append((line_no, f"Command '{cmd}' takes {num_req} required arguments and {num_opt} optional ones"))
                     continue
 
@@ -297,6 +314,51 @@ class FileAnimation(FullFrameAnimation):
             self._repeat = None
         else:
             raise FileAnimationError(f"Unknown repeat subcommand '{subcmd}'")
+
+    def _flattenSegments(self, segments: List[List[Frame]]) -> List[Frame]:
+        result = []
+        for i in range(self.size):
+            ## Collect the frame at tube position i from every segment
+            tube_frames = [seg[i] for seg in segments if i < len(seg)]
+
+            ## Filter to non-blank frames
+            non_blank = [f for f in tube_frames if f.getCode().strip()]
+
+            if not non_blank:
+                result.append(Frame())
+            elif len(non_blank) == 1:
+                result.append(non_blank[0])
+            else:
+                ## Overlay all non-blank frames as hex bitmaps
+                try:
+                    combined = HexFrame(non_blank[0].decode())
+                    for f in non_blank[1:]:
+                        combined = combined.overlay(HexFrame(f.decode()))
+                except Exception as e:
+                    raise FileAnimationError(f"Failed to overlay frames at tube {i}: {e}")
+                result.append(combined)
+
+        return result
+
+    def _parseFlatten(self, subcmd, name=None):
+        if subcmd == 'start':
+            if name is None:
+                raise FileAnimationError("flatten|start requires a name")
+            if self._flatten is not None:
+                raise FileAnimationError("Cannot nest flatten blocks")
+            if name in self.segments:
+                raise FileAnimationError(f"Segment '{name}' already exists")
+            self._flatten = (name, [])
+            logger.debug(f"Starting flatten block '{name}'")
+        elif subcmd == 'end':
+            if self._flatten is None:
+                raise FileAnimationError("No flatten block to end")
+            name, segs = self._flatten
+            self._flatten = None
+            self.segments[name] = self._flattenSegments(segs)
+            logger.debug(f"Flattened {len(segs)} segments into '{name}'")
+        else:
+            raise FileAnimationError(f"Unknown flatten subcommand '{subcmd}'")
 
     def _parseImport(self, scale_or_path, filepath=None):
         if filepath is None:
