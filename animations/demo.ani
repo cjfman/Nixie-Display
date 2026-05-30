@@ -265,4 +265,7 @@ frame|50| !{16}
 frame|50|
 sequence|end
 sequence|insert|startup
-frame|100|{hello}
+sandbox|start
+spin = SpinAnimation(rate=10) | SpinAnimation(rate=10, offset=4) | SpinAnimation(rate=10, reverse=True) | SpinAnimation(rate=10, offset=3) | SpinAnimation(rate=10, offset=8)
+print spin*10
+sandbox|end

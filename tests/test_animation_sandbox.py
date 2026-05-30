@@ -47,6 +47,24 @@ class ExpressionTest(unittest.TestCase):
         p.parseLine('doubled = rate_var * 2')
         self.assertEqual(len(p.variables['doubled'].frames), 16)
 
+    def test_boolean_keyword_argument(self):
+        ## A 'True'/'False' literal is passed through to the function
+        p = SandboxParser()
+        p.parseLine('forward = SpinTubeSequence(3)')
+        p.parseLine('backward = SpinTubeSequence(3, reverse=True)')
+        forward = [f for _, f in p.variables['forward'].frames]
+        backward = [f for _, f in p.variables['backward'].frames]
+        ## reverse=True flips the frame order
+        self.assertEqual(forward, list(reversed(backward)))
+
+    def test_false_keyword_argument_matches_default(self):
+        p = SandboxParser()
+        p.parseLine('default = SpinTubeSequence(3)')
+        p.parseLine('explicit = SpinTubeSequence(3, reverse=False)')
+        default = [f for _, f in p.variables['default'].frames]
+        explicit = [f for _, f in p.variables['explicit'].frames]
+        self.assertEqual(default, explicit)
+
     def test_bare_string_becomes_fullframe(self):
         p = SandboxParser()
         p.parseLine('msg = "HELLO"')
@@ -255,6 +273,16 @@ class ErrorTest(unittest.TestCase):
 
     def test_animation_class_name(self):
         self.assertSandboxError('Frame = TextAnimation("A")')
+
+    def test_reserved_name_case_insensitive(self):
+        ## Reserved names are matched regardless of case
+        self.assertSandboxError('FRAME = TextAnimation("A")')
+        self.assertSandboxError('Print = TextAnimation("A")')
+
+    def test_literal_keyword_names_reserved(self):
+        ## True/False/None may not be reused as variable names
+        self.assertSandboxError('True = TextAnimation("A")')
+        self.assertSandboxError('None = TextAnimation("A")')
 
     def test_unknown_function(self):
         self.assertSandboxError('xx = NotARealFunc(1)')

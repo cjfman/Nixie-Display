@@ -36,7 +36,11 @@ class SandboxError(FileAnimationError):
 ## keywords/subcommands plus the sandbox statement keywords.
 _FILE_KEYWORDS = {
     'sprite', 'segment', 'frame', 'scale', 'sequence', 'repeat', 'flatten',
-    'import', 'sandbox', 'end', 'start', 'insert', 'set', 'print',
+    'import', 'sandbox', 'end',   'start', 'insert',   'set',    'print',
+}
+
+_TYPE_KEYWORDS = {
+    'string', 'int', 'list', 'tuple', 'str', 'true', 'false', 'none',
 }
 
 ## Every class defined in animation.py is reserved as well
@@ -45,7 +49,7 @@ _ANIMATION_CLASS_NAMES = {
     if cls.__module__ == animation_module.__name__
 }
 
-_RESERVED_NAMES = _FILE_KEYWORDS | _ANIMATION_CLASS_NAMES
+_RESERVED_NAMES = { x.lower() for x in (_FILE_KEYWORDS | _ANIMATION_CLASS_NAMES | _TYPE_KEYWORDS) }
 
 ## Values assigned to variables must be instances of one of these classes
 _ANIMATION_CLASSES: Tuple[type, ...] = tuple(
@@ -60,6 +64,8 @@ _KEYWORD_RE  = re.compile(r'^(set|print)\b')
 _TOKEN_RE = re.compile('|'.join([
     r'(?P<string>"[^"]*"|\'[^\']*\')',
     r'(?P<number>\d+\.\d+|\d+)',
+    r'(?P<bool>True|False)',
+    r'(?P<none>None)',
     r'(?P<name>[A-Za-z]\w*)',
     r'(?P<op>[+*|])',
     r'(?P<lparen>\()',
@@ -143,7 +149,7 @@ class SandboxParser:
     def _validateVarName(self, name):
         if not _VAR_NAME_RE.match(name):
             raise SandboxError(f"Invalid variable name '{name}'")
-        if name in _RESERVED_NAMES:
+        if name.lower() in _RESERVED_NAMES:
             raise SandboxError(f"'{name}' is a reserved name and may not be a variable")
 
     def _validateValue(self, name, value):
@@ -299,6 +305,10 @@ class SandboxParser:
     def _numberValue(text):
         return float(text) if '.' in text else int(text)
 
+    @staticmethod
+    def _boolValue(text):
+        return (text == 'True')
+
     def _lookupVariable(self, name):
         if name not in self.variables:
             raise SandboxError(f"Variable '{name}' is not defined")
@@ -381,9 +391,11 @@ class SandboxParser:
             return self._numberValue(text), index + 1
         if kind == 'string':
             return text[1:-1], index + 1
+        if kind == 'bool':
+            return self._boolValue(text), index + 1
+        if kind == 'none':
+            return None, index + 1
         if kind == 'name':
-            if text == 'None':
-                return None, index + 1
             if index + 1 < len(tokens) and tokens[index + 1][0] == 'lparen':
                 raise SandboxError(f"Function calls are not allowed as arguments to '{func_name}'")
             return self._lookupVariable(text), index + 1
