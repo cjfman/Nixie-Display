@@ -102,22 +102,3 @@ Files in `animations/` use a custom DSL parsed by `FileAnimation` (`pyxielib/ani
 The production system runs on a Raspberry Pi. `raspi_run` is the startup script: it pulls `nixie-live` branch from git, then launches `run_display -c raspi`. Logs go to `~/logs/nixie.log` and `~/logs/nixie.stderr`.
 
 The live branch is `nixie-live`. `master` is the development branch.
-
-# Conversations
-
-118314d4-facd-4669-ace1-e1597c390ff1
-- KeyWatcher fix — _find_keyboard now returns None when no keyboard is found instead of falling back to event_path unconditionally.
-- TRACE log level — Added a custom TRACE level (5) below DEBUG to Python's logging module in pyxieutil.py.
-- Boot speed — Investigated a slow nixieboot.service (6.7s). Added lazy loads. Also wrote nixie_boot.c to send the boot message over SPI directly
-- animation.py refactor — Moved FileAnimationError and FileAnimation into a new animation_file.py.
-- Animation DSL additions (all in animation_file.py):
-  - repeat|start|N / repeat|end — anonymous inline sequence repeated N times
-  - Fixed inline hex literals {0x1A2B} not tokenizing in frame content
-  - Fixed tokenizer infinite loop on malformed brace tokens
-  - import|[scale|]filepath — import sprites/segments/sequences from a library file; scale is optional
-  - sequence|insert|name|shift — optional integer shift to slide a sequence left or right when inserting
-  - flatten|start|name / |content lines / flatten|end — overlay anonymous inline segments per-tube into a named segment, with hex bitmap
-  - sandbox|start / sandbox|end — assemble animations from animation_library functions via a safe (no-eval) expression mini-language with assignment/set/print lines; handlers live in new file animation_sandbox.py. Also fixed long-standing TubeSequence/FullFrameAnimation __mul__ bugs (returned/re-wrapped a TubeSequence, raising TypeError on any int multiply)
-  - sandbox `|` operator — concatenates tubes (Frame|Frame→FullFrame, TubeSequence|TubeSequence→List[FullFrame], TubeAnimation|TubeAnimation→FullFrameAnimation); lowest precedence. Added TubeAnimation.__mul__
-  - Migrated `|` to real __or__ operators on animation.py classes (Frame/FullFrame/TubeSequence/TubeAnimation/FullFrameAnimation), plus TubeAnimation.toFullFrameAnimation() and concatFullFrameRows/concatFullFrameTimelines helpers; the sandbox now delegates to them
-  - sandbox print now accepts any expression (not just a variable), and `print` with no argument prints the most recently assigned variable
