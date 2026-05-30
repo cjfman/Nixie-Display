@@ -365,6 +365,35 @@ class FileIntegrationTest(unittest.TestCase):
             )
         self.assertIn("not closed", str(ctx.exception))
 
+    def test_line_continuation_joins_lines(self):
+        ## A trailing '\' joins the next line before parsing
+        split = self._load(
+            "sandbox|start\n"
+            "spin = SpinAnimation(rate=3) | \\\n"
+            "       SpinAnimation(rate=3, offset=2)\n"
+            "print spin\n"
+            "sandbox|end\n"
+        )
+        joined = self._load(
+            "sandbox|start\n"
+            "spin = SpinAnimation(rate=3) | SpinAnimation(rate=3, offset=2)\n"
+            "print spin\n"
+            "sandbox|end\n"
+        )
+        self.assertEqual(
+            [c for _, c in split.fullframes],
+            [c for _, c in joined.fullframes],
+        )
+
+    def test_dangling_continuation_before_end_reported(self):
+        with self.assertRaises(Exception) as ctx:
+            self._load(
+                "sandbox|start\n"
+                "spin = SpinAnimation(rate=3) | \\\n"
+                "sandbox|end\n"
+            )
+        self.assertIn("continuation", str(ctx.exception))
+
 
 class MultiplyFixTest(unittest.TestCase):
     """Regression tests for the __mul__ fixes in animation.py"""

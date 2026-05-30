@@ -48,6 +48,8 @@ types:
 - **set** `set delay|rate = literal` — `delay` (defaults to the file `scale`) and `rate` are non-negative floats and mutually exclusive: setting one non-zero zeroes the other.
 - **print** `print expr` — evaluates `expr` (any expression, not just a variable), converts the result to a `FullFrameAnimation`/`TubeAnimation` (a `Frame`/`FullFrame`/`List[FullFrame]`/`TubeSequence`/`List[TubeSequence]` is wrapped using `delay`/`rate`) and appends it to the file. With no argument (`print`), the most recently assigned variable is printed. `TubeAnimation`s are merged onto a shared timeline of full frames.
 
+A sandbox line ending in `\` is joined with the following line before parsing, so a long expression can be split across several lines. A `\` with no following line before `sandbox|end` is an error.
+
 ### Expressions
 
 Tokenized, then evaluated in a second pass with precedence `*` then `+` then
@@ -55,7 +57,7 @@ Tokenized, then evaluated in a second pass with precedence `*` then `+` then
 
 - `animation_library` functions — the name is tried as-is, then with a `make` prefix (so `TextAnimation` resolves to `makeTextAnimation`); arguments are variables/literals/`name=value` kwargs only (no nested calls)
 - variables defined earlier in the block
-- int/float/string literals
+- int/float/string literals, plus `True`/`False`/`None` (only valid as argument values, and only in that exact capitalization)
 - `[...]` lists of same-typed items
 - the operators `+`, `*`, `|`
 

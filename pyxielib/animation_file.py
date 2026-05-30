@@ -78,6 +78,7 @@ class FileAnimation(FullFrameAnimation):
         ## Parse file line by line
         line_no = 0
         errors = []
+        sandbox_pending = ''  ## carries sandbox lines joined by a trailing '\'
         for line in ani_file:
             ## Get command and arguments from line
             line_no += 1
@@ -88,16 +89,7 @@ class FileAnimation(FullFrameAnimation):
 
             ## Route every line of an open sandbox block to its parser
             if self._sandbox is not None:
-                if line == 'sandbox|end':
-                    try:
-                        self._endSandbox()
-                    except FileAnimationError as e:
-                        errors.append((line_no, e.what()))
-                    continue
-                try:
-                    self._sandbox.parseLine(line)
-                except FileAnimationError as e:
-                    errors.append((line_no, e.what()))
+                sandbox_pending = self._routeSandboxLine(line, sandbox_pending, line_no, errors)
                 continue
 
             args = line.split('|')
@@ -162,6 +154,30 @@ class FileAnimation(FullFrameAnimation):
             raise FileAnimationError(f"Found {num} errors:\n" + "\n".join(errors))
 
         return self.fullframes
+
+    def _routeSandboxLine(self, line, pending, line_no, errors):
+        """Feed one line to the open sandbox, joining lines that end with '\\'.
+
+        Returns the continuation buffer to carry into the next line.
+        """
+        if line == 'sandbox|end':
+            if pending:
+                errors.append((line_no, "Sandbox line continuation '\\' has no following line"))
+            try:
+                self._endSandbox()
+            except FileAnimationError as e:
+                errors.append((line_no, e.what()))
+            return ''
+
+        line = pending + line
+        if line.endswith('\\'):
+            return line[:-1]
+
+        try:
+            self._sandbox.parseLine(line)
+        except FileAnimationError as e:
+            errors.append((line_no, e.what()))
+        return ''
 
     def _parseSprite(self, name, code):
         """Parse a sprite line"""
