@@ -102,6 +102,7 @@ Files in `animations/` use a custom DSL parsed by `FileAnimation`:
 - `scale|factor` — multiply all delays
 - `sequence|start|name` / `sequence|end` / `sequence|insert|name` — named reusable frame sequences
 - `repeat|start|N` / `repeat|end` — anonymous sequence repeated N times inline; may appear inside a named sequence but named sequences may not be started inside a repeat block
+- `sandbox|start` / `sandbox|end` — assemble animations from `animation_library.py` (see below); printed animations are appended to the file as full frames
 - `{N}` in content is a multiplier; `{sprite_name}` expands a named sprite/segment
 
 Grammar:
@@ -116,8 +117,33 @@ frame      : content
 sequence   : frame+
 comment    : `#` rest of line
 
+### Sandbox block (`animation_sandbox.py`)
+
+Between `sandbox|start` and `sandbox|end`, lines use a safe expression mini-language (handled entirely in `pyxielib/animation_sandbox.py` by `SandboxParser`, never `eval`). Three line types:
+- **assignment** `name = expr` — `name` matches `[A-Za-z]\w+` (2+ chars) and may not be a DSL keyword, a class in `animation.py`, or `set`/`print`. Result must be an `animation.py` instance (or a same-typed list of them) and is stored in a namespace separate from the file's sprites/segments.
+- **set** `set delay|rate = literal` — `delay` (defaults to the file `scale`) and `rate` are non-negative floats and mutually exclusive: setting one non-zero zeroes the other.
+- **print** `print name` — converts the variable to a `FullFrameAnimation`/`TubeAnimation` (a `Frame`/`FullFrame`/`List[FullFrame]`/`TubeSequence`/`List[TubeSequence]` is wrapped using `delay`/`rate`) and appends it to the file. `TubeAnimation`s are merged onto a shared timeline of full frames.
+
+Expressions: tokenized then evaluated in a second pass with `*` before `+`. They may contain `animation_library` functions (name is tried as-is, then with a `make` prefix; args are variables/literals/`name=value` kwargs only — no nested calls), variables, int/float/string literals, `[...]` lists of same-typed items, and `+`/`*`. A bare (non-argument) string literal is converted to a `FullFrame` via `textToFrames`.
+
 ### Production deployment
 
 The production system runs on a Raspberry Pi. `raspi_run` is the startup script: it pulls `nixie-live` branch from git, then launches `run_display -c raspi`. Logs go to `~/logs/nixie.log` and `~/logs/nixie.stderr`.
 
 The live branch is `nixie-live`. `master` is the development branch.
+
+# Conversations
+
+118314d4-facd-4669-ace1-e1597c390ff1
+- KeyWatcher fix — _find_keyboard now returns None when no keyboard is found instead of falling back to event_path unconditionally.
+- TRACE log level — Added a custom TRACE level (5) below DEBUG to Python's logging module in pyxieutil.py.
+- Boot speed — Investigated a slow nixieboot.service (6.7s). Added lazy loads. Also wrote nixie_boot.c to send the boot message over SPI directly
+- animation.py refactor — Moved FileAnimationError and FileAnimation into a new animation_file.py.
+- Animation DSL additions (all in animation_file.py):
+  - repeat|start|N / repeat|end — anonymous inline sequence repeated N times
+  - Fixed inline hex literals {0x1A2B} not tokenizing in frame content
+  - Fixed tokenizer infinite loop on malformed brace tokens
+  - import|[scale|]filepath — import sprites/segments/sequences from a library file; scale is optional
+  - sequence|insert|name|shift — optional integer shift to slide a sequence left or right when inserting
+  - flatten|start|name / |content lines / flatten|end — overlay anonymous inline segments per-tube into a named segment, with hex bitmap
+  - sandbox|start / sandbox|end — assemble animations from animation_library functions via a safe (no-eval) expression mini-language with assignment/set/print lines; handlers live in new file animation_sandbox.py. Also fixed long-standing TubeSequence/FullFrameAnimation __mul__ bugs (returned/re-wrapped a TubeSequence, raising TypeError on any int multiply)

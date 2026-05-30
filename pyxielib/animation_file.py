@@ -26,6 +26,7 @@ class FileAnimation(FullFrameAnimation):
         self.sequence      = None
         self._repeat:      Optional[Tuple[int, List]] = None  ## (count, saved_active) during repeat|start/end
         self._flatten:     Optional[Tuple[str, List]] = None  ## (name, [segments]) during flatten|start/end
+        self._sandbox      = None  ## SandboxParser during sandbox|start/end
         self._library_mode: bool = False
         self._imported:    Set[str] = set()
         self.sprites:      Dict[str, Frame] = {}
@@ -45,6 +46,7 @@ class FileAnimation(FullFrameAnimation):
         obj.sequence      = None
         obj._repeat       = None
         obj._flatten      = None
+        obj._sandbox      = None
         obj._library_mode = True
         obj._imported     = imported
         obj.sprites       = {}
@@ -84,6 +86,20 @@ class FileAnimation(FullFrameAnimation):
             if not line:
                 continue
 
+            ## Route every line of an open sandbox block to its parser
+            if self._sandbox is not None:
+                if line == 'sandbox|end':
+                    try:
+                        self._endSandbox()
+                    except FileAnimationError as e:
+                        errors.append((line_no, e.what()))
+                    continue
+                try:
+                    self._sandbox.parseLine(line)
+                except FileAnimationError as e:
+                    errors.append((line_no, e.what()))
+                continue
+
             args = line.split('|')
             if not args:
                 errors.append((line_no, "Line is blank"))
@@ -118,6 +134,7 @@ class FileAnimation(FullFrameAnimation):
                 'repeat':   (1, 1, self._parseRepeat),
                 'flatten':  (1, 1, self._parseFlatten),
                 'import':   (1, 1, self._parseImport),
+                'sandbox':  (1, 0, self._parseSandbox),
             }
             try:
                 if cmd not in handlers:
@@ -135,6 +152,9 @@ class FileAnimation(FullFrameAnimation):
             except FileAnimationError as e:
                 errors.append((line_no, e.what()))
                 continue
+
+        if self._sandbox is not None:
+            errors.append((line_no, "Sandbox block was not closed with 'sandbox|end'"))
 
         if errors:
             num = len(errors)
@@ -388,6 +408,31 @@ class FileAnimation(FullFrameAnimation):
         for name, frames in lib.sequences.items():
             self.sequences[name] = [(t * import_scale, f) for t, f in frames]
             logger.debug(f"Imported sequence '{name}'")
+
+    def _parseSandbox(self, subcmd):
+        if subcmd == 'start':
+            if self._sandbox is not None:
+                raise FileAnimationError("Cannot nest sandbox blocks")
+            if self.sequence is not None or self._repeat is not None or self._flatten is not None:
+                raise FileAnimationError("Cannot start a sandbox block inside another block")
+
+            ## Imported lazily to avoid a circular import with animation_sandbox
+            from pyxielib.animation_sandbox import SandboxParser
+            self._sandbox = SandboxParser(scale=self.scale, size=self.size)
+            logger.debug("Starting sandbox block")
+        elif subcmd == 'end':
+            self._endSandbox()
+        else:
+            raise FileAnimationError(f"Unknown sandbox subcommand '{subcmd}'")
+
+    def _endSandbox(self):
+        if self._sandbox is None:
+            raise FileAnimationError("No sandbox block to end")
+
+        sandbox = self._sandbox
+        self._sandbox = None
+        self.active.extend(sandbox.fullFrames())
+        logger.debug(f"Ended sandbox block ({len(sandbox.printed)} printed animations)")
 
     @staticmethod
     def _tokenize(line):

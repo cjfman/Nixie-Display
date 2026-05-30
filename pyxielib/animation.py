@@ -338,7 +338,6 @@ class TubeSequence:
         elif isinstance(x, int):
             ## Multiply list
             frames = self.frames*x
-            return TubeSequence(self.frames*x)
         elif isinstance(x, float):
             ## Mulitply list by integer part
             frames = self.frames*int(x)
@@ -551,6 +550,9 @@ class TubeAnimation(Animation):
         for i, x in enumerate(tubes):
             self.tubes[i] += x
 
+    def __mul__(self, x:int):
+        return TubeAnimation([tube * x for tube in self.tubes])
+
     def __eq__(self, other):
         if other is None:
             return False
@@ -755,9 +757,7 @@ class FullFrameAnimation(Animation):
         if isinstance(x, int):
             ## Multiply list
             frames = self.frames*x
-            return TubeSequence(self.frames*x)
-
-        if isinstance(x, float):
+        elif isinstance(x, float):
             ## Mulitply list by integer part
             frames = self.frames*int(x)
             f = x - int(x)
@@ -769,7 +769,7 @@ class FullFrameAnimation(Animation):
         return frames
 
     def __mul__(self, x:int):
-        return TubeSequence(self._mul_helper(x))
+        return FullFrameAnimation(self._mul_helper(x))
 
     def __imul__(self, x:int):
         if not isinstance(x, int):

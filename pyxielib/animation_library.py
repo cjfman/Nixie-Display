@@ -30,9 +30,9 @@ def makeSpinTubeSequence(rate, offset=0, reverse=False):
     return TubeSequence.makeTimed(frames, rate)
 
 
-def makeSpinAnimation(*, rate=3, num_tubes=1, offset=0, loop=True) -> TubeAnimation:
+def makeSpinAnimation(*, rate=3, num_tubes=1, offset=0, reverse=False, loop=False) -> TubeAnimation:
     """Create a spin animation"""
-    seq = makeSpinTubeSequence(rate, offset)
+    seq = makeSpinTubeSequence(rate, offset, reverse)
     animations = [seq.clone() for x in range(num_tubes)]
     if loop:
         return LoopedTubeAnimation(animations)

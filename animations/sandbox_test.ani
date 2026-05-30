@@ -1,0 +1,4 @@
+sandbox|start
+spin_1 = SpinAnimation(rate=10)*10
+print spin_1
+sandbox|end

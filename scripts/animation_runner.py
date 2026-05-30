@@ -14,6 +14,7 @@ parser = argparse.ArgumentParser(description='Nixie Tube Animation Running')
 parser.add_argument('-c', '--controller', choices=['terminal', 'serial'], default='terminal')
 parser.add_argument('-n', '--no-clear', action='store_true')
 parser.add_argument('-a', '--animation', default="animations/packman.ani")
+parser.add_argument('-l', '--loops', type=int)
 args = parser.parse_args()
 
 
@@ -34,8 +35,12 @@ asmlr.start()
 asmlr.setAnimation(ani)
 
 try:
+    count = 0
     while True:
         if asmlr.animationDone():
+            count += 1
+            if args.loops and count >= args.loops:
+                break
             asmlr.rerun()
 
         time.sleep(0.1)
