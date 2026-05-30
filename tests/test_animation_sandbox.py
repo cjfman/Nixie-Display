@@ -89,6 +89,59 @@ class OperatorOrderTest(unittest.TestCase):
         self.assertEqual(p.variables['tripled'].tubes[0].frameCount(), original * 3)
 
 
+class ConcatOperatorTest(unittest.TestCase):
+    def setUp(self):
+        self.p = SandboxParser()
+
+    def test_frame_or_frame_makes_fullframe(self):
+        from pyxielib.animation import HexFrame
+        result = self.p._applyOp('|', HexFrame(0x1), HexFrame(0x2))
+        self.assertIsInstance(result, FullFrame)
+        self.assertEqual(result.tubeCount(), 2)
+
+    def test_fullframe_concat_via_strings(self):
+        self.p.parseLine('xx = "AB" | "CD"')
+        value = self.p.variables['xx']
+        self.assertIsInstance(value, FullFrame)
+        self.assertEqual(value.tubeCount(), 4)
+
+    def test_tube_sequence_concat_makes_frame_sequence(self):
+        self.p.parseLine('aa = SpinTubeSequence(3)')
+        self.p.parseLine('bb = aa | aa')
+        value = self.p.variables['bb']
+        self.assertIsInstance(value, list)
+        self.assertTrue(all(isinstance(f, FullFrame) for f in value))
+        self.assertEqual(value[0].tubeCount(), 2)
+
+    def test_tube_animation_concat_makes_full_frame_animation(self):
+        self.p.parseLine('sa = SpinAnimation(rate=3, num_tubes=2)')
+        self.p.parseLine('sb = SpinAnimation(rate=3, num_tubes=3)')
+        self.p.parseLine('cc = sa | sb')
+        value = self.p.variables['cc']
+        self.assertIsInstance(value, FullFrameAnimation)
+        self.assertEqual(value.tubeCount(), 5)
+
+    def test_plus_binds_before_concat(self):
+        ## aa + aa | aa  parses as  (aa + aa) | aa
+        self.p.parseLine('aa = SpinTubeSequence(3)')   ## 8 frames
+        self.p.parseLine('bb = aa + aa | aa')
+        value = self.p.variables['bb']
+        self.assertEqual(len(value), 16)
+        self.assertEqual(value[0].tubeCount(), 2)
+
+    def test_mixed_shape_rejected(self):
+        self.p.parseLine('aa = SpinTubeSequence(3)')   ## sequence
+        self.p.parseLine('ff = "AB"')                  ## instant
+        self.assertRaises(SandboxError, self.p.parseLine, 'bad = aa | ff')
+
+    def test_print_concatenated_animations(self):
+        self.p.parseLine('sa = SpinAnimation(rate=3, num_tubes=2)')
+        self.p.parseLine('sb = SpinAnimation(rate=3, num_tubes=2)')
+        self.p.parseLine('cc = sa | sb')
+        self.p.parseLine('print cc')
+        self.assertGreater(len(self.p.fullFrames()), 0)
+
+
 class SettingsTest(unittest.TestCase):
     def test_default_delay_is_scale(self):
         p = SandboxParser(scale=0.5)

@@ -61,7 +61,7 @@ _TOKEN_RE = re.compile('|'.join([
     r'(?P<string>"[^"]*"|\'[^\']*\')',
     r'(?P<number>\d+\.\d+|\d+)',
     r'(?P<name>[A-Za-z]\w*)',
-    r'(?P<op>[+*])',
+    r'(?P<op>[+*|])',
     r'(?P<lparen>\()',
     r'(?P<rparen>\))',
     r'(?P<lbracket>\[)',
@@ -396,10 +396,11 @@ class SandboxParser:
             raise SandboxError(f"Error calling '{name}': {e}")
 
     def _reduceExpression(self, expression):
-        """Reduce [operand, op, operand, ...] honoring '*' before '+'"""
-        multiplied = self._reduceOperator(expression, '*')
-        added = self._reduceOperator(multiplied, '+')
-        return added[0]
+        """Reduce [operand, op, operand, ...] honoring '*' before '+' before '|'"""
+        expression = self._reduceOperator(expression, '*')
+        expression = self._reduceOperator(expression, '+')
+        expression = self._reduceOperator(expression, '|')
+        return expression[0]
 
     def _reduceOperator(self, expression, target):
         """Collapse every occurrence of one operator left to right"""
@@ -417,8 +418,9 @@ class SandboxParser:
 
         return reduced
 
-    @staticmethod
-    def _applyOp(op, left, right):
+    def _applyOp(self, op, left, right):
+        if op == '|':
+            return self._concatTubes(left, right)
         try:
             return left * right if op == '*' else left + right
         except SandboxError:
@@ -427,6 +429,114 @@ class SandboxParser:
             raise SandboxError(
                 f"Cannot apply '{op}' to {type(left).__name__} and {type(right).__name__}: {e}"
             )
+
+    ## ----- tube concatenation ('|') --------------------------------------
+
+    def _concatTubes(self, left, right):
+        """Concatenate the tubes of two operands of the same shape"""
+        left_shape = self._shape(left)
+        right_shape = self._shape(right)
+        if left_shape is None or right_shape is None:
+            bad = left if left_shape is None else right
+            raise SandboxError(f"'|' cannot concatenate a {type(bad).__name__}")
+        if left_shape != right_shape:
+            raise SandboxError(
+                f"'|' cannot concatenate {type(left).__name__} with {type(right).__name__}"
+            )
+
+        if left_shape == 'instant':
+            return FullFrame(self._asFrameList(left) + self._asFrameList(right))
+        if left_shape == 'sequence':
+            return self._concatRows(self._asRowList(left), self._asRowList(right))
+        return FullFrameAnimation(
+            self._mergeTimedTubes(self._asTimedFrames(left), self._asTimedFrames(right))
+        )
+
+    @staticmethod
+    def _shape(value):
+        """Classify an operand by its tube/time shape for '|'"""
+        if isinstance(value, (Frame, FullFrame)):
+            return 'instant'
+        if isinstance(value, TubeSequence):
+            return 'sequence'
+        if isinstance(value, list) and value and all(isinstance(v, FullFrame) for v in value):
+            return 'sequence'
+        if isinstance(value, (TubeAnimation, FullFrameAnimation)):
+            return 'timed'
+        return None
+
+    @staticmethod
+    def _asFrameList(value) -> List[Frame]:
+        """A single-instant operand as a flat list of tube frames"""
+        if isinstance(value, FullFrame):
+            return value.getFrames()
+        return [value]
+
+    @staticmethod
+    def _asRowList(value) -> List[FullFrame]:
+        """An untimed sequence operand as a list of full-frame rows"""
+        if isinstance(value, TubeSequence):
+            return [FullFrame([frame]) for _, frame in value.frames]
+        return list(value)
+
+    def _concatRows(self, left_rows, right_rows) -> List[FullFrame]:
+        left_width = max((row.tubeCount() for row in left_rows), default=0)
+        right_width = max((row.tubeCount() for row in right_rows), default=0)
+        rows: List[FullFrame] = []
+        for index in range(max(len(left_rows), len(right_rows))):
+            left = left_rows[index] if index < len(left_rows) else None
+            right = right_rows[index] if index < len(right_rows) else None
+            tubes = self._padFrames(left, left_width) + self._padFrames(right, right_width)
+            rows.append(FullFrame(tubes))
+
+        return rows
+
+    def _asTimedFrames(self, value) -> List[TimeFullFrame]:
+        """A timed operand as a list of (delay, FullFrame)"""
+        if isinstance(value, TubeAnimation):
+            return self._tubeToFullFrames(value)
+        return list(value.frames)
+
+    def _mergeTimedTubes(self, left_frames, right_frames) -> List[TimeFullFrame]:
+        left_spans = self._fullFrameSpans(left_frames)
+        right_spans = self._fullFrameSpans(right_frames)
+        left_width = max((ff.tubeCount() for _, _, ff in left_spans), default=0)
+        right_width = max((ff.tubeCount() for _, _, ff in right_spans), default=0)
+        boundaries = sorted({0.0} | {e for _, e, _ in left_spans} | {e for _, e, _ in right_spans})
+
+        frames: List[TimeFullFrame] = []
+        for start, end in zip(boundaries, boundaries[1:]):
+            left = self._fullFrameAt(left_spans, start)
+            right = self._fullFrameAt(right_spans, start)
+            tubes = self._padFrames(left, left_width) + self._padFrames(right, right_width)
+            frames.append((end - start, FullFrame(tubes)))
+
+        return frames
+
+    @staticmethod
+    def _padFrames(full_frame, width) -> List[Frame]:
+        frames = full_frame.getFrames() if full_frame is not None else []
+        if len(frames) < width:
+            frames = frames + [Frame()] * (width - len(frames))
+        return frames
+
+    @staticmethod
+    def _fullFrameSpans(timed_frames) -> List[Tuple[float, float, FullFrame]]:
+        spans: List[Tuple[float, float, FullFrame]] = []
+        clock = 0.0
+        for delay, full_frame in timed_frames:
+            spans.append((clock, clock + delay, full_frame))
+            clock += delay
+
+        return spans
+
+    @staticmethod
+    def _fullFrameAt(spans, when):
+        for start, end, full_frame in spans:
+            if start <= when < end:
+                return full_frame
+
+        return None
 
     ## ----- output --------------------------------------------------------
 

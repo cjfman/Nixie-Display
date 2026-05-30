@@ -1,4 +1,7 @@
 sandbox|start
-spin_1 = SpinAnimation(rate=10)*10
+spin_1 = SpinAnimation(rate=10)*2 | SpinAnimation(rate=10, offset=1)*2
 print spin_1
+#message = "Hello, World"
+#print message
+#message = message + "- -" + message
 sandbox|end

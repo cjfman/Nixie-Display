@@ -124,7 +124,9 @@ Between `sandbox|start` and `sandbox|end`, lines use a safe expression mini-lang
 - **set** `set delay|rate = literal` — `delay` (defaults to the file `scale`) and `rate` are non-negative floats and mutually exclusive: setting one non-zero zeroes the other.
 - **print** `print name` — converts the variable to a `FullFrameAnimation`/`TubeAnimation` (a `Frame`/`FullFrame`/`List[FullFrame]`/`TubeSequence`/`List[TubeSequence]` is wrapped using `delay`/`rate`) and appends it to the file. `TubeAnimation`s are merged onto a shared timeline of full frames.
 
-Expressions: tokenized then evaluated in a second pass with `*` before `+`. They may contain `animation_library` functions (name is tried as-is, then with a `make` prefix; args are variables/literals/`name=value` kwargs only — no nested calls), variables, int/float/string literals, `[...]` lists of same-typed items, and `+`/`*`. A bare (non-argument) string literal is converted to a `FullFrame` via `textToFrames`.
+Expressions: tokenized then evaluated in a second pass with precedence `*` then `+` then `|`. They may contain `animation_library` functions (name is tried as-is, then with a `make` prefix; args are variables/literals/`name=value` kwargs only — no nested calls), variables, int/float/string literals, `[...]` lists of same-typed items, and the operators `+`, `*`, `|`. A bare (non-argument) string literal is converted to a `FullFrame` via `textToFrames`.
+
+The `|` operator concatenates tubes (joins operands side-by-side along the tube axis); both sides must be the same shape: `Frame|Frame → FullFrame`, `TubeSequence|TubeSequence → List[FullFrame]`, `TubeAnimation|TubeAnimation → FullFrameAnimation` (timed operands are merged onto a shared timeline; ragged tube counts are blank-padded).
 
 ### Production deployment
 
@@ -147,3 +149,4 @@ The live branch is `nixie-live`. `master` is the development branch.
   - sequence|insert|name|shift — optional integer shift to slide a sequence left or right when inserting
   - flatten|start|name / |content lines / flatten|end — overlay anonymous inline segments per-tube into a named segment, with hex bitmap
   - sandbox|start / sandbox|end — assemble animations from animation_library functions via a safe (no-eval) expression mini-language with assignment/set/print lines; handlers live in new file animation_sandbox.py. Also fixed long-standing TubeSequence/FullFrameAnimation __mul__ bugs (returned/re-wrapped a TubeSequence, raising TypeError on any int multiply)
+  - sandbox `|` operator — concatenates tubes (Frame|Frame→FullFrame, TubeSequence|TubeSequence→List[FullFrame], TubeAnimation|TubeAnimation→FullFrameAnimation); lowest precedence. Added TubeAnimation.__mul__
