@@ -126,7 +126,7 @@ Between `sandbox|start` and `sandbox|end`, lines use a safe expression mini-lang
 
 Expressions: tokenized then evaluated in a second pass with precedence `*` then `+` then `|`. They may contain `animation_library` functions (name is tried as-is, then with a `make` prefix; args are variables/literals/`name=value` kwargs only — no nested calls), variables, int/float/string literals, `[...]` lists of same-typed items, and the operators `+`, `*`, `|`. A bare (non-argument) string literal is converted to a `FullFrame` via `textToFrames`.
 
-The `|` operator concatenates tubes (joins operands side-by-side along the tube axis); both sides must be the same shape: `Frame|Frame → FullFrame`, `TubeSequence|TubeSequence → List[FullFrame]`, `TubeAnimation|TubeAnimation → FullFrameAnimation` (timed operands are merged onto a shared timeline; ragged tube counts are blank-padded).
+The `|` operator concatenates tubes (joins operands side-by-side along the tube axis); both sides must be the same shape: `Frame|Frame → FullFrame`, `TubeSequence|TubeSequence → List[FullFrame]`, `TubeAnimation|TubeAnimation → FullFrameAnimation` (timed operands are merged onto a shared timeline; ragged tube counts are blank-padded). This is backed by real `__or__` operators on the `animation.py` classes (plus `TubeAnimation.toFullFrameAnimation()` and the `concatFullFrameRows`/`concatFullFrameTimelines` module helpers), so `|` works in plain Python too; the sandbox just delegates to it (and joins bare `List[FullFrame]` rows itself, since plain lists can't carry an operator).
 
 ### Production deployment
 
@@ -150,3 +150,4 @@ The live branch is `nixie-live`. `master` is the development branch.
   - flatten|start|name / |content lines / flatten|end — overlay anonymous inline segments per-tube into a named segment, with hex bitmap
   - sandbox|start / sandbox|end — assemble animations from animation_library functions via a safe (no-eval) expression mini-language with assignment/set/print lines; handlers live in new file animation_sandbox.py. Also fixed long-standing TubeSequence/FullFrameAnimation __mul__ bugs (returned/re-wrapped a TubeSequence, raising TypeError on any int multiply)
   - sandbox `|` operator — concatenates tubes (Frame|Frame→FullFrame, TubeSequence|TubeSequence→List[FullFrame], TubeAnimation|TubeAnimation→FullFrameAnimation); lowest precedence. Added TubeAnimation.__mul__
+  - Migrated `|` to real __or__ operators on animation.py classes (Frame/FullFrame/TubeSequence/TubeAnimation/FullFrameAnimation), plus TubeAnimation.toFullFrameAnimation() and concatFullFrameRows/concatFullFrameTimelines helpers; the sandbox now delegates to them

@@ -23,7 +23,7 @@ from pyxielib import animation_library
 from pyxielib.animation import (
     Animation, Frame, FullFrame, FullFrameAnimation,
     TimeFullFrame, TubeAnimation, TubeSequence,
-    textToFrames,
+    concatFullFrameRows, textToFrames,
 )
 from pyxielib.animation_file import FileAnimationError
 
@@ -433,109 +433,31 @@ class SandboxParser:
     ## ----- tube concatenation ('|') --------------------------------------
 
     def _concatTubes(self, left, right):
-        """Concatenate the tubes of two operands of the same shape"""
-        left_shape = self._shape(left)
-        right_shape = self._shape(right)
-        if left_shape is None or right_shape is None:
-            bad = left if left_shape is None else right
-            raise SandboxError(f"'|' cannot concatenate a {type(bad).__name__}")
-        if left_shape != right_shape:
+        """Concatenate tubes, delegating to the '|' operators defined in animation.py"""
+        ## A bare row list (List[FullFrame]) can't carry an operator, so join it here
+        if isinstance(left, list) or isinstance(right, list):
+            left_rows = self._asRows(left)
+            right_rows = self._asRows(right)
+            if left_rows is None or right_rows is None:
+                raise SandboxError(
+                    f"'|' cannot concatenate {type(left).__name__} with {type(right).__name__}"
+                )
+            return concatFullFrameRows(left_rows, right_rows)
+
+        try:
+            return left | right
+        except TypeError:
             raise SandboxError(
                 f"'|' cannot concatenate {type(left).__name__} with {type(right).__name__}"
             )
 
-        if left_shape == 'instant':
-            return FullFrame(self._asFrameList(left) + self._asFrameList(right))
-        if left_shape == 'sequence':
-            return self._concatRows(self._asRowList(left), self._asRowList(right))
-        return FullFrameAnimation(
-            self._mergeTimedTubes(self._asTimedFrames(left), self._asTimedFrames(right))
-        )
-
     @staticmethod
-    def _shape(value):
-        """Classify an operand by its tube/time shape for '|'"""
-        if isinstance(value, (Frame, FullFrame)):
-            return 'instant'
-        if isinstance(value, TubeSequence):
-            return 'sequence'
-        if isinstance(value, list) and value and all(isinstance(v, FullFrame) for v in value):
-            return 'sequence'
-        if isinstance(value, (TubeAnimation, FullFrameAnimation)):
-            return 'timed'
-        return None
-
-    @staticmethod
-    def _asFrameList(value) -> List[Frame]:
-        """A single-instant operand as a flat list of tube frames"""
-        if isinstance(value, FullFrame):
-            return value.getFrames()
-        return [value]
-
-    @staticmethod
-    def _asRowList(value) -> List[FullFrame]:
-        """An untimed sequence operand as a list of full-frame rows"""
+    def _asRows(value):
+        """A TubeSequence or List[FullFrame] as a list of FullFrame rows, else None"""
         if isinstance(value, TubeSequence):
             return [FullFrame([frame]) for _, frame in value.frames]
-        return list(value)
-
-    def _concatRows(self, left_rows, right_rows) -> List[FullFrame]:
-        left_width = max((row.tubeCount() for row in left_rows), default=0)
-        right_width = max((row.tubeCount() for row in right_rows), default=0)
-        rows: List[FullFrame] = []
-        for index in range(max(len(left_rows), len(right_rows))):
-            left = left_rows[index] if index < len(left_rows) else None
-            right = right_rows[index] if index < len(right_rows) else None
-            tubes = self._padFrames(left, left_width) + self._padFrames(right, right_width)
-            rows.append(FullFrame(tubes))
-
-        return rows
-
-    def _asTimedFrames(self, value) -> List[TimeFullFrame]:
-        """A timed operand as a list of (delay, FullFrame)"""
-        if isinstance(value, TubeAnimation):
-            return self._tubeToFullFrames(value)
-        return list(value.frames)
-
-    def _mergeTimedTubes(self, left_frames, right_frames) -> List[TimeFullFrame]:
-        left_spans = self._fullFrameSpans(left_frames)
-        right_spans = self._fullFrameSpans(right_frames)
-        left_width = max((ff.tubeCount() for _, _, ff in left_spans), default=0)
-        right_width = max((ff.tubeCount() for _, _, ff in right_spans), default=0)
-        boundaries = sorted({0.0} | {e for _, e, _ in left_spans} | {e for _, e, _ in right_spans})
-
-        frames: List[TimeFullFrame] = []
-        for start, end in zip(boundaries, boundaries[1:]):
-            left = self._fullFrameAt(left_spans, start)
-            right = self._fullFrameAt(right_spans, start)
-            tubes = self._padFrames(left, left_width) + self._padFrames(right, right_width)
-            frames.append((end - start, FullFrame(tubes)))
-
-        return frames
-
-    @staticmethod
-    def _padFrames(full_frame, width) -> List[Frame]:
-        frames = full_frame.getFrames() if full_frame is not None else []
-        if len(frames) < width:
-            frames = frames + [Frame()] * (width - len(frames))
-        return frames
-
-    @staticmethod
-    def _fullFrameSpans(timed_frames) -> List[Tuple[float, float, FullFrame]]:
-        spans: List[Tuple[float, float, FullFrame]] = []
-        clock = 0.0
-        for delay, full_frame in timed_frames:
-            spans.append((clock, clock + delay, full_frame))
-            clock += delay
-
-        return spans
-
-    @staticmethod
-    def _fullFrameAt(spans, when):
-        for start, end, full_frame in spans:
-            if start <= when < end:
-                return full_frame
-
+        if isinstance(value, list) and value and all(isinstance(v, FullFrame) for v in value):
+            return list(value)
         return None
 
     ## ----- output --------------------------------------------------------
@@ -549,39 +471,8 @@ class SandboxParser:
         return frames
 
     def _animationFrames(self, animation) -> List[TimeFullFrame]:
+        if isinstance(animation, TubeAnimation):
+            animation = animation.toFullFrameAnimation()
         if isinstance(animation, FullFrameAnimation):
             return list(animation.frames)
-        if isinstance(animation, TubeAnimation):
-            return self._tubeToFullFrames(animation)
         raise SandboxError(f"Cannot render a {type(animation).__name__}")
-
-    def _tubeToFullFrames(self, animation) -> List[TimeFullFrame]:
-        """Merge per-tube sequences onto a shared timeline of full frames"""
-        timelines = [self._tubeTimeline(seq) for seq in animation.tubes]
-        boundaries = sorted({0.0} | {end for timeline in timelines for _, end, _ in timeline})
-
-        frames: List[TimeFullFrame] = []
-        for start, end in zip(boundaries, boundaries[1:]):
-            tubes = [self._frameAt(timeline, start) for timeline in timelines]
-            frames.append((end - start, FullFrame(tubes)))
-
-        return frames
-
-    @staticmethod
-    def _tubeTimeline(seq) -> List[Tuple[float, float, Frame]]:
-        """Build (start, end, frame) spans for a single tube sequence"""
-        timeline: List[Tuple[float, float, Frame]] = []
-        clock = 0.0
-        for delay, frame in seq.frames:
-            timeline.append((clock, clock + delay, frame))
-            clock += delay
-
-        return timeline
-
-    @staticmethod
-    def _frameAt(timeline, when) -> Frame:
-        for start, end, frame in timeline:
-            if start <= when < end:
-                return frame
-
-        return Frame()

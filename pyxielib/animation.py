@@ -87,6 +87,14 @@ class Frame:
     def copy(self):
         return Frame(self.code)
 
+    def __or__(self, other):
+        """Concatenate tubes: a frame joined with another frame becomes a FullFrame"""
+        if isinstance(other, FullFrame):
+            return FullFrame([self] + other.getFrames())
+        if isinstance(other, Frame):
+            return FullFrame([self, other])
+        return NotImplemented
+
     def __str__(self):
         return self.code
 
@@ -178,6 +186,14 @@ class FullFrame():
     def clone(self):
         return FullFrame(self.frames[:])
 
+    def __or__(self, other):
+        """Concatenate tubes with another FullFrame or Frame"""
+        if isinstance(other, FullFrame):
+            return FullFrame(self.frames + other.getFrames())
+        if isinstance(other, Frame):
+            return FullFrame(self.frames + [other])
+        return NotImplemented
+
     def __eq__(self, other):
         return (self.frames == other.frames)
 
@@ -219,6 +235,65 @@ def textToFrames(text):
 TimeFrame = Tuple[float, Frame]
 TimeFullFrame = Tuple[float, FullFrame]
 FrameSequence = Sequence[Frame]
+
+
+def _frameSpans(timed_items):
+    """Convert [(delay, item), ...] into cumulative [(start, end, item), ...] spans"""
+    spans = []
+    clock = 0.0
+    for delay, item in timed_items:
+        spans.append((clock, clock + delay, item))
+        clock += delay
+
+    return spans
+
+
+def _spanValueAt(spans, when):
+    """Return the item whose [start, end) span contains 'when', else None"""
+    for start, end, item in spans:
+        if start <= when < end:
+            return item
+
+    return None
+
+
+def _padTubes(full_frame, width):
+    """The tube frames of a FullFrame (or None), blank-padded out to 'width'"""
+    frames = full_frame.getFrames() if full_frame is not None else []
+    if len(frames) < width:
+        frames = frames + [Frame()] * (width - len(frames))
+
+    return frames
+
+
+def concatFullFrameRows(left_rows, right_rows):
+    """Join two lists of FullFrame rows tube-wise, row by row (blank-padded)"""
+    left_width = max((row.tubeCount() for row in left_rows), default=0)
+    right_width = max((row.tubeCount() for row in right_rows), default=0)
+    rows = []
+    for index in range(max(len(left_rows), len(right_rows))):
+        left = left_rows[index] if index < len(left_rows) else None
+        right = right_rows[index] if index < len(right_rows) else None
+        rows.append(FullFrame(_padTubes(left, left_width) + _padTubes(right, right_width)))
+
+    return rows
+
+
+def concatFullFrameTimelines(left_frames, right_frames):
+    """Merge two [(delay, FullFrame)] timelines, joining tubes over a shared timeline"""
+    left_spans = _frameSpans(left_frames)
+    right_spans = _frameSpans(right_frames)
+    left_width = max((ff.tubeCount() for _, _, ff in left_spans), default=0)
+    right_width = max((ff.tubeCount() for _, _, ff in right_spans), default=0)
+    boundaries = sorted({0.0} | {e for _, e, _ in left_spans} | {e for _, e, _ in right_spans})
+    frames = []
+    for start, end in zip(boundaries, boundaries[1:]):
+        left = _spanValueAt(left_spans, start)
+        right = _spanValueAt(right_spans, start)
+        tubes = _padTubes(left, left_width) + _padTubes(right, right_width)
+        frames.append((end - start, FullFrame(tubes)))
+
+    return frames
 
 
 class TubeSequence:
@@ -360,6 +435,15 @@ class TubeSequence:
         self.frames = self._mul_helper(x)
         self.reset()
         return self
+
+    def __or__(self, other):
+        """Concatenate tubes: two single-tube sequences become a list of FullFrame rows"""
+        if not isinstance(other, TubeSequence):
+            return NotImplemented
+
+        left_rows = [FullFrame([frame]) for _, frame in self.frames]
+        right_rows = [FullFrame([frame]) for _, frame in other.frames]
+        return concatFullFrameRows(left_rows, right_rows)
 
     def clone(self):
         return TubeSequence(self.frames[:])
@@ -552,6 +636,21 @@ class TubeAnimation(Animation):
 
     def __mul__(self, x:int):
         return TubeAnimation([tube * x for tube in self.tubes])
+
+    def toFullFrameAnimation(self):
+        """Merge the per-tube sequences onto a shared timeline of full frames"""
+        timelines = [_frameSpans(tube.frames) for tube in self.tubes]
+        boundaries = sorted({0.0} | {end for timeline in timelines for _, end, _ in timeline})
+        frames = []
+        for start, end in zip(boundaries, boundaries[1:]):
+            tubes = [_spanValueAt(timeline, start) or Frame() for timeline in timelines]
+            frames.append((end - start, FullFrame(tubes)))
+
+        return FullFrameAnimation(frames)
+
+    def __or__(self, other):
+        """Concatenate tubes with another tube or full-frame animation"""
+        return self.toFullFrameAnimation() | other
 
     def __eq__(self, other):
         if other is None:
@@ -779,6 +878,14 @@ class FullFrameAnimation(Animation):
         self.frames = self._mul_helper(x)
         self.reset()
         return self
+
+    def __or__(self, other):
+        """Concatenate tubes with another full-frame (or tube) animation"""
+        if isinstance(other, TubeAnimation):
+            other = other.toFullFrameAnimation()
+        if not isinstance(other, FullFrameAnimation):
+            return NotImplemented
+        return FullFrameAnimation(concatFullFrameTimelines(self.frames, other.frames))
 
     def __copy__(self):
         return self.clone()

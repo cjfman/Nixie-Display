@@ -335,5 +335,57 @@ class MultiplyFixTest(unittest.TestCase):
         self.assertEqual(result.tubes[1].frameCount(), 6)
 
 
+class OrOperatorNativeTest(unittest.TestCase):
+    """The '|' tube-concatenation operators defined directly on animation.py classes"""
+
+    def setUp(self):
+        from pyxielib.animation import HexFrame
+        self.HexFrame = HexFrame
+
+    def test_frame_or_frame(self):
+        result = self.HexFrame(0x1) | self.HexFrame(0x2)
+        self.assertIsInstance(result, FullFrame)
+        self.assertEqual(result.tubeCount(), 2)
+
+    def test_fullframe_or_frame_and_fullframe(self):
+        from pyxielib.animation import textToFrames
+        ff = FullFrame(textToFrames("AB"))
+        self.assertEqual((ff | FullFrame(textToFrames("CD"))).tubeCount(), 4)
+        self.assertEqual((ff | self.HexFrame(0x4)).tubeCount(), 3)
+
+    def test_tube_sequence_or(self):
+        ts = TubeSequence.makeTimed([self.HexFrame(0x1), self.HexFrame(0x2)], rate=1)
+        rows = ts | ts
+        self.assertIsInstance(rows, list)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0].tubeCount(), 2)
+
+    def test_tube_animation_or(self):
+        ts = TubeSequence.makeTimed([self.HexFrame(0x1), self.HexFrame(0x2)], rate=1)
+        left = TubeAnimation([ts.clone(), ts.clone()])
+        right = TubeAnimation([ts.clone()])
+        result = left | right
+        self.assertIsInstance(result, FullFrameAnimation)
+        self.assertEqual(result.tubeCount(), 3)
+
+    def test_full_frame_animation_or_tube_animation(self):
+        from pyxielib.animation import textToFrames
+        ts = TubeSequence.makeTimed([self.HexFrame(0x1), self.HexFrame(0x2)], rate=1)
+        ffa = FullFrameAnimation.makeTimed([FullFrame(textToFrames("XY"))], rate=1)
+        result = ffa | TubeAnimation([ts])
+        self.assertIsInstance(result, FullFrameAnimation)
+        self.assertEqual(result.tubeCount(), 3)
+
+    def test_to_full_frame_animation(self):
+        ts = TubeSequence.makeTimed([self.HexFrame(0x1), self.HexFrame(0x2)], rate=1)
+        result = TubeAnimation([ts.clone(), ts.clone()]).toFullFrameAnimation()
+        self.assertIsInstance(result, FullFrameAnimation)
+        self.assertEqual(result.tubeCount(), 2)
+
+    def test_incompatible_or_raises_type_error(self):
+        ts = TubeSequence.makeTimed([self.HexFrame(0x1)], rate=1)
+        self.assertRaises(TypeError, lambda: self.HexFrame(0x1) | TubeAnimation([ts]))
+
+
 if __name__ == '__main__':
     unittest.main()
