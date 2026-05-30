@@ -210,6 +210,35 @@ class PrintConversionTest(unittest.TestCase):
         self.assertIsInstance(p.printed[-1], TubeAnimation)
         self.assertGreater(len(p.fullFrames()), 0)
 
+    def test_print_no_argument_uses_last_assigned(self):
+        p = SandboxParser()
+        p.parseLine('greeting = TextAnimation("HI")')
+        p.parseLine('spin = SpinAnimation(rate=3, num_tubes=4)')
+        p.parseLine('print')
+        self.assertIsInstance(p.printed[-1], TubeAnimation)
+        self.assertEqual(p.printed[-1].tubeCount(), 4)
+
+    def test_print_no_argument_without_assignment_errors(self):
+        p = SandboxParser()
+        self.assertRaises(SandboxError, p.parseLine, 'print')
+
+    def test_print_function_call_expression(self):
+        p = SandboxParser()
+        p.parseLine('print TextAnimation("HELLO")')
+        self.assertIsInstance(p.printed[-1], FullFrameAnimation)
+
+    def test_print_operator_expression(self):
+        p = SandboxParser()
+        p.parseLine('aa = SpinTubeSequence(3)')
+        p.parseLine('print aa | aa')
+        self.assertIsInstance(p.printed[-1], FullFrameAnimation)
+
+    def test_print_string_concat_expression(self):
+        p = SandboxParser()
+        p.parseLine('print "AB" | "CD"')
+        self.assertIsInstance(p.printed[-1], FullFrameAnimation)
+        self.assertEqual(p.printed[-1].tubeCount(), 4)
+
 
 class ErrorTest(unittest.TestCase):
     def setUp(self):

@@ -82,6 +82,7 @@ class SandboxParser:
         self.variables: Dict[str, Any] = {}
         self.settings:  Dict[str, float] = {'delay': float(scale), 'rate': 0.0}
         self.printed:   List[Animation] = []
+        self._last_assigned = None
 
     ## ----- line dispatch -------------------------------------------------
 
@@ -137,6 +138,7 @@ class SandboxParser:
         value = self._evaluate(tokens)
         self._validateValue(name, value)
         self.variables[name] = value
+        self._last_assigned = name
 
     def _validateVarName(self, name):
         if not _VAR_NAME_RE.match(name):
@@ -167,13 +169,19 @@ class SandboxParser:
     ## ----- print ---------------------------------------------------------
 
     def _parsePrint(self, arg):
-        name = arg.strip()
-        if not _VAR_NAME_RE.match(name):
-            raise SandboxError(f"'print' must be followed by a variable name, found '{name}'")
-        if name not in self.variables:
-            raise SandboxError(f"Cannot print undefined variable '{name}'")
+        arg = arg.strip()
+        if not arg:
+            ## No argument: print the most recently assigned variable
+            value = self._lastAssignedValue()
+        else:
+            value = self._evaluate(self._tokenize(arg))
 
-        self.printed.append(self._toAnimation(self.variables[name]))
+        self.printed.append(self._toAnimation(value))
+
+    def _lastAssignedValue(self):
+        if self._last_assigned is None:
+            raise SandboxError("'print' has no argument and no variable has been assigned yet")
+        return self.variables[self._last_assigned]
 
     def _toAnimation(self, value) -> Animation:
         """Convert a printed variable into a FullFrameAnimation or TubeAnimation"""
@@ -190,7 +198,11 @@ class SandboxParser:
         raise SandboxError(f"Cannot turn {type(value).__name__} into an animation")
 
     def _listToAnimation(self, value) -> Animation:
+        if not value:
+            raise SandboxError("Cannot print an empty list")
         first = value[0]
+        if any(type(item) is not type(first) for item in value):
+            raise SandboxError("Every element of a printed list must be the same type")
         if isinstance(first, FullFrame):
             return self._makeTimedFull(value)
         if isinstance(first, TubeSequence):
