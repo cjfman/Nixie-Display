@@ -2,7 +2,7 @@ import logging
 import os
 import re
 
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from pyxielib.animation import (
     Frame, FullFrame, HexFrame, FullFrameAnimation,
@@ -16,6 +16,27 @@ logger = logging.getLogger(__name__)
 
 class FileAnimationError(PixieAnimationError):
     """Use for errors found when parsing an animation file"""
+
+
+class ArgSpec:
+    """Declares the argument shape of a DSL command.
+
+    A command takes ``required`` positional arguments, up to ``optional`` more
+    positional arguments (``None`` for unlimited), and any of the named
+    arguments in ``named`` (a mapping of name to default value). In a command
+    call, positional arguments must come before named arguments, named
+    arguments are always written ``name=value`` (never positionally), and named
+    arguments may appear in any order.
+    """
+
+    def __init__(self, required, optional=0, named: Optional[Dict[str, Any]] = None, handler=None):
+        self.required = required        ## minimum number of positional arguments
+        self.optional = optional        ## extra positional slots allowed (None = unlimited)
+        ## Map of named-argument name -> default value used when it is omitted.
+        ## An empty map means the command takes no named arguments at all, so
+        ## its fields are never split on '=' (see FileAnimation._bindArgs).
+        self.named: Dict[str, Any] = named or {}
+        self.handler = handler          ## function invoked as handler(*positional, **named)
 
 
 class FileAnimation(FullFrameAnimation):
@@ -117,30 +138,30 @@ class FileAnimation(FullFrameAnimation):
                     errors.append((line_no, e.what()))
                 continue
 
+            ## Each command's argument shape (positional counts + named args)
+            ## is declared in an ArgSpec; _bindArgs validates the raw fields
+            ## against it before the handler runs.
             handlers = {
-                'sprite':   (2, 0, self._parseSprite),
-                'segment':  (2, 0, self._parseSegment),
-                'frame':    (2, 0, self._parseFrame),
-                'scale':    (1, 0, self._parseScale),
-                'sequence': (1, 2, self._parseSequence),
-                'repeat':   (1, 1, self._parseRepeat),
-                'flatten':  (1, 1, self._parseFlatten),
-                'import':   (1, 1, self._parseImport),
-                'sandbox':  (1, 0, self._parseSandbox),
+                'sprite':   ArgSpec(2, 0, handler=self._parseSprite),
+                'segment':  ArgSpec(2, 0, handler=self._parseSegment),
+                'frame':    ArgSpec(2, 0, handler=self._parseFrame),
+                'scale':    ArgSpec(1, 0, handler=self._parseScale),
+                'sequence': ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None}, handler=self._parseSequence),
+                'repeat':   ArgSpec(1, 1, handler=self._parseRepeat),
+                'flatten':  ArgSpec(1, 1, handler=self._parseFlatten),
+                'import':   ArgSpec(1, 1, handler=self._parseImport),
+                'sandbox':  ArgSpec(1, 0, handler=self._parseSandbox),
             }
             try:
                 if cmd not in handlers:
                     errors.append((line_no, f"No such command '{cmd}'"))
                     continue
 
-                num_req, num_opt, hdlr = handlers[cmd]
-                num_args = len(args)
-                max_num = None if num_opt is None else num_req + num_opt
-                if num_args < num_req or (max_num is not None and num_args > max_num):
-                    errors.append((line_no, f"Command '{cmd}' takes {num_req} required arguments and {num_opt} optional ones"))
-                    continue
-
-                hdlr(*args)
+                ## Split the fields into positional values and a named dict
+                ## (with defaults filled in), then dispatch to the handler.
+                spec = handlers[cmd]
+                positional, named = self._bindArgs(cmd, spec, args)
+                spec.handler(*positional, **named)
             except FileAnimationError as e:
                 errors.append((line_no, e.what()))
                 continue
@@ -178,6 +199,54 @@ class FileAnimation(FullFrameAnimation):
         except FileAnimationError as e:
             errors.append((line_no, e.what()))
         return ''
+
+    @staticmethod
+    def _bindArgs(cmd, spec, args: Sequence[str]) -> Tuple[List[str], Dict[str, Any]]:
+        """Split a command's raw fields into positional and named arguments.
+
+        Positional fields must precede named ones. A field of the form
+        ``key=value`` is a named argument; the command must declare ``key`` in
+        its ``ArgSpec``, and named arguments may appear in any order. Missing
+        named arguments are filled with their declared defaults. Only commands
+        that declare named arguments parse ``key=value`` fields, so commands
+        like ``frame`` may carry an '=' in their content.
+        """
+        positional: List[str] = []
+        named: Dict[str, Any] = {}
+        for arg in args:
+            ## A field is a named argument only when the command declares any
+            ## (spec.named) and the field looks like 'key=value'. Commands with
+            ## no named arguments skip this entirely, so '=' stays literal.
+            match = re.match(r"([A-Za-z]\w*)=(.*)$", arg) if spec.named else None
+            if match:
+                key, value = match.group(1), match.group(2)
+                if key not in spec.named:
+                    raise FileAnimationError(f"Command '{cmd}' has no named argument '{key}'")
+                if key in named:
+                    raise FileAnimationError(f"Command '{cmd}' got multiple values for named argument '{key}'")
+                named[key] = value
+            elif named:
+                ## Seeing a positional field after a named one breaks the
+                ## "positional before named" ordering rule.
+                raise FileAnimationError(f"Command '{cmd}' has positional argument '{arg}' after named arguments")
+            else:
+                positional.append(arg)
+
+        ## Positional count must land within [required, required + optional]
+        num = len(positional)
+        max_num = None if spec.optional is None else spec.required + spec.optional
+        if num < spec.required or (max_num is not None and num > max_num):
+            opt = 'unlimited' if spec.optional is None else spec.optional
+            raise FileAnimationError(
+                f"Command '{cmd}' takes {spec.required} required arguments and {opt} optional ones"
+            )
+
+        ## Fill in defaults for any named argument the call left out so the
+        ## handler always receives every named argument as a keyword.
+        for key, default in spec.named.items():
+            named.setdefault(key, default)
+
+        return positional, named
 
     def _parseSprite(self, name, code):
         """Parse a sprite line"""
@@ -280,7 +349,7 @@ class FileAnimation(FullFrameAnimation):
             frames += [Frame()] * missing
         return FullFrame(frames)
 
-    def _parseSequence(self, subcmd, name=None, shift=None):
+    def _parseSequence(self, subcmd, name=None, shift='0', repeat='1', scale=None):
         if subcmd == 'start':
             if name is None:
                 raise PixieAnimationError("Cannot start a sequence without a name")
@@ -304,24 +373,56 @@ class FileAnimation(FullFrameAnimation):
             self.active = self.fullframes
             logger.debug(f"Completed sequence '{name}'")
         elif subcmd == 'insert':
-            if name not in self.sequences:
-                raise PixieAnimationError(f"Sequence '{name}' doesn't exist")
+            self._insertSequence(name, shift, repeat, scale)
+        else:
+            raise FileAnimationError(f"Unknown sequence subcommand '{subcmd}'")
 
-            if shift is not None:
-                try:
-                    shift_n = int(shift)
-                except ValueError:
-                    raise FileAnimationError(f"sequence|insert shift must be an integer, not '{shift}'")
-            else:
-                shift_n = 0
+    def _insertSequence(self, name, shift, repeat, scale):
+        """Append a previously-defined sequence to the active frame list.
 
-            if shift_n == 0:
-                self.active.extend(self.sequences[name])
-            else:
-                self.active.extend(
-                    (t, self._shiftFullFrame(f, shift_n)) for t, f in self.sequences[name]
-                )
-            logger.debug(f"Inserted sequence '{name}' (shift={shift_n})")
+        ``shift`` slides each frame along the tube axis, ``scale`` multiplies
+        each frame's delay (defaulting to the file's current scale), and
+        ``repeat`` controls how many copies of the (shifted, scaled) sequence
+        are appended. The named arguments arrive as raw strings from _bindArgs.
+        """
+        if name not in self.sequences:
+            raise PixieAnimationError(f"Sequence '{name}' doesn't exist")
+
+        ## Convert the raw string arguments to numbers
+        shift_n  = self._intArg('sequence|insert shift', shift)
+        repeat_n = self._intArg('sequence|insert repeat', repeat)
+        if repeat_n < 1:
+            raise FileAnimationError("sequence|insert repeat must be a positive integer")
+        ## scale defaults to None from the ArgSpec, meaning "use the file scale"
+        scale_f = self.scale if scale is None else self._floatArg('sequence|insert scale', scale)
+
+        ## Build the transformed copy once, then append it repeat_n times.
+        ## Each entry is a (delay, FullFrame) tuple, so shift rewrites the frame
+        ## and scale rewrites the delay.
+        frames = self.sequences[name]
+        if shift_n:
+            frames = [(t, self._shiftFullFrame(f, shift_n)) for t, f in frames]
+        if scale_f != 1:
+            frames = [(t * scale_f, f) for t, f in frames]
+        for _ in range(repeat_n):
+            self.active.extend(frames)
+        logger.debug(f"Inserted sequence '{name}' (shift={shift_n}, repeat={repeat_n}, scale={scale_f})")
+
+    @staticmethod
+    def _intArg(label, value) -> int:
+        """Parse a named-argument string as an int, or raise with ``label``"""
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            raise FileAnimationError(f"{label} must be an integer, not '{value}'")
+
+    @staticmethod
+    def _floatArg(label, value) -> float:
+        """Parse a named-argument string as a float, or raise with ``label``"""
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            raise FileAnimationError(f"{label} must be a float, not '{value}'")
 
     def _parseRepeat(self, subcmd, count=None):
         if subcmd == 'start':

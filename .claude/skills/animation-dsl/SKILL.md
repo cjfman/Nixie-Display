@@ -16,12 +16,26 @@ per line and reported together with line numbers.
 - `segment|name|{sprite1}{sprite2}...` — define a named sequence of characters and sprites
 - `frame|delay_secs|<content>` — add a full frame composed of characters, sprites, and segments; `delay=0` overlays on the previous frame
 - `scale|factor` — multiply all delays
-- `sequence|start|name` / `sequence|end` / `sequence|insert|name|shift` — define and insert named reusable frame sequences; `shift` (optional integer) slides the inserted sequence left/right
+- `sequence|start|name` / `sequence|end` / `sequence|insert|name[|shift=N][|repeat=N][|scale=F]` — define and insert named reusable frame sequences. The insert options are **named arguments** (see below): `shift` (integer, default `0`) slides the inserted sequence left/right; `repeat` (positive integer, default `1`) inserts the sequence that many times; `scale` (float, default the current `scale`) multiplies each inserted frame's delay
 - `repeat|start|N` / `repeat|end` — anonymous sequence repeated N times inline; may appear inside a named sequence, but named sequences may not be started inside a repeat block
 - `flatten|start|name` / `|content` lines / `flatten|end` — overlay anonymous inline segments per-tube (as hex bitmaps) into a named segment
 - `import|[scale|]filepath` — import sprites/segments/sequences from a library file; `scale` is optional and multiplies imported sequence delays
 - `sandbox|start` / `sandbox|end` — assemble animations from `animation_library.py` (see below); printed animations are appended to the file as full frames
 - `{N}` in content is a multiplier; `{sprite_name}` expands a named sprite/segment; `{0x1A2B}` inserts a raw 16-bit bitmap
+
+## Named arguments
+
+Some commands accept **named arguments** written `name=value` (e.g.
+`sequence|insert|s|shift=2|repeat=3`). This is a general mechanism declared per
+command via `ArgSpec` in `animation_file.py` and resolved by
+`FileAnimation._bindArgs`, so it can be extended to other commands. The rules:
+
+- Positional arguments must come before any named argument in a call.
+- Named arguments are always written `name=value`; they may never be passed
+  positionally, and a command's positional argument may never be named.
+- Named arguments may appear in any order, and each may appear at most once.
+- A command only parses `name=value` fields if it declares named arguments, so
+  commands like `frame` may still carry an `=` in their content.
 
 ## Content grammar
 
