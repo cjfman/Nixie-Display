@@ -63,7 +63,7 @@ _KEYWORD_RE  = re.compile(r'^(set|print)\b')
 ## Order matters: floats before ints, longer punctuation handled individually
 _TOKEN_RE = re.compile('|'.join([
     r'(?P<string>"[^"]*"|\'[^\']*\')',
-    r'(?P<number>\d+\.\d+|\d+)',
+    r'(?P<number>-?\d+\.\d+|-?\d+)',
     r'(?P<bool>True|False)',
     r'(?P<none>None)',
     r'(?P<name>[A-Za-z]\w*)',
