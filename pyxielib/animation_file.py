@@ -307,11 +307,15 @@ class FileAnimation(FullFrameAnimation):
         if self._library_mode and self.sequence is None:
             raise FileAnimationError("frame is only valid inside a sequence in library files")
 
-        ## Parse first argument
+        ## Parse first argument. Frames inside a sequence keep their raw delay;
+        ## scale is applied later by sequence|insert. Frames added directly to
+        ## the animation have no insert step, so scale is applied here.
         try:
-            length = float(length)*self.scale
+            length = float(length)
         except:
             raise FileAnimationError(f"Argument 'delay' must be a float, not '{length}'")
+        if self.sequence is None:
+            length *= self.scale
 
         frames = self._parseSegmentHlpr(line)
 
