@@ -1,6 +1,7 @@
 ## Sprites for edges of tubes
 sprite|l_rail|0x0030 ## left
 sprite|r_rail|0x0006 ## right
+sprite|lr_rail|0x0036 ## left/right
 sprite|t_rail|0x0001 ## top
 sprite|b_rail|0x0008 ## bottom
 sprite|tb_rail|0x0009 ## top/bottom
@@ -22,6 +23,16 @@ sprite|step_left|0x2408
 sprite|step_right|0x1208
 sprite|triangle_left|0x0478
 sprite|triangle_right|0x110e
+
+## Y spins
+sprite|y_1|0x0940 ## Y
+sprite|y_2|0x1280
+sprite|y_3|0x2500
+sprite|y_4|0x0a40
+sprite|y_5|0x1480
+sprite|y_6|0x2900
+sprite|y_7|0x1240
+sprite|y_8|0x2480
 
 ## Flatten test
 flatten|start|hello

@@ -136,14 +136,14 @@ def bitmapToDecodedChar(bitmap):
     return "\n".join(bitmapToLines(bitmap)) + "\n"
 
 
-def bitmapsToDecodedStr(bitmaps):
+def bitmapsToDecodedStr(bitmaps, buffer=0):
     bitmap_lines = [bitmapToLines(b) for b in bitmaps]
     out_lines = [""] * 6
     for lines in bitmap_lines:
         for i, line in enumerate(lines):
             out_lines[i] += line
-#            if len(line) <= 5:
-#               out_lines[i] += "   "
+            if buffer and len(line) <= 5:
+               out_lines[i] += " "*buffer
 
     return "\n".join(out_lines) + "\n"
 

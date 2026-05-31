@@ -1,6 +1,7 @@
 # Sprites
 # Rails
 import|common_sprites.alib
+import|common_sequences.alib
 segment|full_frame|{l_frame}{tb_rail}{14}{r_frame}
 scale|.01
 sequence|start|startup
@@ -259,13 +260,50 @@ frame|1|{l_frame}{tb_rail}{7}{b_rail}{tb_rail}{6}{r_frame}
 frame|1|{l_frame}{tb_rail}{6}{b_rail}{tb_rail}{7}{r_frame}
 repeat|end
 frame|100|{full_frame}
-frame|50|{0x2218}{mb_rail}{14}{0x220c}
-frame|50|_{16}
-frame|50| !{16}
-frame|50|
+flatten|start|step_1
+|{tr_corner}{16}
+|{l_rail}{bl_corner}{14}{r_rail}
+flatten|end
+frame|10|{step_1}
+frame|10|{lr_rail}{lr_rail}{15}
+frame|10|{0x0024}{16}
+frame|100|
 sequence|end
 sequence|insert|startup
 sandbox|start
-spin = SpinAnimation(rate=10) | SpinAnimation(rate=10, offset=4) | SpinAnimation(rate=10, reverse=True) | SpinAnimation(rate=10, offset=3) | SpinAnimation(rate=10, offset=8)
-print spin*10
+
+## Random spin
+spin = SpinAnimation(rate=10) |               SpinAnimation(rate=10, offset=4) |               SpinAnimation(rate=10, reverse=True)\
+    |  SpinAnimation(rate=10, offset=3) |     SpinAnimation(rate=10, offset=1) |               SpinAnimation(rate=10)\
+    |  SpinAnimation(rate=10, reverse=True) | SpinAnimation(rate=10, reverse=True, offset=9) | SpinAnimation(rate=10, offset=-1)\
+    |  SpinAnimation(rate=10, reverse=True) | SpinAnimation(rate=10, offset=2) |               SpinAnimation(rate=10, offset=-6)\
+    |  SpinAnimation(rate=10, reverse=True) | SpinAnimation(rate=10, offset=2, reverse=True) | SpinAnimation(rate=10)\
+	|  SpinAnimation(rate=10, offset=1)
+print spin*4
 sandbox|end
+
+## Crashes
+scale|.1
+frame|10|
+sequence|insert|crash_16
+frame|4|
+sequence|insert|crash_6
+frame|4|
+sequence|insert|crash_6|shift=4
+frame|2|
+sequence|insert|crash_4|shift=2
+frame|2|
+sequence|insert|crash_6|shift=8
+frame|2|
+sequence|insert|crash_4|shift=5
+frame|2|
+sequence|insert|crash_4|shift=12
+frame|2|
+sequence|insert|crash_6|shift=8
+
+## Collapse
+#frame|50|{full_frame}
+#frame|50|{0x2218}{mb_rail}{14}{0x220c}
+#frame|50|_{16}
+#frame|50| !{16}
+#frame|50|

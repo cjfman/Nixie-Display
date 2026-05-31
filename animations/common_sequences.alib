@@ -1,0 +1,47 @@
+## Sequences
+import|common_sprites.alib
+
+sequence|start|x_spin_1
+frame|1|x
+frame|1|+
+sequence|end
+
+sequence|start|x_spin_2
+frame|1|+
+frame|1|x
+sequence|end
+
+sequence|start|y_spin
+frame|1|{y_1}
+frame|1|{y_2}
+frame|1|{y_3}
+frame|1|{y_4}
+frame|1|{y_5}
+frame|1|{y_6}
+frame|1|{y_7}
+frame|1|{y_8}
+sequence|end
+
+## Crashes
+sequence|start|crash_16
+frame|1|> {14}<
+frame|1| {1}> {12}<
+frame|1| {2}> {10}<
+frame|1| {3}> {8}<
+frame|1| {4}> {6}<
+frame|1| {5}> {4}<
+frame|1| {6}> {2}<
+frame|1| {7}x
+sequence|insert|x_spin_2|shift=7|repeat=2|scale=1
+sequence|end
+sequence|start|crash_6
+frame|1|> {4}<
+frame|1| {1}> {2}<
+frame|1| {2}x
+sequence|insert|x_spin_2|shift=2|repeat=2|scale=1
+sequence|end
+sequence|start|crash_4
+frame|1|>  <
+frame|1| x
+sequence|insert|x_spin_2|shift=1|repeat=2|scale=1
+sequence|end

@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser(description='Nixie Tube Animation Running')
 parser.add_argument('-c', '--controller', choices=['terminal', 'serial'], default='terminal')
 parser.add_argument('-n', '--no-clear', action='store_true')
 parser.add_argument('-a', '--animation', default="animations/packman.ani")
-parser.add_argument('-l', '--loops', type=int)
+parser.add_argument('-l', '--loops', type=int, default=1)
 args = parser.parse_args()
 
 
