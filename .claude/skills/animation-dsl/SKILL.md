@@ -23,6 +23,7 @@ per line and reported together with line numbers.
 - `flatten|anon|scale` / `|content` lines / `flatten|end` — like `flatten|start`, but instead of naming a segment it inserts the flattened result as a single full frame into the animation right after the block, using `scale` as that frame's delay; like a `frame` delay it is multiplied by the file `scale`
 - `import|[scale|]filepath` — import sprites/segments/sequences from a library file; `scale` is optional and multiplies imported sequence delays
 - `sandbox|start` / `sandbox|end` — assemble animations from `animation_library.py` (see below); printed animations are appended to the file as full frames
+- `sequence|disable` / `flatten|disable` / `sandbox|disable` — disable a block: every line through the matching `<type>|end` is skipped unparsed (so even broken content inside is ignored), and all arguments on the `disable` line itself are ignored. Lets you comment out a whole block by changing its `start`/`anon` opener to `disable` without removing its arguments (the closing `<type>|end` stays)
 - `{N}` in content is a multiplier; `{sprite_name}` expands a named sprite/segment; `{0x1A2B}` inserts a raw 16-bit bitmap
 
 ## Named arguments

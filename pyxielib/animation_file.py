@@ -52,6 +52,7 @@ class FileAnimation(FullFrameAnimation):
         ## None and scale set to the delay of the frame inserted at flatten|end.
         self._flatten:     Optional[Tuple[Optional[str], List, Optional[float]]] = None
         self._sandbox      = None  ## SandboxParser during sandbox|start/end
+        self._skip_block   = None  ## 'sequence'/'flatten'/'sandbox' while skipping a disabled block
         self._library_mode: bool = False
         ## Cache shared down the import tree: filename -> parsed library object,
         ## or None while a file is still being parsed (marks a circular import).
@@ -75,6 +76,7 @@ class FileAnimation(FullFrameAnimation):
         obj._repeat       = None
         obj._flatten      = None
         obj._sandbox      = None
+        obj._skip_block   = None
         obj._library_mode = True
         obj._imported     = imported
         obj.sprites       = {}
@@ -120,6 +122,16 @@ class FileAnimation(FullFrameAnimation):
                 sandbox_pending = self._routeSandboxLine(line, sandbox_pending, line_no, errors)
                 continue
 
+            ## A disabled block (sequence|disable / flatten|disable /
+            ## sandbox|disable) swallows every line, unparsed, until its
+            ## matching '<type>|end'.
+            if self._skip_block is not None:
+                parts = line.split('|')
+                if parts[0] == self._skip_block and len(parts) > 1 and parts[1] == 'end':
+                    logger.debug(f"End of disabled {self._skip_block} block")
+                    self._skip_block = None
+                continue
+
             args = line.split('|')
             if not args:
                 errors.append((line_no, "Line is blank"))
@@ -141,6 +153,16 @@ class FileAnimation(FullFrameAnimation):
                     continue
                 try:
                     self._flatten[1].append(self._parseSegmentHlpr(args[0]))
+                except FileAnimationError as e:
+                    errors.append((line_no, e.what()))
+                continue
+
+            ## '<block>|disable' turns a whole block into a no-op: its arguments
+            ## are ignored entirely (never validated) and every line through the
+            ## matching '<block>|end' is skipped (handled at the top of the loop).
+            if cmd in ('sequence', 'flatten', 'sandbox') and args and args[0] == 'disable':
+                try:
+                    self._disableBlock(cmd)
                 except FileAnimationError as e:
                     errors.append((line_no, e.what()))
                 continue
@@ -178,6 +200,9 @@ class FileAnimation(FullFrameAnimation):
 
         if self._sandbox is not None:
             errors.append((line_no, "Sandbox block was not closed with 'sandbox|end'"))
+
+        if self._skip_block is not None:
+            errors.append((line_no, f"Disabled {self._skip_block} block was not closed with '{self._skip_block}|end'"))
 
         if errors:
             num = len(errors)
@@ -412,6 +437,19 @@ class FileAnimation(FullFrameAnimation):
             self._insertSequence(name, shift, repeat, scale)
         else:
             raise FileAnimationError(f"Unknown sequence subcommand '{subcmd}'")
+
+    def _disableBlock(self, kind):
+        """Skip a disabled block. The parse loop swallows every line until the
+        matching '<kind>|end'; all of the disable line's arguments are ignored.
+        """
+        if self.sequence is not None:
+            raise FileAnimationError(f"Cannot disable a {kind} block inside an open sequence")
+        if self._repeat is not None:
+            raise FileAnimationError(f"Cannot disable a {kind} block inside a repeat block")
+        if self._flatten is not None:
+            raise FileAnimationError(f"Cannot disable a {kind} block inside a flatten block")
+        self._skip_block = kind
+        logger.debug(f"Disabling {kind} block")
 
     def _insertSequence(self, name, shift, repeat, scale):
         """Append a previously-defined sequence to the active frame list."""
