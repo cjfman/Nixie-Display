@@ -2,7 +2,7 @@ import logging
 import os
 import re
 
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from pyxielib.animation import (
     Frame, FullFrame, HexFrame, FullFrameAnimation,
@@ -49,7 +49,9 @@ class FileAnimation(FullFrameAnimation):
         self._flatten:     Optional[Tuple[str, List]] = None  ## (name, [segments]) during flatten|start/end
         self._sandbox      = None  ## SandboxParser during sandbox|start/end
         self._library_mode: bool = False
-        self._imported:    Set[str] = set()
+        ## Cache shared down the import tree: filename -> parsed library object,
+        ## or None while a file is still being parsed (marks a circular import).
+        self._imported:    Dict[str, Optional['FileAnimation']] = {}
         self.sprites:      Dict[str, Frame] = {}
         self.sequences:    Dict[str, List[TimeFullFrame]] = {}
         self.segments:     Dict[str, List[Frame]] = {}
@@ -58,7 +60,7 @@ class FileAnimation(FullFrameAnimation):
         FullFrameAnimation.__init__(self, self.loadFrames(path))
 
     @classmethod
-    def _load_as_library(cls, path, imported: Set[str], size=16) -> 'FileAnimation':
+    def _load_as_library(cls, path, imported: Dict[str, Optional['FileAnimation']], size=16) -> 'FileAnimation':
         """Parse a .ani file as a library (sprites/segments/sequences only)."""
         obj = object.__new__(cls)
         obj.path          = path
@@ -162,7 +164,10 @@ class FileAnimation(FullFrameAnimation):
                 spec = handlers[cmd]
                 positional, named = self._bindArgs(cmd, spec, args)
                 spec.handler(*positional, **named)
-            except FileAnimationError as e:
+            except PixieAnimationError as e:
+                ## Catch the whole animation-error family (not just
+                ## FileAnimationError) so every parse failure is recorded with
+                ## its line number instead of aborting the parse uncaught.
                 errors.append((line_no, e.what()))
                 continue
 
@@ -294,7 +299,7 @@ class FileAnimation(FullFrameAnimation):
 
     def _parseSegment(self, name, line):
         if name in self.segments:
-            raise PyxieError(f"Segment '{name}' already exists")
+            raise FileAnimationError(f"Segment '{name}' already exists")
 
         self.segments[name] = self._parseSegmentHlpr(line)
 
@@ -352,13 +357,13 @@ class FileAnimation(FullFrameAnimation):
     def _parseSequence(self, subcmd, name=None, shift='0', repeat='1', scale=None):
         if subcmd == 'start':
             if name is None:
-                raise PixieAnimationError("Cannot start a sequence without a name")
+                raise FileAnimationError("Cannot start a sequence without a name")
             if self.sequence is not None:
-                raise PixieAnimationError(f"Cannot start new sequence '{name}' before finishing the current one")
+                raise FileAnimationError(f"Cannot start new sequence '{name}' before finishing the current one")
             if self._repeat is not None:
-                raise PixieAnimationError("Cannot start a named sequence inside a repeat block")
+                raise FileAnimationError("Cannot start a named sequence inside a repeat block")
             if name in self.sequences:
-                raise PixieAnimationError(f"Sequence already exists with name '{name}'")
+                raise FileAnimationError(f"Sequence already exists with name '{name}'")
 
             sequence = []
             self.sequences[name] = sequence
@@ -367,7 +372,7 @@ class FileAnimation(FullFrameAnimation):
             logger.debug(f"Starting sequence '{name}'")
         elif subcmd == 'end':
             if self.sequence is None:
-                raise PixieAnimationError("There is no sequence to end")
+                raise FileAnimationError("There is no sequence to end")
 
             self.sequence = None
             self.active = self.fullframes
@@ -386,7 +391,7 @@ class FileAnimation(FullFrameAnimation):
         are appended. The named arguments arrive as raw strings from _bindArgs.
         """
         if name not in self.sequences:
-            raise PixieAnimationError(f"Sequence '{name}' doesn't exist")
+            raise FileAnimationError(f"Sequence '{name}' doesn't exist")
 
         ## Convert the raw string arguments to numbers
         shift_n  = self._intArg('sequence|insert shift', shift)
@@ -511,15 +516,27 @@ class FileAnimation(FullFrameAnimation):
         full_path = os.path.normpath(os.path.join(base_dir, filepath.strip()))
         filename = os.path.basename(full_path)
 
+        ## A library is parsed at most once, but its symbols are merged into
+        ## every file that imports it so the result no longer depends on import
+        ## order. A None cache entry means the file is mid-parse (a circular
+        ## import), which we break by skipping rather than recursing.
         if filename in self._imported:
-            logger.debug(f"Skipping already-imported library '{filename}'")
+            lib = self._imported[filename]
+            if lib is None:
+                logger.debug(f"Skipping circular import of library '{filename}'")
+                return
+            logger.debug(f"Re-using already-parsed library '{filename}'")
+            self._mergeLibrary(lib, import_scale)
             return
 
-        self._imported.add(filename)
+        self._imported[filename] = None  ## mark in-progress to break import cycles
         logger.debug(f"Importing library '{full_path}' with scale={import_scale}")
-
         lib = FileAnimation._load_as_library(full_path, self._imported, size=self.size)
+        self._imported[filename] = lib
+        self._mergeLibrary(lib, import_scale)
 
+    def _mergeLibrary(self, lib, import_scale):
+        """Merge a parsed library's sprites, segments, and sequences into this file."""
         self.sprites.update(lib.sprites)
         self.segments.update(lib.segments)
         for name, frames in lib.sequences.items():
