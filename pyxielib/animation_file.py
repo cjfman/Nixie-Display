@@ -45,6 +45,7 @@ class FileAnimation(FullFrameAnimation):
         self.size          = size
         self.scale         = 1
         self.sequence      = None
+        self._anon_args    = None  ## (shift, repeat, scale) insert args during sequence|anon
         self._repeat:      Optional[Tuple[int, List]] = None  ## (count, saved_active) during repeat|start/end
         ## (name, [segments], scale) during a flatten block. A named block has
         ## name set and scale None; an anonymous block (flatten|anon) has name
@@ -70,6 +71,7 @@ class FileAnimation(FullFrameAnimation):
         obj.size          = size
         obj.scale         = 1
         obj.sequence      = None
+        obj._anon_args    = None
         obj._repeat       = None
         obj._flatten      = None
         obj._sandbox      = None
@@ -377,29 +379,55 @@ class FileAnimation(FullFrameAnimation):
             self.active = sequence
             self.sequence = name
             logger.debug(f"Starting sequence '{name}'")
+        elif subcmd == 'anon':
+            if name is not None:
+                raise FileAnimationError("sequence|anon takes no name, only insert arguments")
+            if self.sequence is not None:
+                raise FileAnimationError("Cannot start an anonymous sequence before finishing the current one")
+            if self._repeat is not None:
+                raise FileAnimationError("Cannot start an anonymous sequence inside a repeat block")
+
+            ## Build into a throwaway list; sequence|end inserts it with these args
+            self.active = []
+            self.sequence = '<anon>'
+            self._anon_args = (shift, repeat, scale)
+            logger.debug("Starting anonymous sequence")
         elif subcmd == 'end':
             if self.sequence is None:
                 raise FileAnimationError("There is no sequence to end")
 
+            closed = self.sequence
+            frames = self.active
+            anon_args = self._anon_args
             self.sequence = None
+            self._anon_args = None
             self.active = self.fullframes
-            logger.debug(f"Completed sequence '{name}'")
+            if anon_args is not None:
+                ## Anonymous block: insert the just-built frames exactly as if
+                ## the sequence had been named and immediately inserted here.
+                shift, repeat, scale = anon_args
+                self._appendInsertedFrames(frames, shift, repeat, scale, "anonymous sequence")
+            logger.debug(f"Completed sequence '{closed}'")
         elif subcmd == 'insert':
             self._insertSequence(name, shift, repeat, scale)
         else:
             raise FileAnimationError(f"Unknown sequence subcommand '{subcmd}'")
 
     def _insertSequence(self, name, shift, repeat, scale):
-        """Append a previously-defined sequence to the active frame list.
+        """Append a previously-defined sequence to the active frame list."""
+        if name not in self.sequences:
+            raise FileAnimationError(f"Sequence '{name}' doesn't exist")
+        self._appendInsertedFrames(self.sequences[name], shift, repeat, scale, f"sequence '{name}'")
+
+    def _appendInsertedFrames(self, frames, shift, repeat, scale, label):
+        """Transform a sequence's frames by the insert arguments and append them.
 
         ``shift`` slides each frame along the tube axis, ``scale`` multiplies
         each frame's delay (defaulting to the file's current scale), and
         ``repeat`` controls how many copies of the (shifted, scaled) sequence
-        are appended. The named arguments arrive as raw strings from _bindArgs.
+        are appended. The arguments arrive as raw strings (from _bindArgs for
+        sequence|insert, or from the sequence|anon line).
         """
-        if name not in self.sequences:
-            raise FileAnimationError(f"Sequence '{name}' doesn't exist")
-
         ## Convert the raw string arguments to numbers
         shift_n  = self._intArg('sequence|insert shift', shift)
         repeat_n = self._intArg('sequence|insert repeat', repeat)
@@ -411,14 +439,13 @@ class FileAnimation(FullFrameAnimation):
         ## Build the transformed copy once, then append it repeat_n times.
         ## Each entry is a (delay, FullFrame) tuple, so shift rewrites the frame
         ## and scale rewrites the delay.
-        frames = self.sequences[name]
         if shift_n:
             frames = [(t, self._shiftFullFrame(f, shift_n)) for t, f in frames]
         if scale_f != 1:
             frames = [(t * scale_f, f) for t, f in frames]
         for _ in range(repeat_n):
             self.active.extend(frames)
-        logger.debug(f"Inserted sequence '{name}' (shift={shift_n}, repeat={repeat_n}, scale={scale_f})")
+        logger.debug(f"Inserted {label} (shift={shift_n}, repeat={repeat_n}, scale={scale_f})")
 
     @staticmethod
     def _intArg(label, value) -> int:
