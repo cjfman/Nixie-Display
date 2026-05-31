@@ -19,6 +19,7 @@ per line and reported together with line numbers.
 - `sequence|start|name` / `sequence|end` / `sequence|insert|name[|shift=N][|repeat=N][|scale=F]` — define and insert named reusable frame sequences. The insert options are **named arguments** (see below): `shift` (integer, default `0`) slides the inserted sequence left/right; `repeat` (positive integer, default `1`) inserts the sequence that many times; `scale` (float, default the current `scale`) multiplies each inserted frame's delay
 - `repeat|start|N` / `repeat|end` — anonymous sequence repeated N times inline; may appear inside a named sequence, but named sequences may not be started inside a repeat block
 - `flatten|start|name` / `|content` lines / `flatten|end` — overlay anonymous inline segments per-tube (as hex bitmaps) into a named segment
+- `flatten|anon|scale` / `|content` lines / `flatten|end` — like `flatten|start`, but instead of naming a segment it inserts the flattened result as a single full frame into the animation right after the block, using `scale` as that frame's delay; like a `frame` delay it is multiplied by the file `scale`
 - `import|[scale|]filepath` — import sprites/segments/sequences from a library file; `scale` is optional and multiplies imported sequence delays
 - `sandbox|start` / `sandbox|end` — assemble animations from `animation_library.py` (see below); printed animations are appended to the file as full frames
 - `{N}` in content is a multiplier; `{sprite_name}` expands a named sprite/segment; `{0x1A2B}` inserts a raw 16-bit bitmap

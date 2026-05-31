@@ -46,7 +46,10 @@ class FileAnimation(FullFrameAnimation):
         self.scale         = 1
         self.sequence      = None
         self._repeat:      Optional[Tuple[int, List]] = None  ## (count, saved_active) during repeat|start/end
-        self._flatten:     Optional[Tuple[str, List]] = None  ## (name, [segments]) during flatten|start/end
+        ## (name, [segments], scale) during a flatten block. A named block has
+        ## name set and scale None; an anonymous block (flatten|anon) has name
+        ## None and scale set to the delay of the frame inserted at flatten|end.
+        self._flatten:     Optional[Tuple[Optional[str], List, Optional[float]]] = None
         self._sandbox      = None  ## SandboxParser during sandbox|start/end
         self._library_mode: bool = False
         ## Cache shared down the import tree: filename -> parsed library object,
@@ -486,23 +489,41 @@ class FileAnimation(FullFrameAnimation):
 
         return result
 
-    def _parseFlatten(self, subcmd, name=None):
+    def _parseFlatten(self, subcmd, arg=None):
         if subcmd == 'start':
-            if name is None:
+            if arg is None:
                 raise FileAnimationError("flatten|start requires a name")
             if self._flatten is not None:
                 raise FileAnimationError("Cannot nest flatten blocks")
-            if name in self.segments:
-                raise FileAnimationError(f"Segment '{name}' already exists")
-            self._flatten = (name, [])
-            logger.debug(f"Starting flatten block '{name}'")
+            if arg in self.segments:
+                raise FileAnimationError(f"Segment '{arg}' already exists")
+            self._flatten = (arg, [], None)
+            logger.debug(f"Starting flatten block '{arg}'")
+        elif subcmd == 'anon':
+            if arg is None:
+                raise FileAnimationError("flatten|anon requires a scale")
+            if self._flatten is not None:
+                raise FileAnimationError("Cannot nest flatten blocks")
+            scale = self._floatArg('flatten|anon scale', arg)
+            self._flatten = (None, [], scale)
+            logger.debug(f"Starting anonymous flatten block (scale={scale})")
         elif subcmd == 'end':
             if self._flatten is None:
                 raise FileAnimationError("No flatten block to end")
-            name, segs = self._flatten
+            name, segs, scale = self._flatten
             self._flatten = None
-            self.segments[name] = self._flattenSegments(segs)
-            logger.debug(f"Flattened {len(segs)} segments into '{name}'")
+            frames = self._flattenSegments(segs)
+            if name is None:
+                ## Anonymous block: insert the flattened frame straight into the
+                ## active animation, right after the block. Like a direct frame,
+                ## its delay is multiplied by the file scale (unless it lands in
+                ## a sequence, which applies the scale itself at insert time).
+                delay = scale if self.sequence is not None else scale * self.scale
+                self.active.append((delay, FullFrame(frames)))
+                logger.debug(f"Inserted anonymous flattened frame from {len(segs)} segments (delay={delay})")
+            else:
+                self.segments[name] = frames
+                logger.debug(f"Flattened {len(segs)} segments into '{name}'")
         else:
             raise FileAnimationError(f"Unknown flatten subcommand '{subcmd}'")
 
