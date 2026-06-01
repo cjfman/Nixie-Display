@@ -655,39 +655,74 @@ class FileAnimation(FullFrameAnimation):
             raise FileAnimationError(f"Unknown merge subcommand '{subcmd}'")
 
     def _parseMergeLine(self, args: Sequence[str]):
-        """Parse one '|name[|shift=N]' line inside a merge block."""
-        spec = ArgSpec(1, 0, named={'shift': '0'})
+        """Parse one '|name[|shift=N][|pad=N]' line inside a merge block."""
+        spec = ArgSpec(1, 0, named={'shift': '0', 'pad': '0'})
         positional, named = self._bindArgs('merge line', spec, args)
         name = positional[0]
         if name not in self.sequences:
             raise FileAnimationError(f"Sequence '{name}' doesn't exist")
         shift = self._intArg('merge shift', named['shift'])
-        self._merge[1].append((self.sequences[name], shift))
+        pad = self._intArg('merge pad', named['pad'])
+        if pad < 0:
+            raise FileAnimationError("merge pad must be a non-negative integer")
+        self._merge[1].append((self.sequences[name], shift, pad))
 
     def _mergeSequences(self, parts) -> List[TimeFullFrame]:
         """Merge several sequences into one by overlaying frames step by step.
 
-        Each part is a ``(frames, shift)`` pair, where ``shift`` slides that
+        Each part is a ``(frames, shift, pad)`` triple. ``shift`` slides that
         sequence along the tube axis before merging (like sequence|insert's
-        shift). The sequences must have the same shape — the frames at a given
-        step must share a delay — and shorter sequences are padded with blank
-        frames (which take the longer sequences' delays) out to the longest
-        length. The merged frame at each step is the per-tube overlay of every
-        sequence's frame at that step, exactly like flatten.
+        shift). ``pad`` prepends that many blank frames to the start of the
+        sequence; the blank frames' delays are inferred from the sequences
+        processed before it. Processing runs in increasing ``pad`` order, so
+        less-padded sequences (there must be at least one with ``pad=0``) define
+        the delays of the padded steps, and a sequence may not be padded past
+        the end of every already-processed sequence.
+
+        Once aligned, sequences with the same shape — the frames at a given step
+        share a delay — are overlaid per tube (exactly like flatten); shorter
+        sequences are blank-padded at the end out to the longest length.
         """
         ## Apply each part's shift up front so the rest works on aligned frames
         shifted = []
-        for frames, shift in parts:
+        for frames, shift, pad in parts:
             if shift:
                 frames = [(t, self._shiftFullFrame(f, shift)) for t, f in frames]
-            shifted.append(frames)
+            shifted.append((frames, pad))
 
-        max_len = max((len(frames) for frames in shifted), default=0)
+        if shifted and not any(pad == 0 for _, pad in shifted):
+            raise FileAnimationError("A merge block must include at least one sequence with no pad")
+
+        ## step_delays[i] is the delay of step i, defined as already-processed
+        ## (less-padded) sequences contribute their real frames. _frontPad reads
+        ## it to fill the inferred blank delays and extends it as it goes.
+        step_delays: List[float] = []
+        padded = [self._frontPad(frames, pad, step_delays)
+                  for frames, pad in sorted(shifted, key=lambda fp: fp[1])]
+
+        return self._overlaySequences(padded, len(step_delays))
+
+    def _frontPad(self, frames, pad, step_delays: List[float]) -> List[TimeFullFrame]:
+        """Prepend ``pad`` blank frames to a sequence, inferring their delays
+        from ``step_delays`` (built by earlier, less-padded sequences), then
+        extend ``step_delays`` with this sequence's own frame delays."""
+        if pad > len(step_delays):
+            raise FileAnimationError(
+                f"Cannot pad a sequence by {pad}: only {len(step_delays)} step(s) "
+                "are defined by earlier (less-padded) sequences"
+            )
+        full = [(step_delays[j], FullFrame()) for j in range(pad)] + list(frames)
+        ## Everything past the known region is a real frame extending the timeline
+        step_delays.extend(delay for delay, _ in full[len(step_delays):])
+        return full
+
+    def _overlaySequences(self, sequences, max_len) -> List[TimeFullFrame]:
+        """Overlay length-aligned sequences step by step (per tube, like flatten)."""
         result: List[TimeFullFrame] = []
         for i in range(max_len):
             ## Sequences shorter than this step are absent (blank-padded) and so
             ## don't constrain the delay; the rest must all agree on it.
-            present = [frames[i] for frames in shifted if i < len(frames)]
+            present = [seq[i] for seq in sequences if i < len(seq)]
             delays = {delay for delay, _ in present}
             if len(delays) > 1:
                 raise FileAnimationError(
