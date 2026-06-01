@@ -68,7 +68,7 @@ class TerminalController(Controller):
         if self.print_code:
             print(f"Print: '{code}'")
         else:
-            print(decoder.bitmapsToDecodedStr(tm.cmdDecodePrint(code), buffer=3))
+            print(decoder.bitmapsToDecodedStr(tm.cmdDecodePrint(code), buffer=1))
 
 
 class SerialController(Controller):

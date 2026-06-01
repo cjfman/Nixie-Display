@@ -1,3 +1,4 @@
+import|common_sprites.alib
 sequence|start|collapse
 frame|1|{l_frame}{tb_rail}{6}{depression_left}{depression_right}{tb_rail}{6}{r_frame}
 frame|1|{l_frame}{tb_rail}{6}{slope_left}{slope_right}{tb_rail}{6}{r_frame}
@@ -18,4 +19,4 @@ frame|1|{triangle_left}{b_rail}{14}{triangle_right}
 frame|1|{0x0038}{b_rail}{14}{0x00e}
 frame|1|{b_rail}{16}
 sequence|end ## collapse
-
+sequence|insert|collapse

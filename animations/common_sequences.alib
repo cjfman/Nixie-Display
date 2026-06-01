@@ -45,3 +45,46 @@ frame|1|>  <
 frame|1| x
 sequence|insert|x_spin_2|shift=1|repeat=2|scale=1
 sequence|end
+
+## Slither/Zap
+sequence|start|slither
+frame|1|{snake_5_1}
+frame|1| {1}{snake_5_2}
+frame|1| {1}{snake_5_3}
+frame|1| {2}{snake_5_4}
+sequence|end
+
+sequence|start|slither_rev
+frame|1| {snake_5_1}
+frame|1| {snake_5_4}
+frame|1|{snake_5_3}
+frame|1|{snake_5_2}
+sequence|end
+
+sequence|start|zap
+sequence|insert|slither|shift=-5
+sequence|insert|slither|shift=-3
+sequence|insert|slither|shift=-1
+sequence|insert|slither|shift=1
+sequence|insert|slither|shift=3
+sequence|insert|slither|shift=5
+sequence|insert|slither|shift=7
+sequence|insert|slither|shift=9
+sequence|insert|slither|shift=11
+sequence|insert|slither|shift=13
+sequence|insert|slither|shift=15
+sequence|end
+
+sequence|start|zap_rev
+sequence|insert|slither_rev|shift=14
+sequence|insert|slither_rev|shift=12
+sequence|insert|slither_rev|shift=10
+sequence|insert|slither_rev|shift=8
+sequence|insert|slither_rev|shift=6
+sequence|insert|slither_rev|shift=4
+sequence|insert|slither_rev|shift=2
+sequence|insert|slither_rev|shift=0
+sequence|insert|slither_rev|shift=-2
+sequence|insert|slither_rev|shift=-4
+sequence|insert|slither_rev|shift=-6
+sequence|end
