@@ -51,6 +51,11 @@ class FileAnimation(FullFrameAnimation):
         ## name set and scale None; an anonymous block (flatten|anon) has name
         ## None and scale set to the delay of the frame inserted at flatten|end.
         self._flatten:     Optional[Tuple[Optional[str], List, Optional[float]]] = None
+        ## (name, [(frames, shift)], anon_args) during a merge block. A named
+        ## block has name set and anon_args None; an anonymous block (merge|anon)
+        ## has name None and anon_args set to the (shift, repeat, scale) insert
+        ## arguments applied to the merged sequence at merge|end.
+        self._merge:       Optional[Tuple[Optional[str], List, Optional[Tuple]]] = None
         self._sandbox      = None  ## SandboxParser during sandbox|start/end
         self._skip_block   = None  ## 'sequence'/'flatten'/'sandbox' while skipping a disabled block
         self._library_mode: bool = False
@@ -75,6 +80,7 @@ class FileAnimation(FullFrameAnimation):
         obj._anon_args    = None
         obj._repeat       = None
         obj._flatten      = None
+        obj._merge        = None
         obj._sandbox      = None
         obj._skip_block   = None
         obj._library_mode = True
@@ -143,18 +149,25 @@ class FileAnimation(FullFrameAnimation):
             if cmd == 'end':
                 break
 
-            ## Anonymous segment line (|content) inside a flatten block
+            ## Anonymous line (|...) inside a flatten or merge block: a flatten
+            ## block expects one segment content field, a merge block expects a
+            ## sequence name plus optional named arguments.
             if cmd == '':
-                if self._flatten is None:
-                    errors.append((line_no, "Anonymous segment lines ('|...') are only valid inside a flatten block"))
-                    continue
-                if len(args) != 1:
-                    errors.append((line_no, "Anonymous segment line must have exactly one content field after '|'"))
-                    continue
-                try:
-                    self._flatten[1].append(self._parseSegmentHlpr(args[0]))
-                except FileAnimationError as e:
-                    errors.append((line_no, e.what()))
+                if self._flatten is not None:
+                    if len(args) != 1:
+                        errors.append((line_no, "Anonymous segment line must have exactly one content field after '|'"))
+                        continue
+                    try:
+                        self._flatten[1].append(self._parseSegmentHlpr(args[0]))
+                    except FileAnimationError as e:
+                        errors.append((line_no, e.what()))
+                elif self._merge is not None:
+                    try:
+                        self._parseMergeLine(args)
+                    except FileAnimationError as e:
+                        errors.append((line_no, e.what()))
+                else:
+                    errors.append((line_no, "Anonymous lines ('|...') are only valid inside a flatten or merge block"))
                 continue
 
             ## '<block>|disable' turns a whole block into a no-op: its arguments
@@ -178,6 +191,7 @@ class FileAnimation(FullFrameAnimation):
                 'sequence': ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None}, handler=self._parseSequence),
                 'repeat':   ArgSpec(1, 1, handler=self._parseRepeat),
                 'flatten':  ArgSpec(1, 1, handler=self._parseFlatten),
+                'merge':    ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None}, handler=self._parseMerge),
                 'import':   ArgSpec(1, 1, handler=self._parseImport),
                 'sandbox':  ArgSpec(1, 0, handler=self._parseSandbox),
             }
@@ -591,6 +605,98 @@ class FileAnimation(FullFrameAnimation):
                 logger.debug(f"Flattened {len(segs)} segments into '{name}'")
         else:
             raise FileAnimationError(f"Unknown flatten subcommand '{subcmd}'")
+
+    def _parseMerge(self, subcmd, name=None, shift='0', repeat='1', scale=None):
+        if subcmd == 'start':
+            if name is None:
+                raise FileAnimationError("Cannot start a merge block without a name")
+            if self._merge is not None:
+                raise FileAnimationError("Cannot nest merge blocks")
+            if self.sequence is not None:
+                raise FileAnimationError(f"Cannot start merge block '{name}' before finishing the current sequence")
+            if self._repeat is not None:
+                raise FileAnimationError("Cannot start a named merge block inside a repeat block")
+            if self._flatten is not None:
+                raise FileAnimationError("Cannot start a merge block inside a flatten block")
+            if name in self.sequences:
+                raise FileAnimationError(f"Sequence already exists with name '{name}'")
+            self._merge = (name, [], None)
+            logger.debug(f"Starting merge block '{name}'")
+        elif subcmd == 'anon':
+            if name is not None:
+                raise FileAnimationError("merge|anon takes no name, only insert arguments")
+            if self._merge is not None:
+                raise FileAnimationError("Cannot nest merge blocks")
+            if self.sequence is not None:
+                raise FileAnimationError("Cannot start an anonymous merge block before finishing the current sequence")
+            if self._repeat is not None:
+                raise FileAnimationError("Cannot start an anonymous merge block inside a repeat block")
+            if self._flatten is not None:
+                raise FileAnimationError("Cannot start a merge block inside a flatten block")
+            ## Collect into a throwaway list; merge|end inserts the merged
+            ## sequence with these args, exactly like sequence|anon.
+            self._merge = (None, [], (shift, repeat, scale))
+            logger.debug("Starting anonymous merge block")
+        elif subcmd == 'end':
+            if self._merge is None:
+                raise FileAnimationError("No merge block to end")
+            name, parts, anon_args = self._merge
+            self._merge = None
+            frames = self._mergeSequences(parts)
+            if anon_args is not None:
+                ## Anonymous block: insert the merged sequence just as if it had
+                ## been named and immediately inserted here.
+                shift, repeat, scale = anon_args
+                self._appendInsertedFrames(frames, shift, repeat, scale, "anonymous merge")
+            else:
+                self.sequences[name] = frames
+                logger.debug(f"Merged {len(parts)} sequences into '{name}'")
+        else:
+            raise FileAnimationError(f"Unknown merge subcommand '{subcmd}'")
+
+    def _parseMergeLine(self, args: Sequence[str]):
+        """Parse one '|name[|shift=N]' line inside a merge block."""
+        spec = ArgSpec(1, 0, named={'shift': '0'})
+        positional, named = self._bindArgs('merge line', spec, args)
+        name = positional[0]
+        if name not in self.sequences:
+            raise FileAnimationError(f"Sequence '{name}' doesn't exist")
+        shift = self._intArg('merge shift', named['shift'])
+        self._merge[1].append((self.sequences[name], shift))
+
+    def _mergeSequences(self, parts) -> List[TimeFullFrame]:
+        """Merge several sequences into one by overlaying frames step by step.
+
+        Each part is a ``(frames, shift)`` pair, where ``shift`` slides that
+        sequence along the tube axis before merging (like sequence|insert's
+        shift). The sequences must have the same shape — the frames at a given
+        step must share a delay — and shorter sequences are padded with blank
+        frames (which take the longer sequences' delays) out to the longest
+        length. The merged frame at each step is the per-tube overlay of every
+        sequence's frame at that step, exactly like flatten.
+        """
+        ## Apply each part's shift up front so the rest works on aligned frames
+        shifted = []
+        for frames, shift in parts:
+            if shift:
+                frames = [(t, self._shiftFullFrame(f, shift)) for t, f in frames]
+            shifted.append(frames)
+
+        max_len = max((len(frames) for frames in shifted), default=0)
+        result: List[TimeFullFrame] = []
+        for i in range(max_len):
+            ## Sequences shorter than this step are absent (blank-padded) and so
+            ## don't constrain the delay; the rest must all agree on it.
+            present = [frames[i] for frames in shifted if i < len(frames)]
+            delays = {delay for delay, _ in present}
+            if len(delays) > 1:
+                raise FileAnimationError(
+                    f"Cannot merge sequences: frames at step {i} have differing delays {sorted(delays)}"
+                )
+            segments = [full_frame.getFrames() for _, full_frame in present]
+            result.append((delays.pop(), FullFrame(self._flattenSegments(segments))))
+
+        return result
 
     def _parseImport(self, scale_or_path, filepath=None):
         if filepath is None:
