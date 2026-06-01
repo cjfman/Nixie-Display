@@ -655,26 +655,30 @@ class FileAnimation(FullFrameAnimation):
             raise FileAnimationError(f"Unknown merge subcommand '{subcmd}'")
 
     def _parseMergeLine(self, args: Sequence[str]):
-        """Parse one '|name[|shift=N][|pad=N]' line inside a merge block."""
-        spec = ArgSpec(1, 0, named={'shift': '0', 'pad': '0'})
+        """Parse one '|name[|shift=N][|repeat=N][|pad=N]' line inside a merge block."""
+        spec = ArgSpec(1, 0, named={'shift': '0', 'repeat': '1', 'pad': '0'})
         positional, named = self._bindArgs('merge line', spec, args)
         name = positional[0]
         if name not in self.sequences:
             raise FileAnimationError(f"Sequence '{name}' doesn't exist")
         shift = self._intArg('merge shift', named['shift'])
+        repeat = self._intArg('merge repeat', named['repeat'])
+        if repeat < 1:
+            raise FileAnimationError("merge repeat must be a positive integer")
         pad = self._intArg('merge pad', named['pad'])
         if pad < 0:
             raise FileAnimationError("merge pad must be a non-negative integer")
-        self._merge[1].append((self.sequences[name], shift, pad))
+        self._merge[1].append((self.sequences[name], shift, repeat, pad))
 
     def _mergeSequences(self, parts) -> List[TimeFullFrame]:
         """Merge several sequences into one by overlaying frames step by step.
 
-        Each part is a ``(frames, shift, pad)`` triple. ``shift`` slides that
-        sequence along the tube axis before merging (like sequence|insert's
-        shift). ``pad`` prepends that many blank frames to the start of the
-        sequence; the blank frames' delays are inferred from the sequences
-        processed before it. Processing runs in increasing ``pad`` order, so
+        Each part is a ``(frames, shift, repeat, pad)`` tuple. ``shift`` slides
+        that sequence along the tube axis and ``repeat`` duplicates it that many
+        times, both before merging (like sequence|insert). ``pad`` prepends that
+        many blank frames to the start of the sequence; the blank frames' delays
+        are inferred from the sequences processed before it. Processing runs in
+        increasing ``pad`` order, so
         less-padded sequences (there must be at least one with ``pad=0``) define
         the delays of the padded steps, and a sequence may not be padded past
         the end of every already-processed sequence.
@@ -683,11 +687,14 @@ class FileAnimation(FullFrameAnimation):
         share a delay — are overlaid per tube (exactly like flatten); shorter
         sequences are blank-padded at the end out to the longest length.
         """
-        ## Apply each part's shift up front so the rest works on aligned frames
+        ## Apply each part's shift and repeat up front so the rest works on
+        ## the final, aligned frames (shift then repeat, as sequence|insert does)
         shifted = []
-        for frames, shift, pad in parts:
+        for frames, shift, repeat, pad in parts:
             if shift:
                 frames = [(t, self._shiftFullFrame(f, shift)) for t, f in frames]
+            if repeat != 1:
+                frames = list(frames) * repeat
             shifted.append((frames, pad))
 
         if shifted and not any(pad == 0 for _, pad in shifted):
