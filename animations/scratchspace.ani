@@ -1,5 +1,24 @@
 ## Scratch Space
 import|common_sprites.alib
 import|common_sequences.alib
-
-
+sequence|start|spread
+frame|1| {7}{r_rail}{l_rail}
+frame|1| {7}\|\| ## 1
+frame|1| {7}{l_rail}{r_rail} ## 1
+frame|1| {6}{r_rail} {2}{l_rail} ## 1
+frame|1| {6}{l_rail} {2}{r_rail} ## 2
+frame|1| {4}{r_rail} {6}{l_rail} ## 3
+frame|1| {2}{r_rail} {10}{l_rail} ## 4
+frame|1|{l_rail} {14}{r_rail} ## 5
+sequence|end
+merge|anon|scale=.08
+|spread
+|spread|pad=5
+|spread|pad=10
+|spread|pad=15
+|spread|pad=20
+|spread|pad=25
+|spread|pad=30
+|spread|pad=35
+|spread|pad=40
+merge|end

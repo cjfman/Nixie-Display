@@ -132,13 +132,13 @@ class FileAnimation(FullFrameAnimation):
             ## sandbox|disable) swallows every line, unparsed, until its
             ## matching '<type>|end'.
             if self._skip_block is not None:
-                parts = line.split('|')
+                parts = self._splitFields(line)
                 if parts[0] == self._skip_block and len(parts) > 1 and parts[1] == 'end':
                     logger.debug(f"End of disabled {self._skip_block} block")
                     self._skip_block = None
                 continue
 
-            args = line.split('|')
+            args = self._splitFields(line)
             if not args:
                 errors.append((line_no, "Line is blank"))
                 continue
@@ -805,6 +805,36 @@ class FileAnimation(FullFrameAnimation):
         self._sandbox = None
         self.active.extend(sandbox.fullFrames())
         logger.debug(f"Ended sandbox block ({len(sandbox.printed)} printed animations)")
+
+    @staticmethod
+    def _splitFields(line) -> List[str]:
+        """Split a DSL line into '|'-separated fields, honoring backslash escapes.
+
+        '|' is the field separator, so to use a literal '|' inside a field it
+        must be escaped as '\\|'. Because '\\' is now the escape character, a
+        literal backslash is written '\\\\'. Both escapes are collapsed in the
+        returned fields ('\\|' -> '|', '\\\\' -> '\\'); any other backslash is
+        left untouched so existing content keeps rendering as before. Sandbox
+        block bodies never pass through here — there '|' is the tube operator
+        and a trailing '\\' is line continuation.
+        """
+        fields: List[str] = []
+        current: List[str] = []
+        i = 0
+        while i < len(line):
+            c = line[i]
+            if c == '\\' and i + 1 < len(line) and line[i + 1] in '|\\':
+                current.append(line[i + 1])  ## '\|' -> '|', '\\' -> '\'
+                i += 2
+            elif c == '|':
+                fields.append(''.join(current))
+                current = []
+                i += 1
+            else:
+                current.append(c)
+                i += 1
+        fields.append(''.join(current))
+        return fields
 
     @staticmethod
     def _tokenize(line):

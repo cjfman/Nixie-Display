@@ -10,6 +10,19 @@ Files in `animations/` use a custom line-based DSL parsed by `FileAnimation`
 `#` begins a comment (there is no `//` comment syntax). Errors are collected
 per line and reported together with line numbers.
 
+## Escaping `|` and `\`
+
+`|` separates a line into fields, so a literal `|` inside a field (e.g. in
+`frame`/`segment` content) must be escaped as `\|`. Because `\` is the escape
+character, a literal backslash is written `\\`. Both escapes are collapsed when
+the line is split into fields (`\|` → `|`, `\\` → `\`); any other backslash is
+left untouched, so a lone `\` followed by a normal character still renders as a
+backslash glyph. Example: `frame|1|A\|B` renders the three tubes `A`, `|`, `B`.
+This applies only to the field-splitting of DSL command lines
+(`FileAnimation._splitFields`) — inside a `sandbox` block `|` is the
+tube-concatenation operator and a trailing `\` is line continuation, neither of
+which is escaped.
+
 ## File commands
 
 - `sprite|name|0xHEX` — define a named 16-bit bitmap
