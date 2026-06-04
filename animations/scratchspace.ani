@@ -58,7 +58,7 @@ frame|0.0038|\| {14}\|
 frame|0.0035|{l_rail} {14}{r_rail}
 sequence|end
 
-collate|anon|scale=.25|start=2|end=4|mode=time|repeat=20
+collate|start|hallway
 |spread_2
 |spread_2|delay=0.25
 |spread_2|delay=0.50
@@ -77,3 +77,5 @@ collate|anon|scale=.25|start=2|end=4|mode=time|repeat=20
 |spread_2|delay=3.75
 |spread_2|delay=4.00
 collate|end
+
+sequence|insert|hallway|scale=4|start=2|end=4|mode=time|repeat=20
