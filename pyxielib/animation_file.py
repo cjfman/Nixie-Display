@@ -85,6 +85,13 @@ class FileAnimation(FullFrameAnimation):
         self._collate:     Optional[Tuple[Optional[str], List, Optional['InsertArgs']]] = None
         self._sandbox      = None  ## SandboxParser during sandbox|start/end
         self._skip_block   = None  ## 'sequence'/'flatten'/'sandbox' while skipping a disabled block
+        ## Looping config set by the 'loop' command (at most one allowed).
+        ## _max_restarts is the number of times the animation restarts after
+        ## completing: 0 = play once (default), None = forever, and loop|count N
+        ## sets N-1 (N total plays). _restarts counts restarts done at playback.
+        self._loop_set:    bool = False
+        self._max_restarts: Optional[int] = 0
+        self._restarts:    int = 0
         self._library_mode: bool = False
         ## Cache shared down the import tree: filename -> parsed library object,
         ## or None while a file is still being parsed (marks a circular import).
@@ -111,6 +118,9 @@ class FileAnimation(FullFrameAnimation):
         obj._collate      = None
         obj._sandbox      = None
         obj._skip_block   = None
+        obj._loop_set     = False
+        obj._max_restarts = 0
+        obj._restarts     = 0
         obj._library_mode = True
         obj._imported     = imported
         obj.sprites       = {}
@@ -228,6 +238,7 @@ class FileAnimation(FullFrameAnimation):
                 'collate':  ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None}, handler=self._parseCollate),
                 'import':   ArgSpec(1, 1, handler=self._parseImport),
                 'sandbox':  ArgSpec(1, 0, handler=self._parseSandbox),
+                'loop':     ArgSpec(1, 1, handler=self._parseLoop),
             }
             try:
                 if cmd not in handlers:
@@ -423,6 +434,72 @@ class FileAnimation(FullFrameAnimation):
             logger.debug(f"Setting scale {self.scale}")
         except Exception as e:
             raise FileAnimationError("Failed to convert scale to float: " + str(e))
+
+    def _parseLoop(self, subcmd, num=None):
+        """Parse the 'loop' command, which sets whether the whole animation
+        restarts after it completes. Allowed at most once and only at the top
+        level. Subcommands: 'once' (default, play once), 'forever' (restart
+        indefinitely), and 'count N' (restart N times before completing).
+        """
+        if self._library_mode:
+            raise FileAnimationError("'loop' is not valid in a library file")
+        if self._loop_set:
+            raise FileAnimationError("Only one 'loop' command is allowed")
+        if (self.sequence is not None or self._repeat is not None or self._merge is not None
+                or self._collate is not None or self._flatten is not None):
+            raise FileAnimationError("'loop' must be at the top level, not inside a block")
+
+        if subcmd == 'once':
+            if num is not None:
+                raise FileAnimationError("loop|once takes no arguments")
+            self._max_restarts = 0
+        elif subcmd == 'forever':
+            if num is not None:
+                raise FileAnimationError("loop|forever takes no arguments")
+            self._max_restarts = None
+        elif subcmd == 'count':
+            if num is None:
+                raise FileAnimationError("loop|count requires a positive integer count")
+            n = self._intArg('loop|count num', num)
+            if n < 1:
+                raise FileAnimationError("loop|count num must be a positive integer")
+            ## count is the total number of plays, so it restarts n-1 times
+            self._max_restarts = n - 1
+        else:
+            raise FileAnimationError(f"Unknown loop subcommand '{subcmd}'")
+
+        self._loop_set = True
+        logger.debug(f"Set loop mode '{subcmd}' (max_restarts={self._max_restarts})")
+
+    def _canRestart(self) -> bool:
+        """Whether the animation may restart again (per the loop config)."""
+        return self._max_restarts is None or self._restarts < self._max_restarts
+
+    def reset(self):
+        """Reset playback, including the restart counter (a fresh external
+        start, as opposed to an internal loop restart)."""
+        FullFrameAnimation.reset(self)
+        self._restarts = 0
+
+    def done(self):
+        """The animation is finished once its current play has ended and no
+        more restarts are allowed (always False for loop|forever)."""
+        return FullFrameAnimation.done(self) and not self._canRestart()
+
+    def updateFrameSet(self):
+        """Advance playback, restarting from the top when a play completes and
+        the loop config still allows it."""
+        update = FullFrameAnimation.updateFrameSet(self)
+        if update:
+            return update
+
+        ## Current play just ended; restart if the loop config permits it.
+        if FullFrameAnimation.done(self) and self._canRestart():
+            self._restarts += 1
+            FullFrameAnimation.reset(self)  ## base reset keeps the restart count
+            return FullFrameAnimation.updateFrameSet(self)
+
+        return update
 
     def _shiftFullFrame(self, full_frame: FullFrame, shift: int) -> FullFrame:
         frames = full_frame.getFrames()

@@ -2,8 +2,9 @@
 
 import|common_sprites.alib
 import|common_sequences.alib
+loop|forever
 
 sequence|insert|hallway|scale=2|end=2|mode=time
-sequence|insert|hallway|scale=2|start=2|end=4|mode=time|repeat=5
+sequence|insert|hallway|scale=2|start=2|end=4|mode=time|repeat=1000
 sequence|insert|hallway|scale=2|start=4|mode=time
 
