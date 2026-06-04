@@ -116,7 +116,8 @@ frame|0.0045| {1}{l_rail} {12}{r_rail}
 frame|0.0041|{r_rail} {14}{l_rail}
 frame|0.0038|\| {14}\|
 frame|0.0035|{l_rail} {14}{r_rail}
-overlay|{tb_rail}{7} {2}{tb_rail}{7}
+#overlay|{tb_rail}{7} {2}{tb_rail}{7}
+overlay|-{16}
 sequence|end
 
 collate|start|hallway
