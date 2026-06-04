@@ -92,10 +92,9 @@ sequence|end
 ## Hallway
 sequence|start|spread
 ## Total 2s
-#frame|1.0417| {7}{r_rail}{l_rail}
-#frame|0.3472| {7}\|\|
-#frame|1.0417| {7}{r_rail}{l_rail}
-#frame|0.3472| {7}\|\|
+frame|1.0417| #{7}{r_rail}{l_rail}
+#frame|0.3472| #{7}\|\|
+frame|0.3472| #{7}{0x2000}{0x0200}
 frame|0.1736| {7}{l_rail}{r_rail}
 frame|0.1042| {6}{r_rail} {2}{l_rail}
 frame|0.0694| {6}\| {2}\|
@@ -119,7 +118,7 @@ frame|0.0041|{r_rail} {14}{l_rail}
 frame|0.0038|\| {14}\|
 frame|0.0035|{l_rail} {14}{r_rail}
 #overlay|_{16}
-overlay|{tb_rail}{16}
+overlay|{tb_rail}{7}{0x1240}{0x2500}{tb_rail}{7}
 #overlay|-{7} {2}-{7}
 #overlay|{tb_rail}{7} {2}{tb_rail}{7}
 sequence|end
