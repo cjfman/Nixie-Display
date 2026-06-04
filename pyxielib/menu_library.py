@@ -21,6 +21,51 @@ class IpItem(SubcommandItem):
         return "No IP Address"
 
 
+class GitStatusItem(ListItem):
+    """Top-level item showing the repository's branch, HEAD commit, and how it
+    compares to its upstream. The list is recomputed each time it is activated.
+    """
+    def __init__(self, **kwargs):
+        super().__init__("Git Status", **kwargs)
+
+    def activate(self):
+        self.set_values(self.git_status())
+
+    @classmethod
+    def git_status(cls):
+        """Build the list of status lines, or a single line on failure."""
+        commit = cls._git('rev-parse', '--short', 'HEAD')
+        if commit is None:
+            return ["Not a git repo"]
+        branch = cls._git('symbolic-ref', '--short', '-q', 'HEAD')
+        return [branch or "Detached HEAD", commit, cls._upstream_status()]
+
+    @classmethod
+    def _upstream_status(cls):
+        """Describe HEAD's position relative to its upstream branch."""
+        counts = cls._git('rev-list', '--left-right', '--count', 'HEAD...@{upstream}')
+        if counts is None:
+            return "No upstream"
+        try:
+            ahead, behind = (int(x) for x in counts.split())
+        except ValueError:
+            return "Unknown"
+        if not ahead and not behind:
+            return "Up to date"
+        if ahead and behind:
+            return f"{ahead} ahead {behind} behind"
+        return f"{ahead} ahead" if ahead else f"{behind} behind"
+
+    @staticmethod
+    def _git(*args):
+        """Run git in the repo dir; return stripped stdout, or None on failure."""
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        result = subprocess.run(['git', '-C', repo, *args], capture_output=True, check=False)
+        if result.returncode != 0:
+            return None
+        return result.stdout.decode('utf8').strip()
+
+
 class RebootItem(DelayedCommandItem):
     def __init__(self, **kwargs):
         super().__init__("Reboot", "sudo reboot", running_msg="Rebooting...", **kwargs)

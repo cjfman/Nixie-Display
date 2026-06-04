@@ -44,6 +44,7 @@ class UserMenuProgram(Program):
             menulib.MirrorItem("Mirror Mode"),
             menulib.AnimationLibraryItem(ani_path),
             menulib.IpItem(),
+            menulib.GitStatusItem(),
             menulib.WiFiMenu(),
             menulib.SleepItem(self.controller),
             menulib.ExitItem("Exit Program"),
