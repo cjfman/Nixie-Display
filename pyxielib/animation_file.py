@@ -56,6 +56,10 @@ class FileAnimation(FullFrameAnimation):
         ## has name None and anon_args set to the (shift, repeat, scale) insert
         ## arguments applied to the merged sequence at merge|end.
         self._merge:       Optional[Tuple[Optional[str], List, Optional[Tuple]]] = None
+        ## Same shape as _merge but for a collate block. Collate overlays
+        ## sequences with arbitrary (unaligned) timing instead of requiring the
+        ## frames at each step to share a delay (see _collateOverlay).
+        self._collate:     Optional[Tuple[Optional[str], List, Optional[Tuple]]] = None
         self._sandbox      = None  ## SandboxParser during sandbox|start/end
         self._skip_block   = None  ## 'sequence'/'flatten'/'sandbox' while skipping a disabled block
         self._library_mode: bool = False
@@ -81,6 +85,7 @@ class FileAnimation(FullFrameAnimation):
         obj._repeat       = None
         obj._flatten      = None
         obj._merge        = None
+        obj._collate      = None
         obj._sandbox      = None
         obj._skip_block   = None
         obj._library_mode = True
@@ -166,8 +171,13 @@ class FileAnimation(FullFrameAnimation):
                         self._parseMergeLine(args)
                     except FileAnimationError as e:
                         errors.append((line_no, e.what()))
+                elif self._collate is not None:
+                    try:
+                        self._parseCollateLine(args)
+                    except FileAnimationError as e:
+                        errors.append((line_no, e.what()))
                 else:
-                    errors.append((line_no, "Anonymous lines ('|...') are only valid inside a flatten or merge block"))
+                    errors.append((line_no, "Anonymous lines ('|...') are only valid inside a flatten, merge, or collate block"))
                 continue
 
             ## '<block>|disable' turns a whole block into a no-op: its arguments
@@ -192,6 +202,7 @@ class FileAnimation(FullFrameAnimation):
                 'repeat':   ArgSpec(1, 1, handler=self._parseRepeat),
                 'flatten':  ArgSpec(1, 1, handler=self._parseFlatten),
                 'merge':    ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None}, handler=self._parseMerge),
+                'collate':  ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None}, handler=self._parseCollate),
                 'import':   ArgSpec(1, 1, handler=self._parseImport),
                 'sandbox':  ArgSpec(1, 0, handler=self._parseSandbox),
             }
@@ -612,6 +623,8 @@ class FileAnimation(FullFrameAnimation):
                 raise FileAnimationError("Cannot start a merge block without a name")
             if self._merge is not None:
                 raise FileAnimationError("Cannot nest merge blocks")
+            if self._collate is not None:
+                raise FileAnimationError("Cannot start a merge block inside a collate block")
             if self.sequence is not None:
                 raise FileAnimationError(f"Cannot start merge block '{name}' before finishing the current sequence")
             if self._repeat is not None:
@@ -627,6 +640,8 @@ class FileAnimation(FullFrameAnimation):
                 raise FileAnimationError("merge|anon takes no name, only insert arguments")
             if self._merge is not None:
                 raise FileAnimationError("Cannot nest merge blocks")
+            if self._collate is not None:
+                raise FileAnimationError("Cannot start a merge block inside a collate block")
             if self.sequence is not None:
                 raise FileAnimationError("Cannot start an anonymous merge block before finishing the current sequence")
             if self._repeat is not None:
@@ -654,21 +669,93 @@ class FileAnimation(FullFrameAnimation):
         else:
             raise FileAnimationError(f"Unknown merge subcommand '{subcmd}'")
 
+    def _parseCollate(self, subcmd, name=None, shift='0', repeat='1', scale=None):
+        if subcmd == 'start':
+            if name is None:
+                raise FileAnimationError("Cannot start a collate block without a name")
+            if self._collate is not None:
+                raise FileAnimationError("Cannot nest collate blocks")
+            if self._merge is not None:
+                raise FileAnimationError("Cannot start a collate block inside a merge block")
+            if self.sequence is not None:
+                raise FileAnimationError(f"Cannot start collate block '{name}' before finishing the current sequence")
+            if self._repeat is not None:
+                raise FileAnimationError("Cannot start a named collate block inside a repeat block")
+            if self._flatten is not None:
+                raise FileAnimationError("Cannot start a collate block inside a flatten block")
+            if name in self.sequences:
+                raise FileAnimationError(f"Sequence already exists with name '{name}'")
+            self._collate = (name, [], None)
+            logger.debug(f"Starting collate block '{name}'")
+        elif subcmd == 'anon':
+            if name is not None:
+                raise FileAnimationError("collate|anon takes no name, only insert arguments")
+            if self._collate is not None:
+                raise FileAnimationError("Cannot nest collate blocks")
+            if self._merge is not None:
+                raise FileAnimationError("Cannot start a collate block inside a merge block")
+            if self.sequence is not None:
+                raise FileAnimationError("Cannot start an anonymous collate block before finishing the current sequence")
+            if self._repeat is not None:
+                raise FileAnimationError("Cannot start an anonymous collate block inside a repeat block")
+            if self._flatten is not None:
+                raise FileAnimationError("Cannot start a collate block inside a flatten block")
+            ## Collect into a throwaway list; collate|end inserts the collated
+            ## sequence with these args, exactly like sequence|anon.
+            self._collate = (None, [], (shift, repeat, scale))
+            logger.debug("Starting anonymous collate block")
+        elif subcmd == 'end':
+            if self._collate is None:
+                raise FileAnimationError("No collate block to end")
+            name, parts, anon_args = self._collate
+            self._collate = None
+            frames = self._collateSequences(parts)
+            if anon_args is not None:
+                ## Anonymous block: insert the collated sequence just as if it
+                ## had been named and immediately inserted here.
+                shift, repeat, scale = anon_args
+                self._appendInsertedFrames(frames, shift, repeat, scale, "anonymous collate")
+            else:
+                self.sequences[name] = frames
+                logger.debug(f"Collated {len(parts)} sequences into '{name}'")
+        else:
+            raise FileAnimationError(f"Unknown collate subcommand '{subcmd}'")
+
     def _parseMergeLine(self, args: Sequence[str]):
         """Parse one '|name[|shift=N][|repeat=N][|pad=N]' line inside a merge block."""
         spec = ArgSpec(1, 0, named={'shift': '0', 'repeat': '1', 'pad': '0'})
         positional, named = self._bindArgs('merge line', spec, args)
-        name = positional[0]
-        if name not in self.sequences:
-            raise FileAnimationError(f"Sequence '{name}' doesn't exist")
-        shift = self._intArg('merge shift', named['shift'])
-        repeat = self._intArg('merge repeat', named['repeat'])
-        if repeat < 1:
-            raise FileAnimationError("merge repeat must be a positive integer")
+        frames, shift, repeat = self._overlayCommonArgs('merge', positional, named)
         pad = self._intArg('merge pad', named['pad'])
         if pad < 0:
             raise FileAnimationError("merge pad must be a non-negative integer")
-        self._merge[1].append((self.sequences[name], shift, repeat, pad))
+        self._merge[1].append((frames, shift, repeat, pad))
+
+    def _parseCollateLine(self, args: Sequence[str]):
+        """Parse one '|name[|shift=N][|repeat=N][|delay=T]' line inside a collate block.
+
+        Unlike merge's ``pad`` (a count of blank frames), ``delay`` is a time in
+        seconds: collate works on a continuous timeline, so a sequence is simply
+        offset by ``delay`` seconds before being overlaid.
+        """
+        spec = ArgSpec(1, 0, named={'shift': '0', 'repeat': '1', 'delay': '0'})
+        positional, named = self._bindArgs('collate line', spec, args)
+        frames, shift, repeat = self._overlayCommonArgs('collate', positional, named)
+        delay = self._floatArg('collate delay', named['delay'])
+        if delay < 0:
+            raise FileAnimationError("collate delay must be non-negative")
+        self._collate[1].append((frames, shift, repeat, delay))
+
+    def _overlayCommonArgs(self, kind, positional, named) -> Tuple[List, int, int]:
+        """Resolve the name/shift/repeat shared by merge and collate body lines."""
+        name = positional[0]
+        if name not in self.sequences:
+            raise FileAnimationError(f"Sequence '{name}' doesn't exist")
+        shift = self._intArg(f'{kind} shift', named['shift'])
+        repeat = self._intArg(f'{kind} repeat', named['repeat'])
+        if repeat < 1:
+            raise FileAnimationError(f"{kind} repeat must be a positive integer")
+        return self.sequences[name], shift, repeat
 
     def _mergeSequences(self, parts) -> List[TimeFullFrame]:
         """Merge several sequences into one by overlaying frames step by step.
@@ -709,6 +796,29 @@ class FileAnimation(FullFrameAnimation):
 
         return self._overlaySequences(padded, len(step_delays))
 
+    def _collateSequences(self, parts) -> List[TimeFullFrame]:
+        """Collate several sequences into one, allowing arbitrary timing.
+
+        Each part is a ``(frames, shift, repeat, delay)`` tuple. ``shift`` and
+        ``repeat`` behave exactly as in merge (applied before overlaying). Unlike
+        merge, the sequences need not share a shape: collate overlays them on a
+        continuous timeline (see _collateOverlay), so ``delay`` is a time offset
+        in seconds — a single leading blank frame that pushes the sequence's
+        start that far down the timeline — rather than merge's count of blank
+        frames whose durations must be inferred from other sequences.
+        """
+        prepared = []
+        for frames, shift, repeat, delay in parts:
+            if shift:
+                frames = [(t, self._shiftFullFrame(f, shift)) for t, f in frames]
+            if repeat != 1:
+                frames = list(frames) * repeat
+            if delay:
+                frames = [(delay, FullFrame())] + list(frames)
+            prepared.append(frames)
+
+        return self._collateOverlay(prepared)
+
     def _frontPad(self, frames, pad, step_delays: List[float]) -> List[TimeFullFrame]:
         """Prepend ``pad`` blank frames to a sequence, inferring their delays
         from ``step_delays`` (built by earlier, less-padded sequences), then
@@ -739,6 +849,53 @@ class FileAnimation(FullFrameAnimation):
             result.append((delays.pop(), FullFrame(self._flattenSegments(segments))))
 
         return result
+
+    def _collateOverlay(self, sequences) -> List[TimeFullFrame]:
+        """Overlay sequences with arbitrary timing onto one shared timeline.
+
+        Unlike _overlaySequences, the sequences need not share a shape: frames
+        may start and end at any time. Every sequence's cumulative frame-end
+        times are unioned into one ordered set of cut points, splitting the
+        timeline into intervals during which each sequence shows a single (or
+        no) frame. Each interval's frames are flattened per tube exactly like
+        merge/flatten, and the interval's width becomes that step's delay.
+        """
+        ## Union every sequence's frame-end times into the set of cut points
+        boundaries = {0.0}
+        for seq in sequences:
+            elapsed = 0.0
+            for delay, _ in seq:
+                elapsed += delay
+                boundaries.add(elapsed)
+
+        ## Collapse cut points that differ only by floating-point dust
+        ordered: List[float] = []
+        for b in sorted(boundaries):
+            if not ordered or b - ordered[-1] > 1e-9:
+                ordered.append(b)
+
+        result: List[TimeFullFrame] = []
+        for start, end in zip(ordered, ordered[1:]):
+            ## Sample the midpoint so each sequence's active frame is unambiguous
+            mid = (start + end) / 2
+            segments = []
+            for seq in sequences:
+                full_frame = self._frameAtTime(seq, mid)
+                if full_frame is not None:
+                    segments.append(full_frame.getFrames())
+            result.append((end - start, FullFrame(self._flattenSegments(segments))))
+
+        return result
+
+    @staticmethod
+    def _frameAtTime(seq, t) -> Optional[FullFrame]:
+        """Return the FullFrame ``seq`` is showing at time ``t`` (None once ended)."""
+        elapsed = 0.0
+        for delay, full_frame in seq:
+            elapsed += delay
+            if t < elapsed:
+                return full_frame
+        return None
 
     def _parseImport(self, scale_or_path, filepath=None):
         if filepath is None:

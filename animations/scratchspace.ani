@@ -2,23 +2,42 @@
 import|common_sprites.alib
 import|common_sequences.alib
 sequence|start|spread
-frame|1| {7}{r_rail}{l_rail}
-frame|1| {7}\|\| ## 1
-frame|1| {7}{l_rail}{r_rail} ## 1
-frame|1| {6}{r_rail} {2}{l_rail} ## 1
-frame|1| {6}{l_rail} {2}{r_rail} ## 2
-frame|1| {4}{r_rail} {6}{l_rail} ## 3
-frame|1| {2}{r_rail} {10}{l_rail} ## 4
-frame|1|{l_rail} {14}{r_rail} ## 5
+frame|1.0000| {7}{r_rail}{l_rail}
+frame|0.3333| {7}\|\|
+frame|0.1667| {7}{l_rail}{r_rail}
+frame|0.1000| {6}{r_rail} {2}{l_rail}
+frame|0.0667| {6}\| {2}\|
+frame|0.0476| {6}{l_rail} {2}{r_rail}
+frame|0.0357| {5}{r_rail} {4}{l_rail}
+frame|0.0278| {5}\| {4}\|
+frame|0.0222| {5}{l_rail} {4}{r_rail}
+frame|0.0182| {4}{r_rail} {6}{l_rail}
+frame|0.0152| {4}\| {6}\|
+frame|0.0128| {4}{l_rail} {6}{r_rail}
+frame|0.0110| {3}{r_rail} {8}{l_rail}
+frame|0.0095| {3}\| {8}\|
+frame|0.0083| {3}{l_rail} {8}{r_rail}
+frame|0.0074| {2}{r_rail} {10}{l_rail}
+frame|0.0065| {2}\| {10}\|
+frame|0.0058| {2}{l_rail} {10}{r_rail}
+frame|0.0053| {1}{r_rail} {12}{l_rail}
+frame|0.0048| {1}\| {12}\|
+frame|0.0043| {1}{l_rail} {12}{r_rail}
+frame|0.0040|{r_rail} {14}{l_rail}
+frame|0.0036|\| {14}\|
+frame|0.0033|{l_rail} {14}{r_rail}
 sequence|end
-merge|anon|scale=.08
+
+collate|anon|scale=0.2
 |spread
-|spread|pad=4
-|spread|pad=8
-|spread|pad=12
-|spread|pad=16
-|spread|pad=20
-|spread|pad=24
-|spread|pad=28
-|spread|pad=32
-merge|end
+|spread|delay=.5
+|spread|delay=1.5
+|spread|delay=2.0
+|spread|delay=2.5
+|spread|delay=3.0
+|spread|delay=3.5
+|spread|delay=4.0
+|spread|delay=4.5
+|spread|delay=5.0
+|spread|delay=5.5
+collate|end
