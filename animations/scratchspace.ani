@@ -2,7 +2,8 @@
 import|common_sprites.alib
 import|common_sequences.alib
 ## times = [delay * 2/(n*(n+1)) for n in range(1, 25)]
-sequence|start|spread
+## 1.92s total
+sequence|start|spread_1
 frame|1.0000| {7}{r_rail}{l_rail}
 frame|0.3333| {7}\|\|
 frame|0.1667| {7}{l_rail}{r_rail}
@@ -29,29 +30,50 @@ frame|0.0036|\| {14}\|
 frame|0.0033|{l_rail} {14}{r_rail}
 sequence|end
 
-collate|anon|scale=0.05
-|spread
-|spread|delay=0.25
-|spread|delay=0.50
-|spread|delay=0.75
-|spread|delay=1.00
-|spread|delay=1.25
-|spread|delay=1.50
-|spread|delay=1.75
-|spread|delay=2.00
-|spread|delay=2.25
-|spread|delay=2.50
-|spread|delay=2.75
-|spread|delay=3.00
-|spread|delay=3.25
-|spread|delay=3.50
-|spread|delay=3.75
-|spread|delay=4.00
-|spread|delay=4.25
-|spread|delay=4.50
-|spread|delay=4.75
-|spread|delay=5.00
-|spread|delay=5.25
-|spread|delay=5.50
-|spread|delay=5.75
+## Total 2s
+sequence|start|spread_2
+frame|1.0417| {7}{r_rail}{l_rail}
+frame|0.3472| {7}\|\|
+frame|0.1736| {7}{l_rail}{r_rail}
+frame|0.1042| {6}{r_rail} {2}{l_rail}
+frame|0.0694| {6}\| {2}\|
+frame|0.0496| {6}{l_rail} {2}{r_rail}
+frame|0.0372| {5}{r_rail} {4}{l_rail}
+frame|0.0289| {5}\| {4}\|
+frame|0.0231| {5}{l_rail} {4}{r_rail}
+frame|0.0189| {4}{r_rail} {6}{l_rail}
+frame|0.0158| {4}\| {6}\|
+frame|0.0134| {4}{l_rail} {6}{r_rail}
+frame|0.0114| {3}{r_rail} {8}{l_rail}
+frame|0.0099| {3}\| {8}\|
+frame|0.0087| {3}{l_rail} {8}{r_rail}
+frame|0.0077| {2}{r_rail} {10}{l_rail}
+frame|0.0068| {2}\| {10}\|
+frame|0.0061| {2}{l_rail} {10}{r_rail}
+frame|0.0055| {1}{r_rail} {12}{l_rail}
+frame|0.0050| {1}\| {12}\|
+frame|0.0045| {1}{l_rail} {12}{r_rail}
+frame|0.0041|{r_rail} {14}{l_rail}
+frame|0.0038|\| {14}\|
+frame|0.0035|{l_rail} {14}{r_rail}
+sequence|end
+
+collate|anon|scale=.25|start=2|end=4|mode=time|repeat=20
+|spread_2
+|spread_2|delay=0.25
+|spread_2|delay=0.50
+|spread_2|delay=0.75
+|spread_2|delay=1.00
+|spread_2|delay=1.25
+|spread_2|delay=1.50
+|spread_2|delay=1.75
+|spread_2|delay=2.00
+|spread_2|delay=2.25
+|spread_2|delay=2.50
+|spread_2|delay=2.75
+|spread_2|delay=3.00
+|spread_2|delay=3.25
+|spread_2|delay=3.50
+|spread_2|delay=3.75
+|spread_2|delay=4.00
 collate|end

@@ -224,8 +224,8 @@ class FileAnimation(FullFrameAnimation):
                 'sequence': ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None}, handler=self._parseSequence),
                 'repeat':   ArgSpec(1, 1, handler=self._parseRepeat),
                 'flatten':  ArgSpec(1, 1, handler=self._parseFlatten),
-                'merge':    ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None}, handler=self._parseMerge),
-                'collate':  ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None}, handler=self._parseCollate),
+                'merge':    ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None}, handler=self._parseMerge),
+                'collate':  ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None}, handler=self._parseCollate),
                 'import':   ArgSpec(1, 1, handler=self._parseImport),
                 'sandbox':  ArgSpec(1, 0, handler=self._parseSandbox),
             }
@@ -719,7 +719,7 @@ class FileAnimation(FullFrameAnimation):
         else:
             raise FileAnimationError(f"Unknown flatten subcommand '{subcmd}'")
 
-    def _parseMerge(self, subcmd, name=None, shift='0', repeat='1', scale=None):
+    def _parseMerge(self, subcmd, name=None, shift='0', repeat='1', scale=None, mode='frame', start=None, end=None):
         if subcmd == 'start':
             if name is None:
                 raise FileAnimationError("Cannot start a merge block without a name")
@@ -752,7 +752,7 @@ class FileAnimation(FullFrameAnimation):
                 raise FileAnimationError("Cannot start a merge block inside a flatten block")
             ## Collect into a throwaway list; merge|end inserts the merged
             ## sequence with these args, exactly like sequence|anon.
-            self._merge = (None, [], InsertArgs(shift, repeat, scale))
+            self._merge = (None, [], InsertArgs(shift, repeat, scale, mode, start, end))
             logger.debug("Starting anonymous merge block")
         elif subcmd == 'end':
             if self._merge is None:
@@ -770,7 +770,7 @@ class FileAnimation(FullFrameAnimation):
         else:
             raise FileAnimationError(f"Unknown merge subcommand '{subcmd}'")
 
-    def _parseCollate(self, subcmd, name=None, shift='0', repeat='1', scale=None):
+    def _parseCollate(self, subcmd, name=None, shift='0', repeat='1', scale=None, mode='frame', start=None, end=None):
         if subcmd == 'start':
             if name is None:
                 raise FileAnimationError("Cannot start a collate block without a name")
@@ -803,7 +803,7 @@ class FileAnimation(FullFrameAnimation):
                 raise FileAnimationError("Cannot start a collate block inside a flatten block")
             ## Collect into a throwaway list; collate|end inserts the collated
             ## sequence with these args, exactly like sequence|anon.
-            self._collate = (None, [], InsertArgs(shift, repeat, scale))
+            self._collate = (None, [], InsertArgs(shift, repeat, scale, mode, start, end))
             logger.debug("Starting anonymous collate block")
         elif subcmd == 'end':
             if self._collate is None:
