@@ -68,6 +68,9 @@ class FileAnimation(FullFrameAnimation):
         self.size          = size
         self.scale         = 1
         self.sequence      = None
+        ## Overlay frames (each a list of Frame) collected from 'overlay' lines
+        ## in the current sequence; applied to every frame at sequence|end.
+        self._overlays:    List[List[Frame]] = []
         self._anon_args:   Optional['InsertArgs'] = None  ## insert args during sequence|anon
         self._repeat:      Optional[Tuple[int, List]] = None  ## (count, saved_active) during repeat|start/end
         ## (name, [segments], scale) during a flatten block. A named block has
@@ -111,6 +114,7 @@ class FileAnimation(FullFrameAnimation):
         obj.size          = size
         obj.scale         = 1
         obj.sequence      = None
+        obj._overlays     = []
         obj._anon_args    = None
         obj._repeat       = None
         obj._flatten      = None
@@ -232,6 +236,7 @@ class FileAnimation(FullFrameAnimation):
                 'frame':    ArgSpec(2, 0, handler=self._parseFrame),
                 'scale':    ArgSpec(1, 0, handler=self._parseScale),
                 'sequence': ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None}, handler=self._parseSequence),
+                'overlay':  ArgSpec(1, 0, handler=self._parseOverlay),
                 'repeat':   ArgSpec(1, 1, handler=self._parseRepeat),
                 'flatten':  ArgSpec(1, 1, handler=self._parseFlatten),
                 'merge':    ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None}, handler=self._parseMerge),
@@ -528,6 +533,7 @@ class FileAnimation(FullFrameAnimation):
             self.sequences[name] = sequence
             self.active = sequence
             self.sequence = name
+            self._overlays = []
             logger.debug(f"Starting sequence '{name}'")
         elif subcmd == 'anon':
             if name:  ## a trailing '|' yields an empty name, which is allowed
@@ -541,6 +547,7 @@ class FileAnimation(FullFrameAnimation):
             self.active = []
             self.sequence = '<anon>'
             self._anon_args = InsertArgs(shift, repeat, scale, mode, start, end)
+            self._overlays = []
             logger.debug("Starting anonymous sequence")
         elif subcmd == 'end':
             if self.sequence is None:
@@ -549,6 +556,7 @@ class FileAnimation(FullFrameAnimation):
             closed = self.sequence
             frames = self.active
             anon_args = self._anon_args
+            self._applyOverlays(frames)
             self.sequence = None
             self._anon_args = None
             self.active = self.fullframes
@@ -561,6 +569,31 @@ class FileAnimation(FullFrameAnimation):
             self._insertSequence(name, InsertArgs(shift, repeat, scale, mode, start, end))
         else:
             raise FileAnimationError(f"Unknown sequence subcommand '{subcmd}'")
+
+    def _parseOverlay(self, line):
+        """Parse an 'overlay' line inside a sequence. Like 'frame' but with no
+        delay: its content is overlaid (per tube, like flatten) onto every frame
+        of the sequence at sequence|end. Several overlays may be given."""
+        if self.sequence is None:
+            raise FileAnimationError("overlay is only valid inside a sequence")
+        frames = self._parseSegmentHlpr(line)
+        if len(frames) > self.size:
+            frames = frames[:self.size]
+        self._overlays.append(frames)
+
+    def _applyOverlays(self, frames):
+        """Overlay every collected overlay onto each frame of the sequence.
+
+        Each frame is flattened together with the overlays (tube by tube, like
+        flatten), so blank overlay tubes leave the frame untouched and
+        overlapping content is merged as bitmaps. Clears the overlays after.
+        """
+        if not self._overlays:
+            return
+        for i, (delay, full) in enumerate(frames):
+            merged = self._flattenSegments([full.getFrames()] + self._overlays)
+            frames[i] = (delay, FullFrame(merged))
+        self._overlays = []
 
     def _disableBlock(self, kind):
         """Skip a disabled block. The parse loop swallows every line until the

@@ -2,7 +2,7 @@
 # Rails
 import|common_sprites.alib
 import|common_sequences.alib
-segment|full_frame|{l_frame}{tb_rail}{14}{r_frame}
+#segment|full_frame|{l_frame}{tb_rail}{14}{r_frame}
 scale|.01
 
 ## Start up
