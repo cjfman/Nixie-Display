@@ -324,6 +324,8 @@ merge|anon|scale=.03
 |x_spin_2|pad=14|shift=7|repeat=7
 merge|end
 
+sequence|insert|hallway|scale=4|start=2|end=4|mode=time|repeat=200
+
 ## Collapse
 #frame|50|{full_frame}
 #frame|50|{0x2218}{mb_rail}{14}{0x220c}
