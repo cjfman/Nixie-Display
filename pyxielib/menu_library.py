@@ -337,7 +337,7 @@ class AnimationLibraryItem(ListItem):
 
     def activate(self):
         try:
-            paths = [x for x in os.listdir(self.path) if x.endswith(".ani")]
+            paths = sorted(x for x in os.listdir(self.path) if x.endswith(".ani") and not x.startswith("_"))
             names = [x[:-4] for x in paths]
             self.set_values(names)
             self.ani_paths = dict(zip(names, paths))
