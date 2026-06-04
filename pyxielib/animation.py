@@ -720,6 +720,11 @@ class FullFrameAnimation(Animation):
         Animation.__init__(self)
         self.frames: Sequence[TimeFullFrame] = list(frames or [(0, [])])
         self.start_time: float = time.time()
+        ## Absolute wall-clock time the current frame's interval ends. The
+        ## timeline is anchored at start_time and the deadline accumulates the
+        ## nominal delays, so updateFrameSet stays on schedule instead of
+        ## stretching every frame to one polling interval (see updateFrameSet).
+        self.frame_deadline: float = self.start_time
         self.frame_index = 0
         self.started = False
         self.current_frame = self.frames[0]
@@ -744,6 +749,7 @@ class FullFrameAnimation(Animation):
         self.started = False
         self.frame_index = 0
         self.start_time = time.time()
+        self.frame_deadline = self.start_time
 
     def frameCount(self):
         """Total frame count"""
@@ -778,26 +784,43 @@ class FullFrameAnimation(Animation):
         return self.frames[:index + 1]
 
     def updateFrameSet(self):
-        """Update the frame set based upon the current time. Return True if updated"""
+        """Advance to the frame that should be showing now; return True if the
+        displayed frame changed.
+
+        Frames are scheduled against an absolute timeline anchored at
+        ``start_time``: ``frame_deadline`` accumulates the nominal delays rather
+        than being reset to "now" each step. So when many frames are shorter
+        than the caller's polling interval, the ones whose interval has already
+        elapsed are skipped instead of each being stretched to a full poll —
+        playback neither drifts nor stalls at the poll rate. ``done()`` still
+        reports completion once ``frame_index`` passes the end.
+        """
         ## This should never happen, but let's be safe
         if self.frame_index >= len(self.frames):
             return False
 
         now = time.time()
-        ## Force set the first frame and set the start time
+        ## Force set the first frame and anchor the timeline
         if not self.started:
             self.started = True
             self.start_time = now
+            self.frame_index = 0
+            self.frame_deadline = now + self.frames[0][0]
             self.current_frame = self.frames[0][1]
             return True
 
-        ## See if current frame has passed
-        length, _ = self.frames[self.frame_index]
-        if now < self.start_time + length:
+        ## Current frame still within its interval -> nothing to do
+        if now < self.frame_deadline:
             return False
 
-        self.frame_index += 1
-        self.start_time = now
+        ## Advance past every frame whose whole interval has already elapsed.
+        ## The deadline carries forward the nominal delays, so frames shorter
+        ## than one poll are skipped rather than stretched.
+        while self.frame_index < len(self.frames) and now >= self.frame_deadline:
+            self.frame_index += 1
+            if self.frame_index < len(self.frames):
+                self.frame_deadline += self.frames[self.frame_index][0]
+
         if self.frame_index >= len(self.frames):
             return False
 

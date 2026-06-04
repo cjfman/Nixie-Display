@@ -8,6 +8,13 @@ from pyxielib.animation import Animation
 logger = logging.getLogger(__name__)
 
 class Assembler:
+    ## How often the handler thread wakes to push the next frame. This is the
+    ## animation frame-rate ceiling: frames whose delay is shorter than this are
+    ## skipped (FullFrameAnimation.updateFrameSet keeps the timeline on schedule
+    ## rather than stretching them). Smaller = smoother fast animations at the
+    ## cost of more wake-ups; bounded in practice by controller.send() throughput.
+    POLL_INTERVAL_SECS = 0.001
+
     def __init__(self, *, controller: Controller=None, animation: Animation=None):
         self.running    = False
         self.shutdown   = False
@@ -47,7 +54,7 @@ class Assembler:
                 if self.animation and self.animation.updateFrameSet():
                     self.controller.send(self.animation.getCode())
 
-                self.cv.wait(0.01)
+                self.cv.wait(self.POLL_INTERVAL_SECS)
         except Exception as e:
             logger.error(f"Fatal error in assembler thread: {e}")
             traceback.print_exc()
