@@ -2,6 +2,7 @@ import logging
 import os
 import re
 
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from pyxielib.animation import (
@@ -16,6 +17,28 @@ logger = logging.getLogger(__name__)
 
 class FileAnimationError(PixieAnimationError):
     """Use for errors found when parsing an animation file"""
+
+
+@dataclass
+class InsertArgs:
+    """Raw arguments for placing a sequence into the animation at insert time.
+
+    Every field is the unparsed DSL string (or None when the argument was
+    omitted); conversion and validation happen in _appendInsertedFrames so the
+    errors carry a line number. ``shift``/``repeat``/``scale`` transform the
+    inserted copy (as they always have); ``mode``/``start``/``end`` select a
+    sub-range of the sequence *before* those transforms (see _sliceFrames).
+
+    Shared by sequence|insert and sequence|anon, and structured so merge|anon
+    and collate|anon can adopt the same slicing simply by parsing these named
+    arguments into an InsertArgs.
+    """
+    shift:  str = '0'
+    repeat: str = '1'
+    scale:  Optional[str] = None
+    mode:   str = 'frame'
+    start:  Optional[str] = None
+    end:    Optional[str] = None
 
 
 class ArgSpec:
@@ -45,7 +68,7 @@ class FileAnimation(FullFrameAnimation):
         self.size          = size
         self.scale         = 1
         self.sequence      = None
-        self._anon_args    = None  ## (shift, repeat, scale) insert args during sequence|anon
+        self._anon_args:   Optional['InsertArgs'] = None  ## insert args during sequence|anon
         self._repeat:      Optional[Tuple[int, List]] = None  ## (count, saved_active) during repeat|start/end
         ## (name, [segments], scale) during a flatten block. A named block has
         ## name set and scale None; an anonymous block (flatten|anon) has name
@@ -53,13 +76,13 @@ class FileAnimation(FullFrameAnimation):
         self._flatten:     Optional[Tuple[Optional[str], List, Optional[float]]] = None
         ## (name, [(frames, shift)], anon_args) during a merge block. A named
         ## block has name set and anon_args None; an anonymous block (merge|anon)
-        ## has name None and anon_args set to the (shift, repeat, scale) insert
-        ## arguments applied to the merged sequence at merge|end.
-        self._merge:       Optional[Tuple[Optional[str], List, Optional[Tuple]]] = None
+        ## has name None and anon_args set to the InsertArgs applied to the
+        ## merged sequence at merge|end.
+        self._merge:       Optional[Tuple[Optional[str], List, Optional['InsertArgs']]] = None
         ## Same shape as _merge but for a collate block. Collate overlays
         ## sequences with arbitrary (unaligned) timing instead of requiring the
         ## frames at each step to share a delay (see _collateOverlay).
-        self._collate:     Optional[Tuple[Optional[str], List, Optional[Tuple]]] = None
+        self._collate:     Optional[Tuple[Optional[str], List, Optional['InsertArgs']]] = None
         self._sandbox      = None  ## SandboxParser during sandbox|start/end
         self._skip_block   = None  ## 'sequence'/'flatten'/'sandbox' while skipping a disabled block
         self._library_mode: bool = False
@@ -198,7 +221,7 @@ class FileAnimation(FullFrameAnimation):
                 'segment':  ArgSpec(2, 0, handler=self._parseSegment),
                 'frame':    ArgSpec(2, 0, handler=self._parseFrame),
                 'scale':    ArgSpec(1, 0, handler=self._parseScale),
-                'sequence': ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None}, handler=self._parseSequence),
+                'sequence': ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None}, handler=self._parseSequence),
                 'repeat':   ArgSpec(1, 1, handler=self._parseRepeat),
                 'flatten':  ArgSpec(1, 1, handler=self._parseFlatten),
                 'merge':    ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None}, handler=self._parseMerge),
@@ -413,7 +436,7 @@ class FileAnimation(FullFrameAnimation):
             frames += [Frame()] * missing
         return FullFrame(frames)
 
-    def _parseSequence(self, subcmd, name=None, shift='0', repeat='1', scale=None):
+    def _parseSequence(self, subcmd, name=None, shift='0', repeat='1', scale=None, mode='frame', start=None, end=None):
         if subcmd == 'start':
             if name is None:
                 raise FileAnimationError("Cannot start a sequence without a name")
@@ -440,7 +463,7 @@ class FileAnimation(FullFrameAnimation):
             ## Build into a throwaway list; sequence|end inserts it with these args
             self.active = []
             self.sequence = '<anon>'
-            self._anon_args = (shift, repeat, scale)
+            self._anon_args = InsertArgs(shift, repeat, scale, mode, start, end)
             logger.debug("Starting anonymous sequence")
         elif subcmd == 'end':
             if self.sequence is None:
@@ -455,11 +478,10 @@ class FileAnimation(FullFrameAnimation):
             if anon_args is not None:
                 ## Anonymous block: insert the just-built frames exactly as if
                 ## the sequence had been named and immediately inserted here.
-                shift, repeat, scale = anon_args
-                self._appendInsertedFrames(frames, shift, repeat, scale, "anonymous sequence")
+                self._appendInsertedFrames(frames, anon_args, "anonymous sequence")
             logger.debug(f"Completed sequence '{closed}'")
         elif subcmd == 'insert':
-            self._insertSequence(name, shift, repeat, scale)
+            self._insertSequence(name, InsertArgs(shift, repeat, scale, mode, start, end))
         else:
             raise FileAnimationError(f"Unknown sequence subcommand '{subcmd}'")
 
@@ -476,28 +498,32 @@ class FileAnimation(FullFrameAnimation):
         self._skip_block = kind
         logger.debug(f"Disabling {kind} block")
 
-    def _insertSequence(self, name, shift, repeat, scale):
+    def _insertSequence(self, name, args: 'InsertArgs'):
         """Append a previously-defined sequence to the active frame list."""
         if name not in self.sequences:
             raise FileAnimationError(f"Sequence '{name}' doesn't exist")
-        self._appendInsertedFrames(self.sequences[name], shift, repeat, scale, f"sequence '{name}'")
+        self._appendInsertedFrames(self.sequences[name], args, f"sequence '{name}'")
 
-    def _appendInsertedFrames(self, frames, shift, repeat, scale, label):
-        """Transform a sequence's frames by the insert arguments and append them.
+    def _appendInsertedFrames(self, frames, args: 'InsertArgs', label):
+        """Slice, transform, and append a sequence's frames per its InsertArgs.
 
-        ``shift`` slides each frame along the tube axis, ``scale`` multiplies
-        each frame's delay (defaulting to the file's current scale), and
-        ``repeat`` controls how many copies of the (shifted, scaled) sequence
-        are appended. The arguments arrive as raw strings (from _bindArgs for
-        sequence|insert, or from the sequence|anon line).
+        ``mode``/``start``/``end`` first select a sub-range of the sequence (see
+        _sliceFrames). Then, as before, ``shift`` slides each frame along the
+        tube axis, ``scale`` multiplies each frame's delay (defaulting to the
+        file's current scale), and ``repeat`` controls how many copies of the
+        (shifted, scaled) sub-range are appended.
         """
         ## Convert the raw string arguments to numbers
-        shift_n  = self._intArg('sequence|insert shift', shift)
-        repeat_n = self._intArg('sequence|insert repeat', repeat)
+        shift_n  = self._intArg('sequence|insert shift', args.shift)
+        repeat_n = self._intArg('sequence|insert repeat', args.repeat)
         if repeat_n < 1:
             raise FileAnimationError("sequence|insert repeat must be a positive integer")
         ## scale defaults to None from the ArgSpec, meaning "use the file scale"
-        scale_f = self.scale if scale is None else self._floatArg('sequence|insert scale', scale)
+        scale_f = self.scale if args.scale is None else self._floatArg('sequence|insert scale', args.scale)
+
+        ## Select the requested sub-range before any transform. scale_f is needed
+        ## up front because 'scaled_time' boundaries are measured against it.
+        frames = self._sliceFrames(frames, args, scale_f)
 
         ## Build the transformed copy once, then append it repeat_n times.
         ## Each entry is a (delay, FullFrame) tuple, so shift rewrites the frame
@@ -509,6 +535,82 @@ class FileAnimation(FullFrameAnimation):
         for _ in range(repeat_n):
             self.active.extend(frames)
         logger.debug(f"Inserted {label} (shift={shift_n}, repeat={repeat_n}, scale={scale_f})")
+
+    def _sliceFrames(self, frames, args: 'InsertArgs', scale_f):
+        """Return the sub-range of ``frames`` selected by mode/start/end.
+
+        ``mode`` picks the units the boundaries are measured in:
+        - ``frame``       : ``start``/``end`` are frame indices
+        - ``time``        : a time along the sequence's raw (pre-scale) delays
+        - ``scaled_time`` : a time along the delays after ``scale_f`` is applied
+
+        ``start`` defaults to the sequence's beginning and ``end`` to its end. A
+        non-negative boundary is measured from the beginning, a negative one
+        from the end, and its magnitude may not exceed the sequence's length
+        (frame count or total duration). ``start`` is inclusive and ``end`` is
+        exclusive, like a Python slice.
+        """
+        if args.mode not in ('frame', 'time', 'scaled_time'):
+            raise FileAnimationError(
+                f"sequence|insert mode must be 'frame', 'time', or 'scaled_time', not '{args.mode}'"
+            )
+        if args.start is None and args.end is None:
+            return frames
+
+        start_idx, end_idx = self._resolveSlice(frames, args, scale_f)
+        if start_idx > end_idx:
+            raise FileAnimationError(
+                f"sequence|insert start boundary lands after end boundary "
+                f"(frame {start_idx} > {end_idx})"
+            )
+        return frames[start_idx:end_idx]
+
+    def _resolveSlice(self, frames, args: 'InsertArgs', scale_f) -> Tuple[int, int]:
+        """Resolve start/end boundaries to a (start_idx, end_idx) frame range."""
+        if args.mode == 'frame':
+            n = len(frames)
+            start_idx = self._resolveBoundary('start', args.start, 0, n, integer=True)
+            end_idx   = self._resolveBoundary('end',   args.end,   n, n, integer=True)
+            return start_idx, end_idx
+
+        ## time / scaled_time: measure boundaries along the delay timeline, then
+        ## snap each to the nearest frame boundary.
+        delays = [t for t, _ in frames]
+        if args.mode == 'scaled_time':
+            delays = [t * scale_f for t in delays]
+        total = sum(delays)
+        start_t = self._resolveBoundary('start', args.start, 0.0,   total)
+        end_t   = self._resolveBoundary('end',   args.end,   total, total)
+        return self._timeToIndex(start_t, delays), self._timeToIndex(end_t, delays)
+
+    def _resolveBoundary(self, label, value, default, length, integer=False):
+        """Resolve one slice boundary string to an absolute index/time.
+
+        ``value`` is the raw argument (None -> ``default``). A negative value is
+        relative to the sequence end (``length + value``); its magnitude may not
+        exceed ``length``.
+        """
+        if value is None:
+            return default
+        num = (self._intArg(f'sequence|insert {label}', value) if integer
+               else self._floatArg(f'sequence|insert {label}', value))
+        if abs(num) > length + 1e-9:
+            raise FileAnimationError(
+                f"sequence|insert {label} {num} exceeds the sequence length {length}"
+            )
+        return length + num if num < 0 else num
+
+    @staticmethod
+    def _timeToIndex(target, delays) -> int:
+        """Return the frame-boundary index nearest ``target`` along ``delays``."""
+        elapsed = 0.0
+        best_idx, best_dist = 0, abs(target)  ## index 0 is the boundary at time 0
+        for i, delay in enumerate(delays):
+            elapsed += delay
+            dist = abs(elapsed - target)
+            if dist < best_dist:
+                best_idx, best_dist = i + 1, dist
+        return best_idx
 
     @staticmethod
     def _intArg(label, value) -> int:
@@ -650,7 +752,7 @@ class FileAnimation(FullFrameAnimation):
                 raise FileAnimationError("Cannot start a merge block inside a flatten block")
             ## Collect into a throwaway list; merge|end inserts the merged
             ## sequence with these args, exactly like sequence|anon.
-            self._merge = (None, [], (shift, repeat, scale))
+            self._merge = (None, [], InsertArgs(shift, repeat, scale))
             logger.debug("Starting anonymous merge block")
         elif subcmd == 'end':
             if self._merge is None:
@@ -661,8 +763,7 @@ class FileAnimation(FullFrameAnimation):
             if anon_args is not None:
                 ## Anonymous block: insert the merged sequence just as if it had
                 ## been named and immediately inserted here.
-                shift, repeat, scale = anon_args
-                self._appendInsertedFrames(frames, shift, repeat, scale, "anonymous merge")
+                self._appendInsertedFrames(frames, anon_args, "anonymous merge")
             else:
                 self.sequences[name] = frames
                 logger.debug(f"Merged {len(parts)} sequences into '{name}'")
@@ -702,7 +803,7 @@ class FileAnimation(FullFrameAnimation):
                 raise FileAnimationError("Cannot start a collate block inside a flatten block")
             ## Collect into a throwaway list; collate|end inserts the collated
             ## sequence with these args, exactly like sequence|anon.
-            self._collate = (None, [], (shift, repeat, scale))
+            self._collate = (None, [], InsertArgs(shift, repeat, scale))
             logger.debug("Starting anonymous collate block")
         elif subcmd == 'end':
             if self._collate is None:
@@ -713,8 +814,7 @@ class FileAnimation(FullFrameAnimation):
             if anon_args is not None:
                 ## Anonymous block: insert the collated sequence just as if it
                 ## had been named and immediately inserted here.
-                shift, repeat, scale = anon_args
-                self._appendInsertedFrames(frames, shift, repeat, scale, "anonymous collate")
+                self._appendInsertedFrames(frames, anon_args, "anonymous collate")
             else:
                 self.sequences[name] = frames
                 logger.debug(f"Collated {len(parts)} sequences into '{name}'")
