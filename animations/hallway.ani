@@ -1,2 +1,9 @@
-sequence|insert|hallway|scale=4|start=2|end=4|mode=time|repeat=200
+## Hallway
+
+import|common_sprites.alib
+import|common_sequences.alib
+
+sequence|insert|hallway|scale=2|end=2|mode=time
+sequence|insert|hallway|scale=2|start=2|end=4|mode=time|repeat=5
+sequence|insert|hallway|scale=2|start=4|mode=time
 

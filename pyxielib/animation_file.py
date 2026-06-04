@@ -453,7 +453,7 @@ class FileAnimation(FullFrameAnimation):
             self.sequence = name
             logger.debug(f"Starting sequence '{name}'")
         elif subcmd == 'anon':
-            if name is not None:
+            if name:  ## a trailing '|' yields an empty name, which is allowed
                 raise FileAnimationError("sequence|anon takes no name, only insert arguments")
             if self.sequence is not None:
                 raise FileAnimationError("Cannot start an anonymous sequence before finishing the current one")
@@ -738,7 +738,7 @@ class FileAnimation(FullFrameAnimation):
             self._merge = (name, [], None)
             logger.debug(f"Starting merge block '{name}'")
         elif subcmd == 'anon':
-            if name is not None:
+            if name:  ## a trailing '|' yields an empty name, which is allowed
                 raise FileAnimationError("merge|anon takes no name, only insert arguments")
             if self._merge is not None:
                 raise FileAnimationError("Cannot nest merge blocks")
@@ -789,7 +789,7 @@ class FileAnimation(FullFrameAnimation):
             self._collate = (name, [], None)
             logger.debug(f"Starting collate block '{name}'")
         elif subcmd == 'anon':
-            if name is not None:
+            if name:  ## a trailing '|' yields an empty name, which is allowed
                 raise FileAnimationError("collate|anon takes no name, only insert arguments")
             if self._collate is not None:
                 raise FileAnimationError("Cannot nest collate blocks")
@@ -832,19 +832,24 @@ class FileAnimation(FullFrameAnimation):
         self._merge[1].append((frames, shift, repeat, pad))
 
     def _parseCollateLine(self, args: Sequence[str]):
-        """Parse one '|name[|shift=N][|repeat=N][|delay=T]' line inside a collate block.
+        """Parse one '|name[|shift=N][|repeat=N][|delay=T][|scale=F]' collate line.
 
         Unlike merge's ``pad`` (a count of blank frames), ``delay`` is a time in
         seconds: collate works on a continuous timeline, so a sequence is simply
-        offset by ``delay`` seconds before being overlaid.
+        offset by ``delay`` seconds before being overlaid. ``scale`` multiplies
+        that one sequence's frame delays (a relative time stretch), independent
+        of any block-level scale applied to the collated result.
         """
-        spec = ArgSpec(1, 0, named={'shift': '0', 'repeat': '1', 'delay': '0'})
+        spec = ArgSpec(1, 0, named={'shift': '0', 'repeat': '1', 'delay': '0', 'scale': '1'})
         positional, named = self._bindArgs('collate line', spec, args)
         frames, shift, repeat = self._overlayCommonArgs('collate', positional, named)
         delay = self._floatArg('collate delay', named['delay'])
         if delay < 0:
             raise FileAnimationError("collate delay must be non-negative")
-        self._collate[1].append((frames, shift, repeat, delay))
+        scale = self._floatArg('collate scale', named['scale'])
+        if scale <= 0:
+            raise FileAnimationError("collate scale must be positive")
+        self._collate[1].append((frames, shift, repeat, delay, scale))
 
     def _overlayCommonArgs(self, kind, positional, named) -> Tuple[List, int, int]:
         """Resolve the name/shift/repeat shared by merge and collate body lines."""
@@ -899,16 +904,20 @@ class FileAnimation(FullFrameAnimation):
     def _collateSequences(self, parts) -> List[TimeFullFrame]:
         """Collate several sequences into one, allowing arbitrary timing.
 
-        Each part is a ``(frames, shift, repeat, delay)`` tuple. ``shift`` and
-        ``repeat`` behave exactly as in merge (applied before overlaying). Unlike
-        merge, the sequences need not share a shape: collate overlays them on a
-        continuous timeline (see _collateOverlay), so ``delay`` is a time offset
-        in seconds — a single leading blank frame that pushes the sequence's
-        start that far down the timeline — rather than merge's count of blank
-        frames whose durations must be inferred from other sequences.
+        Each part is a ``(frames, shift, repeat, delay, scale)`` tuple. ``shift``
+        and ``repeat`` behave exactly as in merge (applied before overlaying).
+        ``scale`` multiplies this sequence's frame delays (a relative time
+        stretch). Unlike merge, the sequences need not share a shape: collate
+        overlays them on a continuous timeline (see _collateOverlay), so
+        ``delay`` is a time offset in seconds — a single leading blank frame
+        that pushes the sequence's start that far down the timeline — rather
+        than merge's count of blank frames whose durations must be inferred
+        from other sequences.
         """
         prepared = []
-        for frames, shift, repeat, delay in parts:
+        for frames, shift, repeat, delay, scale in parts:
+            if scale != 1:
+                frames = [(t * scale, f) for t, f in frames]
             if shift:
                 frames = [(t, self._shiftFullFrame(f, shift)) for t, f in frames]
             if repeat != 1:

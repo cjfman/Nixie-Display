@@ -311,20 +311,24 @@ sequence|insert|zap|scale=.02
 frame|0.5|
 sequence|insert|zap_rev|scale=.02
 frame|0.5|
-sequence|insert|zap|scale=.001
-sequence|insert|zap|scale=.001
+sequence|insert|zap|scale=.01
+sequence|insert|zap|scale=.01
 frame|0.5|
-sequence|insert|zap_rev|scale=.001
-sequence|insert|zap|scale=.001
+sequence|insert|zap_rev|scale=.01
+sequence|insert|zap|scale=.01
 frame|0.5|
 
-merge|anon|scale=.03
-|zap
-|zap_rev
-|x_spin_2|pad=14|shift=7|repeat=7
-merge|end
+collate|anon
+|zap|scale=0.02
+|zap_rev|scale=0.02
+|x_spin_2|shift=7|repeat=3|scale=.05|delay=0.375
+collate|end
 
-sequence|insert|hallway|scale=4|start=2|end=4|mode=time|repeat=200
+frame|1|
+
+sequence|insert|hallway|scale=2|end=2|mode=time
+sequence|insert|hallway|scale=2|start=2|end=4|mode=time|repeat=2
+sequence|insert|hallway|scale=2|start=4|mode=time
 
 ## Collapse
 #frame|50|{full_frame}
