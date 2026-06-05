@@ -401,10 +401,11 @@ class AnimationLibraryItem(ListItem):
         if self.selected is None:
             return super().for_display()
 
-        ## Only return once
-        selected = self.selected
-        self.selected = None
-        return selected
+        if self.selected.done():
+            self.selected = None
+            return super().for_display()
+
+        return self.selected
 
     def reset(self):
         super().reset()
