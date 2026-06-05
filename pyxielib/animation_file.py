@@ -39,6 +39,7 @@ class InsertArgs:
     mode:   str = 'frame'
     start:  Optional[str] = None
     end:    Optional[str] = None
+    reverse: str = 'false'
 
 
 class ArgSpec:
@@ -244,7 +245,7 @@ class FileAnimation(FullFrameAnimation):
                 'segment':  ArgSpec(2, 0, handler=self._parseSegment),
                 'frame':    ArgSpec(2, 0, handler=self._parseFrame),
                 'scale':    ArgSpec(1, 0, handler=self._parseScale),
-                'sequence': ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None}, handler=self._parseSequence),
+                'sequence': ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None, 'reverse': 'false'}, handler=self._parseSequence),
                 'overlay':  ArgSpec(1, 0, handler=self._parseOverlay),
                 'mask':     ArgSpec(1, 0, handler=self._parseMask),
                 'repeat':   ArgSpec(1, 1, handler=self._parseRepeat),
@@ -590,7 +591,7 @@ class FileAnimation(FullFrameAnimation):
             frames += [Frame()] * missing
         return FullFrame(frames)
 
-    def _parseSequence(self, subcmd, name=None, shift='0', repeat='1', scale=None, mode='frame', start=None, end=None):
+    def _parseSequence(self, subcmd, name=None, shift='0', repeat='1', scale=None, mode='frame', start=None, end=None, reverse='false'):
         if subcmd == 'start':
             if name is None:
                 raise FileAnimationError("Cannot start a sequence without a name")
@@ -618,7 +619,7 @@ class FileAnimation(FullFrameAnimation):
             ## Build into a throwaway list; sequence|end inserts it with these args
             self.active = []
             self.sequence = '<anon>'
-            self._anon_args = InsertArgs(shift, repeat, scale, mode, start, end)
+            self._anon_args = InsertArgs(shift, repeat, scale, mode, start, end, reverse)
             self._modifiers = []
             logger.debug("Starting anonymous sequence")
         elif subcmd == 'end':
@@ -638,7 +639,7 @@ class FileAnimation(FullFrameAnimation):
                 self._appendInsertedFrames(frames, anon_args, "anonymous sequence")
             logger.debug(f"Completed sequence '{closed}'")
         elif subcmd == 'insert':
-            self._insertSequence(name, InsertArgs(shift, repeat, scale, mode, start, end))
+            self._insertSequence(name, InsertArgs(shift, repeat, scale, mode, start, end, reverse))
         else:
             raise FileAnimationError(f"Unknown sequence subcommand '{subcmd}'")
 
@@ -729,20 +730,24 @@ class FileAnimation(FullFrameAnimation):
         ``mode``/``start``/``end`` first select a sub-range of the sequence (see
         _sliceFrames). Then, as before, ``shift`` slides each frame along the
         tube axis, ``scale`` multiplies each frame's delay (defaulting to the
-        file's current scale), and ``repeat`` controls how many copies of the
-        (shifted, scaled) sub-range are appended.
+        file's current scale), ``reverse`` flips the frame order, and ``repeat``
+        controls how many copies of the (shifted, scaled, reversed) sub-range are
+        appended.
         """
         ## Convert the raw string arguments to numbers
         shift_n  = self._intArg('sequence|insert shift', args.shift)
         repeat_n = self._intArg('sequence|insert repeat', args.repeat)
         if repeat_n < 1:
             raise FileAnimationError("sequence|insert repeat must be a positive integer")
+        reverse  = self._boolArg('sequence|insert reverse', args.reverse)
         ## scale defaults to None from the ArgSpec, meaning "use the file scale"
         scale_f = self.scale if args.scale is None else self._floatArg('sequence|insert scale', args.scale)
 
         ## Select the requested sub-range before any transform. scale_f is needed
         ## up front because 'scaled_time' boundaries are measured against it.
         frames = self._sliceFrames(frames, args, scale_f)
+        if reverse:
+            frames = list(reversed(frames))
 
         ## Build the transformed copy once, then append it repeat_n times.
         ## Each entry is a (delay, FullFrame) tuple, so shift rewrites the frame
@@ -846,6 +851,16 @@ class FileAnimation(FullFrameAnimation):
             return float(value)
         except (TypeError, ValueError):
             raise FileAnimationError(f"{label} must be a float, not '{value}'")
+
+    @staticmethod
+    def _boolArg(label, value) -> bool:
+        """Parse a named-argument string as a bool: 'true'/'false', any case."""
+        lowered = str(value).strip().lower()
+        if lowered == 'true':
+            return True
+        if lowered == 'false':
+            return False
+        raise FileAnimationError(f"{label} must be 'true' or 'false', not '{value}'")
 
     def _parseRepeat(self, subcmd, count=None):
         if subcmd == 'start':

@@ -88,9 +88,12 @@ All options are **named arguments** (see [Named arguments](#named-arguments)):
   Negative values measure from the end (e.g. `start=-2` in `frame` mode begins
   two frames before the end). A boundary's magnitude may not exceed the sequence's
   length (frame count in `frame` mode; total duration in the time modes).
+- **`reverse=B`** (`true`/`false`, any case, default `false`) — when `true`,
+  reverses the frame order before `shift`/`scale`/`repeat` are applied (after the
+  `start`/`end` sub-range is selected).
 
 **`sequence|anon`** — anonymous sequence block. Takes no name; accepts the same
-`shift`/`repeat`/`scale`/`mode`/`start`/`end` arguments as `sequence|insert`.
+`shift`/`repeat`/`scale`/`mode`/`start`/`end`/`reverse` arguments as `sequence|insert`.
 Equivalent to defining a named sequence from the enclosed frames and immediately
 inserting it at `sequence|end`; the sequence is not registered under a name.
 
