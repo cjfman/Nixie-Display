@@ -230,7 +230,7 @@ class FileAnimation(FullFrameAnimation):
             ## '<block>|disable' turns a whole block into a no-op: its arguments
             ## are ignored entirely (never validated) and every line through the
             ## matching '<block>|end' is skipped (handled at the top of the loop).
-            if cmd in ('sequence', 'flatten', 'sandbox') and args and args[0] == 'disable':
+            if cmd in ('sequence', 'flatten', 'sandbox', 'collate') and args and args[0] == 'disable':
                 try:
                     self._disableBlock(cmd)
                 except FileAnimationError as e:
@@ -486,7 +486,7 @@ class FileAnimation(FullFrameAnimation):
         """
         if self._title_set:
             raise FileAnimationError("Only one 'title' command is allowed")
-        if not re.fullmatch(r"[A-Za-z0-9]+", title):
+        if not re.fullmatch(r"[A-Za-z0-9 _]+", title):
             raise FileAnimationError(f"title must be an alpha-numeric string, not '{title}'")
         self.title = title
         self._title_set = True
@@ -717,6 +717,10 @@ class FileAnimation(FullFrameAnimation):
             raise FileAnimationError(f"Cannot disable a {kind} block inside a repeat block")
         if self._flatten is not None:
             raise FileAnimationError(f"Cannot disable a {kind} block inside a flatten block")
+        if self._merge is not None:
+            raise FileAnimationError(f"Cannot disable a {kind} block inside a merge block")
+        if self._collate is not None:
+            raise FileAnimationError(f"Cannot disable a {kind} block inside a collate block")
         self._skip_block = kind
         logger.debug(f"Disabling {kind} block")
 

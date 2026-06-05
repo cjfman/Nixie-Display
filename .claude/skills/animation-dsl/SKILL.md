@@ -214,7 +214,7 @@ the matching `<type>|end` is skipped unparsed (so even broken content inside is
 ignored), and all arguments on the `disable` line itself are ignored. Change a
 block's `start`/`anon` opener to `disable` to comment it out while leaving its
 arguments and closing `<type>|end` intact. Supported types: `sequence`,
-`flatten`, `sandbox`.
+`flatten`, `sandbox`, `collate`.
 
 ---
 
