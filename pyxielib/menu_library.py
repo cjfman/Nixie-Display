@@ -1,6 +1,7 @@
 import re
 import os
 import subprocess
+import threading
 
 from pyxielib.navigator import DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
@@ -25,11 +26,39 @@ class GitStatusItem(ListItem):
     """Top-level item showing the repository's branch, HEAD commit, and how it
     compares to its upstream. The list is recomputed each time it is activated.
     """
+    FETCH_TIMEOUT = 10
+
     def __init__(self, **kwargs):
         super().__init__("Git Status", **kwargs)
+        self.fetching = False
+        self.fetch_failed = False
+
+    def reset(self):
+        super().reset()
+        self.fetching = False
+        self.fetch_failed = False
 
     def activate(self):
+        ## Fetch in the background so the menu stays responsive
+        self.fetching = True
+        self.fetch_failed = False
+        threading.Thread(target=self._load, daemon=True).start()
+
+    def for_display(self) -> str:
+        if self.fetching:
+            return "Fetching..."
+        if self.fetch_failed:
+            return "FAILED"
+        return super().for_display()
+
+    def _load(self):
+        """Fetch from the remote, then build the status list (runs in a thread)."""
+        if self._git('fetch', timeout=self.FETCH_TIMEOUT) is None:
+            self.fetch_failed = True
+            self.fetching = False
+            return
         self.set_values(self.git_status())
+        self.fetching = False
 
     @classmethod
     def git_status(cls):
@@ -57,10 +86,13 @@ class GitStatusItem(ListItem):
         return f"{ahead} ahead" if ahead else f"{behind} behind"
 
     @staticmethod
-    def _git(*args):
+    def _git(*args, timeout=None):
         """Run git in the repo dir; return stripped stdout, or None on failure."""
         repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        result = subprocess.run(['git', '-C', repo, *args], capture_output=True, check=False)
+        try:
+            result = subprocess.run(['git', '-C', repo, *args], capture_output=True, check=False, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return None
         if result.returncode != 0:
             return None
         return result.stdout.decode('utf8').strip()
