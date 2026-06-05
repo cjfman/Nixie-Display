@@ -69,36 +69,60 @@ The wire format between Python and the display is a plain string where:
 - `{0x1A2B}` inserts a raw 16-bit hex bitmap
 - `{!ABC}` renders A, B, C all with underline
 
-`tube_manager.cmdDecodePrint(code)` parses this format into a list of 16-bit bitmaps. This same logic exists in both Python (`pyxielib/tube_manager.py`) and C (`nixie-control-board/tube_manager.c`).
+`tube_manager.cmdDecodePrint(code)` parses this format into a list of 16-bit bitmaps.
+This same logic exists in both Python (`pyxielib/tube_manager.py`) and C
+(`nixie-control-board/tube_manager.c`).
 
 ### Key classes
 
-**Controllers** (`pyxielib/controller.py`): Abstract `Controller` with `send(code)` and `enable()`/`disable()`. Three implementations:
-- `TerminalController` — renders to stdout as ASCII segment art, used for development
+**`Controller`** (`pyxielib/controller.py`) — abstract base with `send(code)` and
+`enable()`/`disable()`. Three implementations:
+- `TerminalController` — renders to stdout as ASCII segment art; used for development
 - `SerialController` — sends `print:<code>\n\r` over serial to the Arduino
-- `RaspberryPiController` — decodes bitmaps and sends them directly over SPI (requires `spidev` and `RPi.GPIO`)
+- `RaspberryPiController` — decodes bitmaps and drives tubes directly over SPI
+  (requires `spidev` and `RPi.GPIO`)
 
-**Assembler** (`pyxielib/assembler.py`): Runs a background thread that calls `animation.updateFrameSet()` every 10ms and calls `controller.send()` when a new frame is ready. It holds the currently active `Animation`.
+**`Assembler`** (`pyxielib/assembler.py`) — background thread that calls
+`animation.updateFrameSet()` every 10ms and calls `controller.send()` when a new
+frame is ready. Holds the currently active `Animation`.
 
-**Scheduler** (`pyxielib/scheduler.py`): `CronScheduler` maintains a list of `(cron_expr, priority, program)` tuples. Each tick it finds the next due program and calls `assembler.setAnimation()`. Falls back to a `default` program (clock) when idle.
+**`CronScheduler`** (`pyxielib/scheduler.py`) — maintains a list of
+`(cron_expr, priority, program)` tuples. Each tick it finds the next due program
+and calls `assembler.setAnimation()`. Falls back to a `default` program (clock)
+when idle.
 
-**Programs** (`pyxielib/program.py`, `pyxielib/stockticker.py`): Each program implements `makeAnimation() -> Animation`. Programs are stateful — `update()` calls `makeAnimation()` and returns `True` if the animation changed. Key programs: `ClockProgram`, `RssProgram`, `WeatherProgram`, `SleepProgram`, `WakeProgram`, `StockTicker` (runs its own background thread to fetch S&P 500 quotes from yfinance).
+**Programs** (`pyxielib/program.py`, `pyxielib/stockticker.py`) — each program
+implements `makeAnimation() -> Animation`; `update()` calls `makeAnimation()` and
+returns `True` if the animation changed. Key programs:
+- `ClockProgram`, `RssProgram`, `WeatherProgram`
+- `SleepProgram`, `WakeProgram`
+- `StockTicker` — runs its own background thread to fetch S&P 500 quotes from yfinance
 
-**Animations** (`pyxielib/animation.py`, `pyxielib/animation_library.py`): 
+**Animation classes** (`pyxielib/animation.py`, `pyxielib/animation_library.py`):
 - `MarqueeAnimation` — scrolls text across the 16-tube display
 - `TubeAnimation` — per-tube timed frame sequences (`TubeSequence`)
 - `FullFrameAnimation` — timed sequence of full 16-tube snapshots
 - `FileAnimation` — loads from a `.ani` file (custom DSL)
 - Looped variants: `LoopedTubeAnimation`, `LoopedFullFrameAnimation`
 
-**UserMenuProgram** (`pyxielib/usermenuprogram.py`): Keyboard-driven interactive menu activated by Ctrl+Alt+F4 (via `evdev`). Uses `Navigator` + `Menu`/`MenuItem` hierarchy from `navigator.py`. Menu items in `menu_library.py` include WiFi management, animations browser, IP display, sleep/wake, reboot, shutdown.
+**`UserMenuProgram`** (`pyxielib/usermenuprogram.py`) — keyboard-driven interactive
+menu activated by Ctrl+Alt+F4 (via `evdev`). Uses `Navigator` + `Menu`/`MenuItem`
+hierarchy from `navigator.py`. Menu items in `menu_library.py` include WiFi
+management, animations browser, IP display, sleep/wake, reboot, shutdown.
 
 ### Animation file format (`.ani`)
 
-Files in `animations/` use a custom DSL parsed by `FileAnimation` (`pyxielib/animation_file.py`), including a `sandbox` block parsed by `SandboxParser` (`pyxielib/animation_sandbox.py`). The full command list, content grammar, and sandbox expression mini-language (assignment/set/print, the `+`/`*`/`|` operators) are documented in the **animation-dsl** skill (`.claude/skills/animation-dsl/SKILL.md`).
+Files in `animations/` use a custom DSL parsed by `FileAnimation`
+(`pyxielib/animation_file.py`), including a `sandbox` block parsed by
+`SandboxParser` (`pyxielib/animation_sandbox.py`). The full command list, content
+grammar, and sandbox expression mini-language (assignment/set/print, the
+`+`/`*`/`|` operators) are documented in the **animation-dsl** skill
+(`.claude/skills/animation-dsl/SKILL.md`).
 
 ### Production deployment
 
-The production system runs on a Raspberry Pi. `raspi_run` is the startup script: it pulls `nixie-live` branch from git, then launches `run_display -c raspi`. Logs go to `~/logs/nixie.log` and `~/logs/nixie.stderr`.
+The production system runs on a Raspberry Pi. `raspi_run` is the startup script:
+it pulls the `nixie-live` branch from git, then launches `run_display -c raspi`.
+Logs go to `~/logs/nixie.log` and `~/logs/nixie.stderr`.
 
 The live branch is `nixie-live`. `master` is the development branch.

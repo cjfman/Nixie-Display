@@ -10,58 +10,6 @@ Files in `animations/` use a custom line-based DSL parsed by `FileAnimation`
 `#` begins a comment (there is no `//` comment syntax). Errors are collected
 per line and reported together with line numbers.
 
-## Escaping `|` and `\`
-
-`|` separates a line into fields, so a literal `|` inside a field (e.g. in
-`frame`/`segment` content) must be escaped as `\|`. Because `\` is the escape
-character, a literal backslash is written `\\`. Both escapes are collapsed when
-the line is split into fields (`\|` → `|`, `\\` → `\`); any other backslash is
-left untouched, so a lone `\` followed by a normal character still renders as a
-backslash glyph. Example: `frame|1|A\|B` renders the three tubes `A`, `|`, `B`.
-This applies only to the field-splitting of DSL command lines
-(`FileAnimation._splitFields`) — inside a `sandbox` block `|` is the
-tube-concatenation operator and a trailing `\` is line continuation, neither of
-which is escaped.
-
-## File commands
-
-- `sprite|name|0xHEX` — define a named 16-bit bitmap
-- `segment|name|{sprite1}{sprite2}...` — define a named sequence of characters and sprites
-- `frame|delay_secs|<content>` — add a full frame composed of characters, sprites, and segments; `delay=0` overlays on the previous frame
-- `scale|factor` — multiply all delays
-- `sequence|start|name` / `sequence|end` / `sequence|insert|name[|shift=N][|repeat=N][|scale=F][|mode=M][|start=B][|end=B]` — define and insert named reusable frame sequences. The insert options are **named arguments** (see below): `shift` (integer, default `0`) slides the inserted sequence left/right; `repeat` (positive integer, default `1`) inserts the sequence that many times; `scale` (float, default the current `scale`) multiplies each inserted frame's delay
-- Insert slicing — `start`/`end` select a sub-range of the sequence *before* `shift`/`scale`/`repeat` are applied. `mode` chooses the units of the boundaries: `frame` (default) — frame indices; `time` — a time measured along the sequence's raw (pre-`scale`) delays; `scaled_time` — a time measured along the delays *after* `scale` is applied. `start` defaults to the sequence start and `end` to its end; `start` is inclusive and `end` exclusive (like a Python slice). A non-negative boundary is measured from the start, a negative one from the end (e.g. `start=-2` in `frame` mode begins two frames before the end), and a boundary's magnitude may not exceed the sequence's length (its frame count in `frame` mode, its total duration in the time modes). Time-mode boundaries snap to the nearest frame boundary
-- `sequence|anon[|shift=N][|repeat=N][|scale=F][|mode=M][|start=B][|end=B]` / frames / `sequence|end` — an anonymous sequence block. Takes no name and accepts the same `shift`/`repeat`/`scale`/`mode`/`start`/`end` arguments as `sequence|insert`. Equivalent to defining a named sequence from the enclosed frames and immediately inserting it with those arguments at `sequence|end`; the sequence is not registered under a name
-- `overlay|<content>` — only valid inside a sequence (named or anon). Like `frame` but with no delay: its content is overlaid onto **every** frame of the sequence (per tube, like `flatten` — blank overlay tubes leave the frame untouched, overlapping content is merged as bitmaps), applied at `sequence|end`. More than one `overlay` is allowed
-- `mask|<content>` — only valid inside a sequence (named or anon). Like `overlay` but its content is bitwise-**ANDed** (intersected) with every frame of the sequence rather than OR-ed: only segments lit in both the frame and the mask survive. A tube the mask does not reach (a mask shorter than the display, or a blank mask tube) contributes a blank `0` there and so **clears** that tube — a mask must span every tube it means to keep (e.g. `mask|{keep}{16}`). More than one `mask` is allowed
-- Ordering of `overlay`/`mask` — both are applied to every frame at `sequence|end`, and `overlay` and `mask` lines are applied **in the order they appear** in the sequence (independent of where they sit among the `frame` lines). So a `mask` before an `overlay` clips the base frame but not the later overlay, whereas a `mask` after it clips both
-- `repeat|start|N` / `repeat|end` — anonymous sequence repeated N times inline; may appear inside a named sequence, but named sequences may not be started inside a repeat block
-- `flatten|start|name` / `|content` lines / `flatten|end` — overlay anonymous inline segments per-tube (as hex bitmaps) into a named segment
-- `flatten|anon|scale` / `|content` lines / `flatten|end` — like `flatten|start`, but instead of naming a segment it inserts the flattened result as a single full frame into the animation right after the block, using `scale` as that frame's delay; like a `frame` delay it is multiplied by the file `scale`
-- `merge|start|name` / `|seq[|shift=N][|repeat=N][|pad=N]` lines / `merge|end` — overlay whole sequences per-step (each step's full frame is flattened tube-by-tube like `flatten`) into a named sequence. Each body line names an existing sequence and may carry these named arguments: `shift` (integer, default `0`) slides that sequence along the tube axis and `repeat` (positive integer, default `1`) duplicates the sequence that many times — both applied before merging and behaving like their `sequence|insert` counterparts (shift then repeat); `pad` (non-negative integer, default `0`) prepends that many blank frames to the start of the sequence (after shift/repeat), whose delays are inferred from the sequences processed before it. The sequences must have the same shape — the frames at a given step must share the same delay — and shorter sequences are padded with blank frames (which take the longer sequences' delays) out to the longest length
-- `pad` resolution: body lines are processed in increasing `pad` order, so a less-padded sequence's frames define the delays for a more-padded sequence's leading blanks. This requires at least one sequence with no `pad` (`pad=0`), and a sequence may not be padded past the end of every already-processed sequence (its blank region must fit within a previously processed sequence's length)
-- `merge|anon[|shift=N][|repeat=N][|scale=F][|mode=M][|start=B][|end=B]` / `|seq[|shift=N][|repeat=N][|pad=N]` lines / `merge|end` — like `merge|start`, but instead of naming a sequence it immediately inserts the merged sequence into the animation right after the block, accepting the same `shift`/`repeat`/`scale`/`mode`/`start`/`end` insert arguments as `sequence|anon` (the block-level `mode`/`start`/`end` slice the *merged result*, exactly as for a `sequence|insert`; the per-line `shift`/`repeat`/`pad` still apply before merging, independent of the block-level arguments)
-- `collate|start|name` / `|seq[|shift=N][|repeat=N][|delay=T][|scale=F]` lines / `collate|end` (and `collate|anon[|shift=N][|repeat=N][|scale=F][|mode=M][|start=B][|end=B]`) — like `merge`, with the same subcommands and `shift`/`repeat`/`scale`/`mode`/`start`/`end` arguments (the block-level `mode`/`start`/`end` slice the collated result just as for `sequence|insert`), **but the sequences need not share a shape**. Where `merge` requires the frames at each step to share a delay, `collate` overlays sequences on a continuous timeline: it unions every sequence's frame-end times into one ordered set of cut points and emits one flattened full frame per interval, so frames are split in time wherever any sequence changes frame. Use `collate` instead of `merge` to overlay sequences whose frames have differing/arbitrary delays (e.g. staggered copies of a sequence). Body-line arguments unique to collate: **`delay`** (a time in seconds, float ≥ 0, default `0`) — collate's analogue of merge's `pad` (a count of blank frames); because collate works in continuous time, `delay` simply pushes that sequence's start `delay` seconds down the timeline (there is no "at least one `delay=0`" requirement — every sequence may carry a delay). **`scale`** (positive float, default `1`) — multiplies that one sequence's frame delays, a relative time stretch applied before `shift`/`repeat`/`delay` and independent of the block-level `scale` applied to the collated result
-- `loop|once` / `loop|forever` / `loop|count|N` — whether the whole animation restarts after it completes. `once` (the default if no `loop` command) plays it a single time; `forever` restarts indefinitely; `count|N` plays it `N` times total (a positive integer), i.e. it restarts `N-1` times (`count|1` is equivalent to `once`). At most one `loop` command is allowed (a second is an error), and it must be at the top level (not inside a sequence/repeat/merge/collate/flatten block) and not in a library file
-- `import|[scale|]filepath` — import sprites/segments/sequences from a library file; `scale` is optional and multiplies imported sequence delays
-- `sandbox|start` / `sandbox|end` — assemble animations from `animation_library.py` (see below); printed animations are appended to the file as full frames
-- `sequence|disable` / `flatten|disable` / `sandbox|disable` — disable a block: every line through the matching `<type>|end` is skipped unparsed (so even broken content inside is ignored), and all arguments on the `disable` line itself are ignored. Lets you comment out a whole block by changing its `start`/`anon` opener to `disable` without removing its arguments (the closing `<type>|end` stays)
-- `{N}` in content is a multiplier; `{sprite_name}` expands a named sprite/segment; `{0x1A2B}` inserts a raw 16-bit bitmap. A leading `~` takes the bitwise-NOT (16-bit complement) of either form: a hex literal — inline (`{~0x0008}` → `0xFFF7`) or in a `sprite`/raw value (`sprite|name|~0x0008`) — or a macro (`{~tb_rail}` complements each tube of the sprite/segment, so a blank tube becomes all-on). This is handy with `mask` to clear specific segments (`mask|{~0x0008}{16}` keeps everything but segment `0x0008`)
-
-## Named arguments
-
-Some commands accept **named arguments** written `name=value` (e.g.
-`sequence|insert|s|shift=2|repeat=3`). This is a general mechanism declared per
-command via `ArgSpec` in `animation_file.py` and resolved by
-`FileAnimation._bindArgs`, so it can be extended to other commands. The rules:
-
-- Positional arguments must come before any named argument in a call.
-- Named arguments are always written `name=value`; they may never be passed
-  positionally, and a command's positional argument may never be named.
-- Named arguments may appear in any order, and each may appear at most once.
-- A command only parses `name=value` fields if it declares named arguments, so
-  commands like `frame` may still carry an `=` in their content.
-
 ## Content grammar
 
 ```
@@ -77,40 +25,250 @@ sequence   : frame+
 comment    : `#` rest of line
 ```
 
+### Macros and bitmaps
+
+- **`{name}`** — expands a named sprite (one tube) or segment (N tubes).
+- **`{N}`** — repeats the previous tube N times.
+- **`{0x1A2B}`** — inserts a raw 16-bit bitmap.
+- **`~` prefix** — takes the bitwise-NOT (16-bit complement) of either form:
+  - Inline hex literal: `{~0x0008}` → `0xFFF7`
+  - Sprite definition value: `sprite|name|~0x0008`
+  - Macro expansion: `{~tb_rail}` complements each tube of the sprite/segment, so a blank tube becomes all-on
+
+The `~` prefix is handy with `mask` to clear specific segments:
+`mask|{~0x0008}{16}` keeps everything *except* segment `0x0008`.
+
+### Escaping `|` and `\`
+
+`|` separates a line into fields, so a literal `|` inside a field (e.g. in
+`frame`/`segment` content) must be escaped as `\|`. Because `\` is the escape
+character, a literal backslash is written `\\`. Both escapes are collapsed when
+the line is split into fields (`\|` → `|`, `\\` → `\`); any other backslash is
+left untouched, so a lone `\` followed by a normal character still renders as a
+backslash glyph. Example: `frame|1|A\|B` renders the three tubes `A`, `|`, `B`.
+This applies only to DSL command line field-splitting (`FileAnimation._splitFields`)
+— inside a `sandbox` block `|` is the tube-concatenation operator and a trailing
+`\` is line continuation, neither of which is escaped.
+
+
+## File commands
+
+### Content primitives
+
+**`sprite|name|0xHEX`** — define a named 16-bit bitmap.
+
+**`segment|name|{sprite1}{sprite2}...`** — define a named sequence of characters and sprites.
+
+**`frame|delay_secs|<content>`** — add a full frame composed of characters, sprites, and segments.
+`delay=0` overlays the frame on the previous frame.
+
+**`scale|factor`** — multiply all subsequent frame delays by `factor`.
+
+**`import|[scale|]filepath`** — import sprites, segments, and sequences from a library file.
+The optional `scale` prefix multiplies the delays of imported sequences.
+
+---
+
+### Sequences
+
+**`sequence|start|name`** / **`sequence|end`** — define a named reusable frame sequence.
+
+**`sequence|insert|name`** — insert a previously defined named sequence.
+All options are **named arguments** (see [Named arguments](#named-arguments)):
+
+- **`shift=N`** (integer, default `0`) — slides the sequence left/right along the tube axis.
+- **`repeat=N`** (positive integer, default `1`) — inserts the sequence N times.
+- **`scale=F`** (float, default the current `scale`) — multiplies each inserted frame's delay.
+- **`mode=M`** — units for `start`/`end` slicing: `frame` (default, frame indices),
+  `time` (raw pre-`scale` delays), or `scaled_time` (post-`scale` delays).
+  Time-mode boundaries snap to the nearest frame boundary.
+- **`start=B`** / **`end=B`** — select a sub-range of the sequence *before*
+  `shift`/`scale`/`repeat` are applied. `start` is inclusive, `end` exclusive
+  (like a Python slice). Defaults: `start` = sequence start, `end` = sequence end.
+  Negative values measure from the end (e.g. `start=-2` in `frame` mode begins
+  two frames before the end). A boundary's magnitude may not exceed the sequence's
+  length (frame count in `frame` mode; total duration in the time modes).
+
+**`sequence|anon`** — anonymous sequence block. Takes no name; accepts the same
+`shift`/`repeat`/`scale`/`mode`/`start`/`end` arguments as `sequence|insert`.
+Equivalent to defining a named sequence from the enclosed frames and immediately
+inserting it at `sequence|end`; the sequence is not registered under a name.
+
+**`overlay|<content>`** — only valid inside a named or anonymous sequence.
+Like `frame` but with no delay: content is overlaid onto **every** frame of the
+sequence at `sequence|end`. Blank overlay tubes leave the frame untouched;
+overlapping content is merged as bitmaps (bitwise OR). More than one `overlay` is allowed.
+
+**`mask|<content>`** — only valid inside a named or anonymous sequence.
+Like `overlay` but content is bitwise-**ANDed** with every frame: only segments
+lit in both the frame and the mask survive. A tube the mask does not reach
+(mask shorter than the display, or a blank mask tube) contributes `0`, clearing
+that tube — a mask must span every tube it means to keep (e.g. `mask|{keep}{16}`).
+More than one `mask` is allowed.
+
+**Ordering of `overlay` and `mask`:** Both are applied at `sequence|end` in the
+order they appear in the sequence, independent of where they sit relative to
+`frame` lines. A `mask` before an `overlay` clips the base frames but not the
+overlay; a `mask` after an `overlay` clips both.
+
+**`repeat|start|N`** / **`repeat|end`** — repeat the enclosed frames N times inline.
+May appear inside a named sequence; named sequences may *not* be started inside
+a repeat block.
+
+---
+
+### Flatten
+
+**`flatten|start|name`** / content lines / **`flatten|end`** — overlay anonymous
+inline segments per-tube (as hex bitmaps) into a named segment.
+
+**`flatten|anon|scale`** / content lines / **`flatten|end`** — like `flatten|start`,
+but instead of naming a segment it inserts the flattened result as a single full
+frame right after the block, using `scale` as that frame's delay (multiplied by
+the file `scale`).
+
+---
+
+### Merge
+
+**`merge|start|name`** / body lines / **`merge|end`** — overlay whole sequences
+per-step (each step's full frame is flattened tube-by-tube) into a named sequence.
+Each body line names an existing sequence with optional named arguments:
+
+- **`shift=N`** (integer, default `0`) — slides that sequence along the tube axis.
+- **`repeat=N`** (positive integer, default `1`) — duplicates that sequence before merging.
+- **`pad=N`** (non-negative integer, default `0`) — prepends N blank frames to the
+  start of that sequence (after shift/repeat); delays are inferred from sequences
+  processed before it (see pad resolution below).
+
+The sequences must have the same *shape*: frames at each step must share the same
+delay. Shorter sequences are padded with blank frames (taking the longer sequences'
+delays) to match the longest length.
+
+**Pad resolution:** Body lines are processed in increasing `pad` order. At least
+one sequence must have `pad=0`. A sequence may not be padded past the end of every
+already-processed sequence (its blank region must fit within a previously
+processed sequence's length).
+
+**`merge|anon`** — like `merge|start` but immediately inserts the merged result
+rather than naming it. Accepts the same block-level
+`shift`/`repeat`/`scale`/`mode`/`start`/`end` arguments as `sequence|anon`.
+The per-line `shift`/`repeat`/`pad` still apply before merging; the block-level
+`mode`/`start`/`end` slice the *merged result*.
+
+---
+
+### Collate
+
+**`collate|start|name`** / body lines / **`collate|end`** — like `merge` with the
+same subcommands and block-level `shift`/`repeat`/`scale`/`mode`/`start`/`end`
+arguments, **but the sequences need not share a shape**. Where `merge` requires
+frames at each step to share a delay, `collate` overlays sequences on a continuous
+timeline: it unions every sequence's frame-end times into one ordered set of cut
+points and emits one flattened full frame per interval. Use `collate` instead of
+`merge` when the sequences have differing or arbitrary frame delays (e.g. staggered
+copies). Body-line arguments unique to `collate`:
+
+- **`delay=T`** (float ≥ 0 seconds, default `0`) — pushes that sequence's start
+  T seconds down the timeline. `collate`'s analogue of `merge`'s `pad`, but in
+  continuous time; there is no "at least one `delay=0`" requirement.
+- **`scale=F`** (positive float, default `1`) — multiplies that one sequence's
+  frame delays; applied before `shift`/`repeat`/`delay` and independent of the
+  block-level `scale`.
+
+**`collate|anon`** — like `merge|anon` but using collate semantics. Block-level
+`mode`/`start`/`end` slice the collated result.
+
+---
+
+### Flow control
+
+**`loop|once`** / **`loop|forever`** / **`loop|count|N`** — whether the animation
+restarts after completing:
+
+- `once` — play once (default when no `loop` command is present).
+- `forever` — restart indefinitely.
+- `count|N` — play N times total (`count|1` equals `once`).
+
+At most one `loop` command is allowed; it must appear at the top level (not inside
+any block) and is not permitted in library files.
+
+**`sandbox|start`** / **`sandbox|end`** — assemble animations from
+`animation_library.py` (see [Sandbox block](#sandbox-block) below). Printed
+animations are appended to the file as full frames.
+
+**`<type>|disable`** — disable a block without removing it. Every line through
+the matching `<type>|end` is skipped unparsed (so even broken content inside is
+ignored), and all arguments on the `disable` line itself are ignored. Change a
+block's `start`/`anon` opener to `disable` to comment it out while leaving its
+arguments and closing `<type>|end` intact. Supported types: `sequence`,
+`flatten`, `sandbox`.
+
+---
+
+## Named arguments
+
+Some commands accept **named arguments** written `name=value` (e.g.
+`sequence|insert|s|shift=2|repeat=3`). This is a general mechanism declared per
+command via `ArgSpec` in `animation_file.py` and resolved by
+`FileAnimation._bindArgs`. The rules:
+
+- Positional arguments must come before any named argument in a call.
+- Named arguments are always written `name=value`; they may never be passed
+  positionally, and a command's positional argument may never be named.
+- Named arguments may appear in any order, and each may appear at most once.
+- A command only parses `name=value` fields if it declares named arguments, so
+  commands like `frame` may still carry an `=` in their content.
+
+---
+
 ## Sandbox block (`pyxielib/animation_sandbox.py`)
 
 Between `sandbox|start` and `sandbox|end`, lines use a safe expression
 mini-language (handled entirely by `SandboxParser`, never `eval`). Three line
 types:
 
-- **assignment** `name = expr` — `name` matches `[A-Za-z]\w+` (2+ chars) and may not be a DSL keyword, a class in `animation.py`, or `set`/`print`. The result must be an `animation.py` instance (or a same-typed list of them) and is stored in a namespace separate from the file's sprites/segments.
-- **set** `set delay|rate = literal` — `delay` (defaults to the file `scale`) and `rate` are non-negative floats and mutually exclusive: setting one non-zero zeroes the other.
-- **print** `print expr` — evaluates `expr` (any expression, not just a variable), converts the result to a `FullFrameAnimation`/`TubeAnimation` (a `Frame`/`FullFrame`/`List[FullFrame]`/`TubeSequence`/`List[TubeSequence]` is wrapped using `delay`/`rate`) and appends it to the file. With no argument (`print`), the most recently assigned variable is printed. `TubeAnimation`s are merged onto a shared timeline of full frames.
+- **assignment** `name = expr` — `name` matches `[A-Za-z]\w+` (2+ chars) and
+  may not be a DSL keyword, a class in `animation.py`, or `set`/`print`. The
+  result must be an `animation.py` instance (or a same-typed list of them) and
+  is stored in a namespace separate from the file's sprites/segments.
+- **set** `set delay|rate = literal` — `delay` (defaults to the file `scale`)
+  and `rate` are non-negative floats and mutually exclusive: setting one non-zero
+  zeroes the other.
+- **print** `print expr` — evaluates `expr`, converts the result to a
+  `FullFrameAnimation`/`TubeAnimation` (a `Frame`/`FullFrame`/`List[FullFrame]`/
+  `TubeSequence`/`List[TubeSequence]` is wrapped using `delay`/`rate`) and appends
+  it to the file. With no argument (`print`), the most recently assigned variable
+  is printed. `TubeAnimation`s are merged onto a shared timeline of full frames.
 
-A sandbox line ending in `\` is joined with the following line before parsing, so a long expression can be split across several lines. A `\` with no following line before `sandbox|end` is an error.
+A sandbox line ending in `\` is joined with the following line before parsing
+(line continuation). A `\` with no following line before `sandbox|end` is an error.
 
 ### Expressions
 
-Tokenized, then evaluated in a second pass with precedence `*` then `+` then
-`|`. They may contain:
+Tokenized, then evaluated in a second pass with precedence `*` then `+` then `|`.
+They may contain:
 
-- `animation_library` functions — the name is tried as-is, then with a `make` prefix (so `TextAnimation` resolves to `makeTextAnimation`); arguments are variables/literals/`name=value` kwargs only (no nested calls)
-- variables defined earlier in the block
-- int/float/string literals, plus `True`/`False`/`None` (only valid as argument values, and only in that exact capitalization)
-- `[...]` lists of same-typed items
-- the operators `+`, `*`, `|`
+- `animation_library` functions — the name is tried as-is, then with a `make`
+  prefix (`TextAnimation` resolves to `makeTextAnimation`); arguments are
+  variables/literals/`name=value` kwargs only (no nested calls).
+- Variables defined earlier in the block.
+- int/float/string literals, plus `True`/`False`/`None` (valid as argument values
+  only, in that exact capitalization).
+- `[...]` lists of same-typed items.
+- The operators `+`, `*`, `|`.
 
-A bare (non-argument) string literal is converted to a `FullFrame` via
-`textToFrames`.
+A bare (non-argument) string literal is converted to a `FullFrame` via `textToFrames`.
 
 ### The `|` (tube-concatenation) operator
 
-`|` joins operands side-by-side along the tube axis; both sides must be the
-same shape:
+`|` joins operands side-by-side along the tube axis; both sides must be the same type:
 
-- `Frame | Frame → FullFrame`
-- `TubeSequence | TubeSequence → List[FullFrame]`
-- `TubeAnimation | TubeAnimation → FullFrameAnimation` (timed operands merged onto a shared timeline; ragged tube counts are blank-padded)
+| Left | Right | Result |
+|------|-------|--------|
+| `Frame` | `Frame` | `FullFrame` |
+| `TubeSequence` | `TubeSequence` | `List[FullFrame]` |
+| `TubeAnimation` | `TubeAnimation` | `FullFrameAnimation` (merged onto a shared timeline; ragged tube counts are blank-padded) |
 
 This is backed by real `__or__` operators on the `animation.py` classes (plus
 `TubeAnimation.toFullFrameAnimation()` and the `concatFullFrameRows` /
