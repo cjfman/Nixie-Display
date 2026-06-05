@@ -41,8 +41,8 @@ class UserMenuProgram(Program):
         terminal_mode = (event_path is None)
         self.navigator = Navigator(Menu("Nixie Menu", [
             menulib.ProgramListItem(self.program_map),
-            menulib.MirrorItem("Mirror Mode"),
             menulib.AnimationLibraryItem(ani_path),
+            menulib.MirrorItem("Mirror Mode"),
             menulib.IpItem(),
             menulib.GitStatusItem(),
             menulib.WiFiMenu(),

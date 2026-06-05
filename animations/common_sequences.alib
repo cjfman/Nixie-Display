@@ -95,8 +95,8 @@ sequence|start|spread
 frame|1.0417| #{7}{r_rail}{l_rail}
 #frame|0.3472| #{7}\|\|
 #frame|0.3472| {7}{0x0800}{2} #{0x2000}{0x0200}
-frame|0.1736| 
-frame|0.1736| {7}{0x0800}{2}
+frame|0.1736| ## Split this frame into two (1/2)
+frame|0.1736| {7}{0x0800}{2} ## (2/2)
 frame|0.1736| {7}{l_rail}{r_rail}
 frame|0.1042| {6}{r_rail} {2}{l_rail}
 frame|0.0694| {6}\| {2}\|
