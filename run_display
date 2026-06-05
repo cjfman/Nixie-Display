@@ -3,11 +3,13 @@
 
 import argparse
 import logging
+import subprocess
 import sys
 import os
 import time
 import traceback
 
+import pyxielib.animation_library as animationlib
 from pyxielib import assembler, controller, program, scheduler, stockticker, usermenuprogram
 
 file_dir = os.path.dirname(os.path.realpath(__file__))
@@ -24,6 +26,10 @@ def make_parser():
     parser.add_argument('--animations-dir', default=os.path.join(file_dir, 'animations'), help="Directory of animations files")
     parser.add_argument('--extended-hours', action='store_true',
         help="Show pre-market and after-market stock data")
+    parser.add_argument('--git-check', type=int, metavar='MINUTES',
+        help="Check git for updates every MINUTES minutes and exit when behind origin")
+    parser.add_argument('--git-origin', default='@{u}', metavar='REF',
+        help="Git ref to compare HEAD against for --git-check (default: the configured upstream)")
     parser.add_argument('--logfile', help="Write logs to this file instead of stdout")
     parser.add_argument('--loglevel', default='info',
         choices=['trace', 'debug', 'info', 'warning', 'error', 'critical'],
@@ -66,6 +72,26 @@ def create_controller(c_type, serial, print_code, verbose):
         logger.error(f"Unsupported controller type: {c_type}")
 
     return ctrl
+
+
+def git_behind_origin(ref):
+    """Fetch and return True if local HEAD is behind ref on origin"""
+    try:
+        subprocess.run(['git', 'fetch'], cwd=file_dir, check=True, capture_output=True)
+        result = subprocess.run(['git', 'rev-list', '--count', f'HEAD..{ref}'],
+            cwd=file_dir, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Git check failed: {e.stderr.strip() if e.stderr else e}")
+        return False
+
+    return int(result.stdout.strip()) > 0
+
+
+def display_message(ctrl, message):
+    """Render a static text message directly to the controller"""
+    ani = animationlib.makeTextAnimation(message)
+    ani.updateFrameSet()
+    ctrl.send(ani.getCode())
 
 
 def main(args):
@@ -113,6 +139,9 @@ def main(args):
     time.sleep(1)
 
     error = False
+    git_update = False
+    git_period_secs = args.git_check * 60 if args.git_check else None
+    last_git_check = time.monotonic()
     try:
         while True:
             if not asmlr.isRunning():
@@ -121,6 +150,12 @@ def main(args):
             if not schdlr.isRunning():
                 logger.error("Scheduler stopped unexpectedly")
                 break
+            if git_period_secs is not None and time.monotonic() - last_git_check >= git_period_secs:
+                last_git_check = time.monotonic()
+                if git_behind_origin(args.git_origin):
+                    logger.info("Git update available; exiting for restart")
+                    git_update = True
+                    break
             time.sleep(0.1)
     except Exception as e:
         logger.error(f"Unhandled error: {e}")
@@ -128,6 +163,11 @@ def main(args):
         error = True
     except KeyboardInterrupt:
         logger.info("User requested exit")
+
+    if git_update:
+        asmlr.stop()
+        display_message(ctrl, "GIT UPDATE")
+        time.sleep(3)
 
     things_to_stop = [ticker_prgm, asmlr, schdlr]
     if user_prgm is not None:
