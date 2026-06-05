@@ -90,7 +90,7 @@ sequence|insert|slither_rev|shift=-6
 sequence|end
 
 ## Hallway
-sequence|start|spread_1
+sequence|start|spread
 ## Total 2s
 frame|1.0417| #{7}{r_rail}{l_rail}
 #frame|0.3472| #{7}\|\|
@@ -119,13 +119,7 @@ frame|0.0045| {1}{l_rail} {12}{r_rail}
 frame|0.0041|{r_rail} {14}{l_rail}
 frame|0.0038|\| {14}\|
 frame|0.0035|{l_rail} {14}{r_rail}
-overlay|{tb_rail}{7}{0x0448}{0x1108}{tb_rail}{7}
-mask|{~t_rail}{4}{0xffff}{8}{~t_rail}{4}
-#overlay|_{16}
-#overlay|{tb_rail}{6}{0x0248}{0x2408}{0x1208}{0x2108}{tb_rail}{6}
-#overlay|{tb_rail}{5}{0x0248}{mb_rail}{0x2408}{0x1208}{mb_rail}{0x2108}{tb_rail}{5}
-#overlay|-{7} {2}-{7}
-#overlay|{tb_rail}{7} {2}{tb_rail}{7}
+overlay|{b_rail}{7}{0x0448}{0x1108}{b_rail}{7}
 sequence|end
 
 sequence|start|spread_2
@@ -158,42 +152,22 @@ frame|0.0035|{l_rail} {14}{r_rail}
 overlay|{b_rail}{7}{0x0448}{0x1108}{b_rail}{7}
 sequence|end
 
-collate|start|hallway_1
-|spread_1
-|spread_1|delay=0.25
-|spread_1|delay=0.50
-|spread_1|delay=0.75
-|spread_1|delay=1.00
-|spread_1|delay=1.25
-|spread_1|delay=1.50
-|spread_1|delay=1.75
-|spread_1|delay=2.00
-|spread_1|delay=2.25
-|spread_1|delay=2.50
-|spread_1|delay=2.75
-|spread_1|delay=3.00
-|spread_1|delay=3.25
-|spread_1|delay=3.50
-|spread_1|delay=3.75
-|spread_1|delay=4.00
-collate|end
-
-collate|start|hallway_2
-|spread_2
-|spread_2|delay=0.25
-|spread_2|delay=0.50
-|spread_2|delay=0.75
-|spread_2|delay=1.00
-|spread_2|delay=1.25
-|spread_2|delay=1.50
-|spread_2|delay=1.75
-|spread_2|delay=2.00
-|spread_2|delay=2.25
-|spread_2|delay=2.50
-|spread_2|delay=2.75
-|spread_2|delay=3.00
-|spread_2|delay=3.25
-|spread_2|delay=3.50
-|spread_2|delay=3.75
-|spread_2|delay=4.00
+collate|start|hallway
+|spread
+|spread|delay=0.25
+|spread|delay=0.50
+|spread|delay=0.75
+|spread|delay=1.00
+|spread|delay=1.25
+|spread|delay=1.50
+|spread|delay=1.75
+|spread|delay=2.00
+|spread|delay=2.25
+|spread|delay=2.50
+|spread|delay=2.75
+|spread|delay=3.00
+|spread|delay=3.25
+|spread|delay=3.50
+|spread|delay=3.75
+|spread|delay=4.00
 collate|end
