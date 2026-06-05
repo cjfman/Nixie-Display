@@ -67,6 +67,11 @@ class FileAnimation(FullFrameAnimation):
         self.path          = path
         self.size          = size
         self.scale         = 1
+        ## Display name for the menu, set by the 'title' command. Defaults to the
+        ## file name without its extension; the menu falls back to that name when
+        ## the title is left None/empty. _title_set guards the once-only rule.
+        self.title         = self._defaultTitle(path)
+        self._title_set    = False
         self.sequence      = None
         ## Overlay/mask modifiers collected from 'overlay'/'mask' lines in the
         ## current sequence, each a (kind, [Frame]) pair where kind is 'overlay'
@@ -115,6 +120,8 @@ class FileAnimation(FullFrameAnimation):
         obj.path          = path
         obj.size          = size
         obj.scale         = 1
+        obj.title         = cls._defaultTitle(path)
+        obj._title_set    = False
         obj.sequence      = None
         obj._modifiers    = []
         obj._anon_args    = None
@@ -247,6 +254,7 @@ class FileAnimation(FullFrameAnimation):
                 'import':   ArgSpec(1, 1, handler=self._parseImport),
                 'sandbox':  ArgSpec(1, 0, handler=self._parseSandbox),
                 'loop':     ArgSpec(1, 1, handler=self._parseLoop),
+                'title':    ArgSpec(1, 0, handler=self._parseTitle),
             }
             try:
                 if cmd not in handlers:
@@ -461,6 +469,48 @@ class FileAnimation(FullFrameAnimation):
             logger.debug(f"Setting scale {self.scale}")
         except Exception as e:
             raise FileAnimationError("Failed to convert scale to float: " + str(e))
+
+    @staticmethod
+    def _defaultTitle(path) -> str:
+        """The fallback display name for a file: its name without the extension."""
+        return os.path.splitext(os.path.basename(path))[0]
+
+    def _parseTitle(self, title):
+        """Parse the 'title' command, which sets the menu display name.
+
+        Takes one alpha-numeric positional argument and overrides the default
+        title (the file name without its extension). Allowed at most once.
+        """
+        if self._title_set:
+            raise FileAnimationError("Only one 'title' command is allowed")
+        if not re.fullmatch(r"[A-Za-z0-9]+", title):
+            raise FileAnimationError(f"title must be an alpha-numeric string, not '{title}'")
+        self.title = title
+        self._title_set = True
+        logger.debug(f"Set title '{title}'")
+
+    @classmethod
+    def read_title(cls, path) -> str:
+        """Return a .ani file's display title without fully parsing it.
+
+        Scans for the first 'title' command and returns its argument; falls back
+        to the file name without its extension when the file has no (non-empty)
+        title or cannot be read. Used by the Animations menu, which would
+        otherwise have to load every animation just to label the list.
+        """
+        default = cls._defaultTitle(path)
+        try:
+            with open(path, 'r') as ani_file:
+                for line in ani_file:
+                    line = re.sub(r"\s*(?:#.*)", '', line).strip()
+                    if not line:
+                        continue
+                    fields = cls._splitFields(line)
+                    if fields and fields[0] == 'title':
+                        return fields[1] if len(fields) > 1 and fields[1] else default
+        except Exception:
+            pass
+        return default
 
     def _parseLoop(self, subcmd, num=None):
         """Parse the 'loop' command, which sets whether the whole animation

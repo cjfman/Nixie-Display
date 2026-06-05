@@ -396,8 +396,17 @@ class AnimationLibraryItem(ListItem):
         self.path = path
         self.ani_paths = None
         self.selected = None
+        ## Parsing a .ani file can be slow, so a selection loads in a background
+        ## thread (see key_enter/_load) while for_display shows "Loading...".
+        ## _load_id is bumped on every new load and on reset so a load that
+        ## finishes after the user has moved on is discarded instead of applied.
+        self.loading = False
+        self._load_id = 0
 
     def for_display(self) -> Animation:
+        if self.loading:
+            return "Loading..."
+
         if self.selected is None:
             return super().for_display()
 
@@ -412,20 +421,63 @@ class AnimationLibraryItem(ListItem):
         self.set_values(None)
         self.ani_paths = None
         self.selected = None
+        self.loading = False
+        self._load_id += 1  ## invalidate any in-flight load
 
     def activate(self):
         try:
             paths = sorted(x for x in os.listdir(self.path) if x.endswith(".ani") and not x.startswith("_"))
-            names = [x[:-4] for x in paths]
-            self.set_values(names)
-            self.ani_paths = dict(zip(names, paths))
-        except:
-            pass
+        except OSError:
+            return
+
+        ## Label each file by its 'title' command (falling back to the file
+        ## name), disambiguating repeats with a '(N)' suffix.
+        ani_paths = {}
+        counts = {}
+        for path in paths:
+            name = self._unique_name(FileAnimation.read_title(os.path.join(self.path, path)), counts)
+            ani_paths[name] = path
+
+        self.set_values(sorted(ani_paths))
+        self.ani_paths = ani_paths
+
+    @staticmethod
+    def _unique_name(title, counts) -> str:
+        """Disambiguate a repeated title by appending '(N)'.
+
+        ``counts`` maps each title to how many files have used it so far. The
+        first file keeps the bare title; the Nth (N>1) file becomes 'title(N)'
+        (e.g. 'Clock', 'Clock(2)', 'Clock(3)').
+        """
+        seen = counts.get(title, 0)
+        counts[title] = seen + 1
+        return title if seen == 0 else f"{title}({seen + 1})"
 
     def key_enter(self):
+        ## Ignore input while a load is in flight or an animation is playing
+        if self.loading or self.selected is not None:
+            return
         name = self.current_value()
         if name in self.ani_paths:
-            self.selected = FileAnimation(os.path.join(self.path, self.ani_paths[name]))
+            self.loading = True
+            self._load_id += 1
+            path = os.path.join(self.path, self.ani_paths[name])
+            threading.Thread(target=self._load, args=(path, self._load_id), daemon=True).start()
+
+    def _load(self, path, load_id):
+        """Parse the selected animation (runs in a background thread).
+
+        Discards the result if a newer load started or the item was reset
+        (``reset`` bumps ``_load_id``) while this parse was running.
+        """
+        try:
+            animation = FileAnimation(path)
+        except Exception:
+            animation = None
+        if load_id != self._load_id:
+            return
+        self.selected = animation
+        self.loading = False
 
 
 class ProgramListItem(ListItem):
