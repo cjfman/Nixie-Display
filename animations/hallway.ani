@@ -5,6 +5,6 @@ import|common_sequences.alib
 loop|forever
 
 sequence|insert|hallway|scale=2|end=2|mode=time
-sequence|insert|hallway|scale=2|start=2|end=4|mode=time|repeat=100
+sequence|insert|hallway|scale=2|start=2|end=4|mode=time|repeat=10
 sequence|insert|hallway|scale=2|start=4|mode=time
 
