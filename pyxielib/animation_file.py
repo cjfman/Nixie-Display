@@ -68,9 +68,11 @@ class FileAnimation(FullFrameAnimation):
         self.size          = size
         self.scale         = 1
         self.sequence      = None
-        ## Overlay frames (each a list of Frame) collected from 'overlay' lines
-        ## in the current sequence; applied to every frame at sequence|end.
-        self._overlays:    List[List[Frame]] = []
+        ## Overlay/mask modifiers collected from 'overlay'/'mask' lines in the
+        ## current sequence, each a (kind, [Frame]) pair where kind is 'overlay'
+        ## or 'mask'. Applied to every frame at sequence|end in the order the
+        ## lines appeared: 'overlay' ORs its content on, 'mask' ANDs it.
+        self._modifiers:   List[Tuple[str, List[Frame]]] = []
         self._anon_args:   Optional['InsertArgs'] = None  ## insert args during sequence|anon
         self._repeat:      Optional[Tuple[int, List]] = None  ## (count, saved_active) during repeat|start/end
         ## (name, [segments], scale) during a flatten block. A named block has
@@ -114,7 +116,7 @@ class FileAnimation(FullFrameAnimation):
         obj.size          = size
         obj.scale         = 1
         obj.sequence      = None
-        obj._overlays     = []
+        obj._modifiers    = []
         obj._anon_args    = None
         obj._repeat       = None
         obj._flatten      = None
@@ -237,6 +239,7 @@ class FileAnimation(FullFrameAnimation):
                 'scale':    ArgSpec(1, 0, handler=self._parseScale),
                 'sequence': ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None}, handler=self._parseSequence),
                 'overlay':  ArgSpec(1, 0, handler=self._parseOverlay),
+                'mask':     ArgSpec(1, 0, handler=self._parseMask),
                 'repeat':   ArgSpec(1, 1, handler=self._parseRepeat),
                 'flatten':  ArgSpec(1, 1, handler=self._parseFlatten),
                 'merge':    ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None}, handler=self._parseMerge),
@@ -533,7 +536,7 @@ class FileAnimation(FullFrameAnimation):
             self.sequences[name] = sequence
             self.active = sequence
             self.sequence = name
-            self._overlays = []
+            self._modifiers = []
             logger.debug(f"Starting sequence '{name}'")
         elif subcmd == 'anon':
             if name:  ## a trailing '|' yields an empty name, which is allowed
@@ -547,7 +550,7 @@ class FileAnimation(FullFrameAnimation):
             self.active = []
             self.sequence = '<anon>'
             self._anon_args = InsertArgs(shift, repeat, scale, mode, start, end)
-            self._overlays = []
+            self._modifiers = []
             logger.debug("Starting anonymous sequence")
         elif subcmd == 'end':
             if self.sequence is None:
@@ -556,7 +559,7 @@ class FileAnimation(FullFrameAnimation):
             closed = self.sequence
             frames = self.active
             anon_args = self._anon_args
-            self._applyOverlays(frames)
+            self._applyModifiers(frames)
             self.sequence = None
             self._anon_args = None
             self.active = self.fullframes
@@ -574,26 +577,63 @@ class FileAnimation(FullFrameAnimation):
         """Parse an 'overlay' line inside a sequence. Like 'frame' but with no
         delay: its content is overlaid (per tube, like flatten) onto every frame
         of the sequence at sequence|end. Several overlays may be given."""
+        self._addModifier('overlay', line)
+
+    def _parseMask(self, line):
+        """Parse a 'mask' line inside a sequence. Like 'overlay' but the content
+        is bitwise-ANDed (intersected) with every frame of the sequence at
+        sequence|end instead of OR-ed, keeping only segments lit in both."""
+        self._addModifier('mask', line)
+
+    def _addModifier(self, kind, line):
+        """Collect an overlay/mask modifier line for the current sequence."""
         if self.sequence is None:
-            raise FileAnimationError("overlay is only valid inside a sequence")
+            raise FileAnimationError(f"{kind} is only valid inside a sequence")
         frames = self._parseSegmentHlpr(line)
         if len(frames) > self.size:
             frames = frames[:self.size]
-        self._overlays.append(frames)
+        self._modifiers.append((kind, frames))
 
-    def _applyOverlays(self, frames):
-        """Overlay every collected overlay onto each frame of the sequence.
+    def _applyModifiers(self, frames):
+        """Apply the sequence's overlay/mask modifiers to every frame, in the
+        order the lines appeared.
 
-        Each frame is flattened together with the overlays (tube by tube, like
-        flatten), so blank overlay tubes leave the frame untouched and
-        overlapping content is merged as bitmaps. Clears the overlays after.
+        For each frame the modifiers are folded in order: an 'overlay' is
+        flattened onto the frame (tube by tube, like flatten — blank overlay
+        tubes leave the frame untouched, overlapping content is OR-ed), while a
+        'mask' is bitwise-ANDed with it (only segments lit in both survive).
+        Clears the modifiers after.
         """
-        if not self._overlays:
+        if not self._modifiers:
             return
         for i, (delay, full) in enumerate(frames):
-            merged = self._flattenSegments([full.getFrames()] + self._overlays)
-            frames[i] = (delay, FullFrame(merged))
-        self._overlays = []
+            frames[i] = (delay, FullFrame(self._applyModifierChain(full.getFrames())))
+        self._modifiers = []
+
+    def _applyModifierChain(self, current) -> List[Frame]:
+        """Fold every modifier onto one frame's tubes, in order."""
+        for kind, mod in self._modifiers:
+            if kind == 'overlay':
+                current = self._flattenSegments([current, mod])
+            else:
+                current = self._maskSegments(current, mod)
+
+        return current
+
+    def _maskSegments(self, base: List[Frame], mask: List[Frame]) -> List[Frame]:
+        """AND each tube of ``base`` with the same tube of ``mask``.
+
+        Returns one Frame per tube holding only the segments lit in both. A mask
+        shorter than tube ``i`` contributes a blank (0) there, clearing it; a
+        fully-cleared tube becomes a blank Frame.
+        """
+        result = []
+        for i in range(self.size):
+            code = base[i].decode() if i < len(base) else 0
+            code &= mask[i].decode() if i < len(mask) else 0
+            result.append(HexFrame(code) if code else Frame())
+
+        return result
 
     def _disableBlock(self, kind):
         """Skip a disabled block. The parse loop swallows every line until the
