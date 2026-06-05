@@ -1,0 +1,10 @@
+## Hallway
+
+import|common_sprites.alib
+import|common_sequences.alib
+loop|forever
+
+sequence|insert|hallway_2|scale=2|end=2|mode=time
+sequence|insert|hallway_2|scale=2|start=2|end=4|mode=time|repeat=100
+sequence|insert|hallway_2|scale=2|start=4|mode=time
+

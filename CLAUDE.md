@@ -110,6 +110,45 @@ menu activated by Ctrl+Alt+F4 (via `evdev`). Uses `Navigator` + `Menu`/`MenuItem
 hierarchy from `navigator.py`. Menu items in `menu_library.py` include WiFi
 management, animations browser, IP display, sleep/wake, reboot, shutdown.
 
+#### Adding a menu item
+
+A `MenuItem` (`navigator.py`) is driven by the `Navigator`, which keeps a stack
+of visited menus and the current `node`. Its lifecycle methods, and when each
+fires, are the contract a new item must honor:
+
+- `activate()` — called **once** when the item is entered (`Navigator.enter`).
+  Do side-effecting setup here: load a list, spawn a subprocess, kick off a
+  background fetch. Not called for the root.
+- `for_display()` — called **every poll tick** while the item is the active
+  node; returns the current display (a `str`, or an `Animation`). Must be cheap
+  and side-effect-light since it runs continuously. Update internal state from a
+  `poll()` helper, as the WiFi/subcommand items do.
+- `is_done()` / `set_done()` — `set_done()` signals the `Navigator` to pop back
+  to the parent (`back()`), which then calls this item's `reset()`. The default
+  `key_enter`/`key_backspace`/`key_esc` all call `set_done()`; override them when
+  the item needs to stay open (e.g. a list that consumes Enter to make a
+  selection).
+- `reset()` — called on `back()` and on a full navigator reset; must clear all
+  transient state set up in `activate()`/`for_display()` so the item is reusable.
+- key dispatch — `Navigator.key_entry` routes `ENTER` to descend (for a `Menu`)
+  or to `key_enter` (for a leaf), arrows/backspace/esc to their `key_*` methods,
+  and any single character to `key_char(c)`. A `Menu` descends into its current
+  child on `ENTER` and pops on `LEFT`/`BACKSPACE`.
+
+Two integration rules that have caused real bugs:
+
+- **Items that yield an `Animation`** (`AnimationLibraryItem`, `ProgramListItem`)
+  must keep returning the *same* animation from `for_display()` until it reports
+  `done()`, only then falling back to the menu text. The scheduler re-polls the
+  active program on every cron boundary (not just when the animation ends), so an
+  item that discards its animation after one poll lets an unrelated tick replace
+  it — and a `loop|forever` animation never reports `done()`, so it gets clobbered
+  mid-play.
+- `UserMenuProgram.makeAnimation` sets `should_interrupt=False` while returning
+  an Animation so the scheduler lets it play; the menu (when `active`) takes
+  precedence over the scheduled program, and `crop` flows from the active node
+  through to marquee cropping.
+
 ### Animation file format (`.ani`)
 
 Files in `animations/` use a custom DSL parsed by `FileAnimation`

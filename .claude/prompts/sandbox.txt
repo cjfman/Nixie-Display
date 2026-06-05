@@ -1,0 +1,81 @@
+I want to add a new block to the Animation DSL named `sandbox`. All handlers for this block should be in a new file `animation_sandbox.py`. This block will be used to assemble predefined animations from the `animation_library.py` file.
+Each line is one of the following types:
+- assignment: Assign an expression to a variable
+- print: Create an animation from a variable
+- set: Set a setting value
+
+# assignment
+Assignment lines start with a variable name followed by a `=`. The remainder of the line will be a sudo-executable python like expression. This expression will be assigned to the variable. The expression can only contain:
+- Functions from the `animation_library.py`
+- Integer, float, and string literals
+- Variables previosly defined by earlier lines in the block
+- Operators `+` and `*`
+- White space between tokens
+- A list, using the python syntax, of objects of the same type. 
+
+## Variable names
+Variable names should always match this regex `[A-z]\w+`. Variable names cannot be any of the animation file key words, any pyxielib class name, nor anything from this list:
+- set
+- print
+
+## Evaluation
+Variables should be stored in a dictionary keyed by the variable name. This namespace should be separate from the animation file namespace. Variables must be an instance of a class defined in `animation.py`. Parameters to the functions may only be defined variables or literals. If the function doesn't exist, prepend `make` to the name of the function and search again. Only string literals may be used as non-parameters. String literals that aren't parameters should be converted to a `FullFrame` via the `textToFrames` function.
+
+## Safety
+Do not implement this by executing each line as python, as this would be unsafe. Instead, tokenize each line. Create a new `expression` array and make a second pass over the list of tokens. When making this second pass, construct objects and add the object to the new array. Evaluate the `expression` array using order of operations, (i.e. `*` then `+`). 
+
+# set
+The `set` keyword allows the use of `settings`. These settings can be any literal type, unless otherwise specified. A `set` line starts with the world `set`, followed by a setting name, a `=`, and a literal string, integer, float, or None. Only these settings exist:
+|name|type|default value|
+|----|----|-------------|
+|delay|float|The `scale` value from the animation file|
+|rate|float|0|
+
+The namespace used for settings is separate than the one used for sandbox animation variables.
+
+## type checking
+The variables `delay` and `rate` may never be negative, nor can both be non-zero at the same. Whenever one is set to a non-zero value, the other should automatically be set to zero.
+
+# print
+Sequences should be added to the animation using the keyword `print`, which will start the line followed by a variable. If the variable isn't of instance `FullFrameAnimation` or `TubeAnimation`, then it should be converted to one. Classes should be transfored in this way, substituting `$<setting>` with the value from the settings table:
+- `Frame` > `FullFrameAnimation([$delay, FullFrame(x)])`
+- `FullFrame` > `FullFrameAnimation([$delay, x])`
+- `List[FullFrame]` > `FullFrameAnimation.makeTimed(x, delay=$delay, rate=$rate)`
+- `TubeSequence` > `TubeAnimation([x])`
+- `List[TubeSequence]` > `TubeSequence.makeTimed(x, delay=$delay, rate=$rate)`
+
+## Claud's Assessment
+⏺ Overall it's a solid prompt that clearly produced a working implementation. A few things stand out:
+
+  Typos (minor but can cause misunderstanding):
+  - Line 8: "sudo-executable" → "pseudo-executable"
+  - Line 8: "previosly" → "previously"
+  - Line 28: "the world set" → "the word set"
+  - Line 37: "at the same" → "at the same time"
+
+  Regex bug (line 17): [A-z] is a classic mistake — it spans the ASCII range from Z to a, accidentally including [, \, ], ^, _, and `.
+  Should be [A-Za-z].
+
+  Missing operators: The | tube-concatenation operator (the main reason the sandbox is useful for multi-tube work) isn't described at
+  all. It was likely added as a follow-up, but if not, the prompt would have produced a sandbox without it.
+
+  print with no argument (line 39): The prompt says print is "followed by a variable" but the actual implementation allows a bare print
+  that re-prints the last assigned variable. If you wanted that behavior, you'd need to specify it.
+
+  Semantics of + and * (line 13): The operators are listed but their meaning isn't given — an LLM would have to infer them from context.
+  The * case is unambiguous (repeat), but + (append/concatenate) could be interpreted several ways.
+
+  What's good: The safety note on tokenizing rather than eval-ing is exactly the right instinct and likely shaped the implementation
+  well. The separate namespaces for settings vs. variables, the delay/rate mutual-exclusivity rule, and the type-conversion table for
+  print are all specific and actionable.
+
+
+⏺ B+
+  
+  The structure is clear, the safety requirement is the most important design decision and it's stated explicitly, and the
+  type-conversion table gives the implementer concrete targets. The regex bug and missing | operator are the only things that could have
+  caused real implementation problems — everything else is typos and minor omissions. For a one-off internal prompt it's well above
+  average.
+
+# END OF PROMPT
+Everything below this line is commentary and should be ignored.
