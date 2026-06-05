@@ -15,9 +15,9 @@ per line and reported together with line numbers.
 ```
 literal    : Printable ASCII text (no `{` or `}`) — each character is one tube
 sprite     : A named hexadecimal 16-bit bitmap
-multiplier : A positive integer
+multiplier : A non-negative integer
 macro      : `{name}` — expands a named sprite (one tube) or segment (N tubes)
-rep        : `{multiplier}` — repeats the previous tube N times
+rep        : `{multiplier}` — repeats the previous tube N times (`{0}` drops it)
 content    : (literal | macro | rep)*
 segment    : content
 frame      : content
@@ -28,7 +28,8 @@ comment    : `#` rest of line
 ### Macros and bitmaps
 
 - **`{name}`** — expands a named sprite (one tube) or segment (N tubes).
-- **`{N}`** — repeats the previous tube N times.
+- **`{N}`** — repeats the previous tube N times. `{0}` drops the previous tube
+  entirely (the macro/tube is skipped).
 - **`{0x1A2B}`** — inserts a raw 16-bit bitmap.
 - **`~` prefix** — takes the bitwise-NOT (16-bit complement) of either form:
   - Inline hex literal: `{~0x0008}` → `0xFFF7`

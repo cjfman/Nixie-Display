@@ -394,13 +394,15 @@ class FileAnimation(FullFrameAnimation):
                 frames.append(HexFrame(strToInt(token)))
             elif t_type == 'multiplier':
                 ## Multiply the previously defined token
-                if token == 0:
-                    raise FileAnimationError(f"Multiplier must be a positive integer")
                 if not frames:
                     raise FileAnimationError(f"No previous frame to multiply")
-                ## Add token-1 more of the last frame
-                for _ in range(token-1):
-                    frames.append(frames[-1])
+                if token == 0:
+                    ## Zero copies: drop the previous tube entirely (skip it)
+                    frames.pop()
+                else:
+                    ## Add token-1 more of the last frame
+                    for _ in range(token-1):
+                        frames.append(frames[-1])
             else:
                 raise PyxieError(f"Unrecognized token type '{t_type}'")
 
