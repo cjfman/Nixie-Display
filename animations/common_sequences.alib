@@ -121,7 +121,7 @@ frame|0.0038|\| {14}\|
 frame|0.0035|{l_rail} {14}{r_rail}
 overlay|{tb_rail}{7}{0x0448}{0x1108}{tb_rail}{7}
 #mask| {3}{~tb_rail}{0xffff}{8}{~tb_rail} {3}
-mask|{~tb_rail}{4}{0xffff}{8}{~tb_rail}{4}
+mask|{~t_rail}{4}{0xffff}{8}{~t_rail}{4}
 #overlay|_{16}
 #overlay|{tb_rail}{6}{0x0248}{0x2408}{0x1208}{0x2108}{tb_rail}{6}
 #overlay|{tb_rail}{5}{0x0248}{mb_rail}{0x2408}{0x1208}{mb_rail}{0x2108}{tb_rail}{5}
