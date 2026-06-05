@@ -89,6 +89,34 @@ sequence|insert|slither_rev|shift=-4
 sequence|insert|slither_rev|shift=-6
 sequence|end
 
+## Swipe
+sequence|start|swipe
+frame|1| {7}{r_rail}{l_rail}
+frame|1| {7}\|\|
+frame|1| {7}{l_rail}{r_rail}
+frame|1| {6}{r_rail} {2}{l_rail}
+frame|1| {6}\| {2}\|
+frame|1| {6}{l_rail} {2}{r_rail}
+frame|1| {5}{r_rail} {4}{l_rail}
+frame|1| {5}\| {4}\|
+frame|1| {5}{l_rail} {4}{r_rail}
+frame|1| {4}{r_rail} {6}{l_rail}
+frame|1| {4}\| {6}\|
+frame|1| {4}{l_rail} {6}{r_rail}
+frame|1| {3}{r_rail} {8}{l_rail}
+frame|1| {3}\| {8}\|
+frame|1| {3}{l_rail} {8}{r_rail}
+frame|1| {2}{r_rail} {10}{l_rail}
+frame|1| {2}\| {10}\|
+frame|1| {2}{l_rail} {10}{r_rail}
+frame|1| {1}{r_rail} {12}{l_rail}
+frame|1| {1}\| {12}\|
+frame|1| {1}{l_rail} {12}{r_rail}
+frame|1|{r_rail} {14}{l_rail}
+frame|1|\| {14}\|
+frame|1|{l_rail} {14}{r_rail}
+sequence|end
+
 ## Hallway
 sequence|start|spread
 ## Total 2s

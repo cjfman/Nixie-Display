@@ -14,6 +14,11 @@ sprite|tl_corner|0x0021 ## top-left
 sprite|bl_corner|0x0018 ## bottom-left
 sprite|gamma|0x0031
 
+## Vertical bars
+sprite|bars_2_r|0x0886
+sprite|bars_2_l|0x08b0
+sprite|bars_3_v|0x08b6
+
 ## Slopes
 sprite|depression_left|0x0248
 sprite|depression_right|0x2108
