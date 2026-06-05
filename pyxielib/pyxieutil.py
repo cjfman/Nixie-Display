@@ -47,6 +47,12 @@ def flattenHTML(html):
 
 
 def strToInt(num):
+    ## A leading '~' bitwise-NOTs the rest (e.g. '~0xffff'). The result is a
+    ## Python int; callers that store it as a fixed-width bitmap (HexFrame masks
+    ## to 16 bits) get the expected complement.
+    if num[:1] == '~':
+        return ~strToInt(num[1:])
+
     prefix = num[:2]
     if prefix == '0x':
         return int(num, 16)

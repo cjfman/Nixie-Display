@@ -378,6 +378,9 @@ class FileAnimation(FullFrameAnimation):
                     frames.extend(self.segments[token])
                 else:
                     raise FileAnimationError(f"Symbol '{token}' not defined")
+            elif t_type == 'not_macro':
+                ## Bitwise-NOT every tube of a sprite/segment macro
+                frames.extend(self._complementFrames(token))
             elif t_type == 'hex':
                 frames.append(HexFrame(strToInt(token)))
             elif t_type == 'multiplier':
@@ -393,6 +396,22 @@ class FileAnimation(FullFrameAnimation):
                 raise PyxieError(f"Unrecognized token type '{t_type}'")
 
         return frames
+
+    def _complementFrames(self, name) -> List[Frame]:
+        """Resolve a sprite/segment macro and bitwise-NOT each of its tubes.
+
+        Each tube is decoded to its 16-bit bitmap and complemented (HexFrame
+        masks to 16 bits), so a blank tube becomes all-on. Used for the ``~``
+        macro form, e.g. ``{~tb_rail}``.
+        """
+        if name in self.sprites:
+            source = [self.sprites[name]]
+        elif name in self.segments:
+            source = self.segments[name]
+        else:
+            raise FileAnimationError(f"Symbol '{name}' not defined")
+
+        return [HexFrame(~f.decode()) for f in source]
 
     def _parseSegment(self, name, line):
         if name in self.segments:
@@ -1263,9 +1282,16 @@ class FileAnimation(FullFrameAnimation):
             if m:
                 tokens.append(('macro', m.groups()[0]))
 
-            ## Match inline hex literal e.g. {0x1A2B}
+            ## Match a bitwise-NOT'd macro e.g. {~tb_rail}
             if m is None:
-                m = re.search(r"^\{(0[xX][0-9A-Fa-f]+)}", line)
+                m = re.search(r"^\{~([A-z]\w*)}", line)
+                if m:
+                    tokens.append(('not_macro', m.groups()[0]))
+
+            ## Match inline hex literal e.g. {0x1A2B}, optionally bitwise-NOT'd
+            ## with a leading '~' e.g. {~0x0008} (the 16-bit complement 0xFFF7).
+            if m is None:
+                m = re.search(r"^\{(~?0[xX][0-9A-Fa-f]+)}", line)
                 if m:
                     tokens.append(('hex', m.groups()[0]))
 
