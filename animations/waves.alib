@@ -1,11 +1,11 @@
 ## Wave crest building blocks for the bar-graph wave animations.
 ## Each tube is a center-column bar at one of five levels:
 ##   b0 blank, b1 bottom dash, b2 +lower-center, b3 +full center, b4 +top cap.
-sprite|b0|0x0000
-sprite|b1|0x0008
-sprite|b2|0x0808
-sprite|b3|0x0888
-sprite|b4|0x0889
+sprite|.b0|0x0000
+sprite|.b1|0x0008
+sprite|.b2|0x0808
+sprite|.b3|0x0888
+sprite|.b4|0x0889
 
 ## A crest_N segment is a triangular swell rising to peak N and back down,
 ## one bar wider on each side per level. Compose a wave by laying crests out
@@ -14,3 +14,5 @@ segment|crest_1|{b1}
 segment|crest_2|{b1}{b2}{b1}
 segment|crest_3|{b1}{b2}{b3}{b2}{b1}
 segment|crest_4|{b1}{b2}{b3}{b4}{b3}{b2}{b1}
+
+segment|wave_profile|{b0}{crest_1}{b0}{crest_3}{b0}{b0}{crest_2}{b0}{b0}{crest_4}{b0}{b0}{crest_2}{b0}{b0}{crest_1}{b0}{crest_4}{b0}{crest_2}{b0}{crest_1}{b0}{b0}

@@ -3,6 +3,7 @@
 import|common_sprites
 import|common_sequences
 import|slideout
+import|waves
 
 ## Start up
 sequence|anon|scale=0.01
@@ -374,6 +375,14 @@ frame|1|/{16}
 frame|5|-{16}
 
 sequence|insert|slideout_even|scale=0.3
+
+## Waves
+sequence|start|wave_window
+frame|1|{wave_profile}{wave_profile}
+sequence|end
+sequence|insert|wave_window|scale=0.12|repeat=46|shift_step=-1|reverse=true
+sequence|insert|wave_window|scale=0.12|repeat=46|shift_step=-1|reverse=true
+sequence|insert|wave_window|scale=0.12|repeat=46|shift_step=-1|reverse=true
 
 ## Collapse
 #frame|50|{full_frame}
