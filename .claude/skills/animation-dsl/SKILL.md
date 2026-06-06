@@ -66,7 +66,9 @@ This applies only to DSL command line field-splitting (`FileAnimation._splitFiel
 **`scale|factor`** — multiply all subsequent frame delays by `factor`.
 
 **`import|[scale|]filepath`** — import sprites, segments, and sequences from a library file.
-The optional `scale` prefix multiplies the delays of imported sequences.
+The optional `scale` prefix multiplies the delays of imported sequences. A `.alib`
+extension is appended automatically when `filepath` doesn't already end in it
+(`import|slideout` loads `slideout.alib`).
 
 ---
 

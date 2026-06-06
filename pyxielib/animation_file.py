@@ -1258,6 +1258,9 @@ class FileAnimation(FullFrameAnimation):
 
         base_dir = os.path.dirname(os.path.abspath(self.path))
         full_path = os.path.normpath(os.path.join(base_dir, filepath.strip()))
+        ## Default the library extension so 'import|slideout' finds 'slideout.alib'
+        if not full_path.endswith('.alib'):
+            full_path += '.alib'
         filename = os.path.basename(full_path)
 
         ## A library is parsed at most once, but its symbols are merged into
