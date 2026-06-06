@@ -110,6 +110,14 @@ class FileAnimation(FullFrameAnimation):
         self.sprites:      Dict[str, Frame] = {}
         self.sequences:    Dict[str, List[TimeFullFrame]] = {}
         self.segments:     Dict[str, List[Frame]] = {}
+        ## Local-namespace tracking.  Each is a dict keyed by kind
+        ## ('sprites', 'segments', 'sequences') whose values are name sets.
+        ## _locals holds entries not exported when this file is used as a
+        ## library (names prefixed with '_' or defined with a leading '.').
+        ## _owned is the superset of all file-defined names (local or not),
+        ## used to reject re-definition when a '.' override is attempted.
+        self._locals:      Dict[str, set] = {'sprites': set(), 'segments': set(), 'sequences': set()}
+        self._owned:       Dict[str, set] = {'sprites': set(), 'segments': set(), 'sequences': set()}
         self.fullframes:   List[TimeFullFrame] = []
         self.active:       List[TimeFullFrame] = self.fullframes
         FullFrameAnimation.__init__(self, self.loadFrames(path))
@@ -140,6 +148,8 @@ class FileAnimation(FullFrameAnimation):
         obj.sprites       = {}
         obj.sequences     = {}
         obj.segments      = {}
+        obj._locals       = {'sprites': set(), 'segments': set(), 'sequences': set()}
+        obj._owned        = {'sprites': set(), 'segments': set(), 'sequences': set()}
         obj.fullframes    = []
         obj.active        = obj.fullframes
         try:
@@ -361,14 +371,14 @@ class FileAnimation(FullFrameAnimation):
 
     def _parseSprite(self, name, code):
         """Parse a sprite line"""
-        ## Convert code to int
         try:
             code = strToInt(code)
         except Exception as e:
             raise FileAnimationError("Failed to convert sprite code: " + str(e))
 
-        self.sprites[name] = HexFrame(code)
-        logger.debug(f"Found sprite '{name}'")
+        storage_name = self._registerDefName(name, 'sprites', self.sprites)
+        self.sprites[storage_name] = HexFrame(code)
+        logger.debug(f"Found sprite '{storage_name}'")
 
     def _parseSegmentHlpr(self, line) -> List[Frame]:
         """Parse a frame line"""
@@ -425,10 +435,8 @@ class FileAnimation(FullFrameAnimation):
         return [HexFrame(~f.decode()) for f in source]
 
     def _parseSegment(self, name, line):
-        if name in self.segments:
-            raise FileAnimationError(f"Segment '{name}' already exists")
-
-        self.segments[name] = self._parseSegmentHlpr(line)
+        storage_name = self._registerDefName(name, 'segments', self.segments)
+        self.segments[storage_name] = self._parseSegmentHlpr(line)
 
     def _parseFrame(self, length, line):
         if self._library_mode and self.sequence is None:
@@ -601,15 +609,13 @@ class FileAnimation(FullFrameAnimation):
                 raise FileAnimationError(f"Cannot start new sequence '{name}' before finishing the current one")
             if self._repeat is not None:
                 raise FileAnimationError("Cannot start a named sequence inside a repeat block")
-            if name in self.sequences:
-                raise FileAnimationError(f"Sequence already exists with name '{name}'")
-
+            storage_name = self._registerDefName(name, 'sequences', self.sequences)
             sequence = []
-            self.sequences[name] = sequence
+            self.sequences[storage_name] = sequence
             self.active = sequence
-            self.sequence = name
+            self.sequence = storage_name
             self._modifiers = []
-            logger.debug(f"Starting sequence '{name}'")
+            logger.debug(f"Starting sequence '{storage_name}'")
         elif subcmd == 'anon':
             if name:  ## a trailing '|' yields an empty name, which is allowed
                 raise FileAnimationError("sequence|anon takes no name, only insert arguments")
@@ -868,6 +874,45 @@ class FileAnimation(FullFrameAnimation):
             return False
         raise FileAnimationError(f"{label} must be 'true' or 'false', not '{value}'")
 
+    @staticmethod
+    def _resolveDefName(name: str) -> Tuple[str, bool]:
+        """Return (storage_name, is_local) for a symbol-definition name.
+
+        A leading '.' strips the dot and marks the entry local — it shadows
+        any imported entry of the same name and is not exported. A leading '_'
+        marks the entry local without stripping. Any other name is public.
+        """
+        if name.startswith('.'):
+            storage = name[1:]
+            if not storage:
+                raise FileAnimationError("Name after '.' prefix cannot be empty")
+            return storage, True
+        if name.startswith('_'):
+            return name, True
+        return name, False
+
+    def _registerDefName(self, name, kind, existing) -> str:
+        """Resolve, duplicate-check, and register a symbol-definition name.
+
+        ``kind`` is 'sprites', 'segments', or 'sequences'; ``existing`` is the
+        corresponding dict, consulted for the non-dot duplicate check.  Returns
+        the storage name (dot stripped when present).
+        """
+        storage_name, is_local = self._resolveDefName(name)
+        label = kind[:-1].capitalize()  ## 'sprites' -> 'Sprite', etc.
+        if name.startswith('.'):
+            ## '.' is explicitly overriding an import: only conflict with
+            ## another local definition, not with an imported entry.
+            if storage_name in self._owned[kind]:
+                raise FileAnimationError(f"{label} '{storage_name}' already exists")
+        elif storage_name in existing:
+            ## Regular or '_' name: conflict with anything already in the dict.
+            raise FileAnimationError(f"{label} '{storage_name}' already exists")
+        self._owned[kind].add(storage_name)
+        if is_local:
+            self._locals[kind].add(storage_name)
+        return storage_name
+
     def _parseRepeat(self, subcmd, count=None):
         if subcmd == 'start':
             if count is None:
@@ -927,10 +972,9 @@ class FileAnimation(FullFrameAnimation):
                 raise FileAnimationError("flatten|start requires a name")
             if self._flatten is not None:
                 raise FileAnimationError("Cannot nest flatten blocks")
-            if arg in self.segments:
-                raise FileAnimationError(f"Segment '{arg}' already exists")
-            self._flatten = (arg, [], None)
-            logger.debug(f"Starting flatten block '{arg}'")
+            storage_name = self._registerDefName(arg, 'segments', self.segments)
+            self._flatten = (storage_name, [], None)
+            logger.debug(f"Starting flatten block '{storage_name}'")
         elif subcmd == 'anon':
             if arg is None:
                 raise FileAnimationError("flatten|anon requires a scale")
@@ -973,10 +1017,9 @@ class FileAnimation(FullFrameAnimation):
                 raise FileAnimationError("Cannot start a named merge block inside a repeat block")
             if self._flatten is not None:
                 raise FileAnimationError("Cannot start a merge block inside a flatten block")
-            if name in self.sequences:
-                raise FileAnimationError(f"Sequence already exists with name '{name}'")
-            self._merge = (name, [], None)
-            logger.debug(f"Starting merge block '{name}'")
+            storage_name = self._registerDefName(name, 'sequences', self.sequences)
+            self._merge = (storage_name, [], None)
+            logger.debug(f"Starting merge block '{storage_name}'")
         elif subcmd == 'anon':
             if name:  ## a trailing '|' yields an empty name, which is allowed
                 raise FileAnimationError("merge|anon takes no name, only insert arguments")
@@ -1024,10 +1067,9 @@ class FileAnimation(FullFrameAnimation):
                 raise FileAnimationError("Cannot start a named collate block inside a repeat block")
             if self._flatten is not None:
                 raise FileAnimationError("Cannot start a collate block inside a flatten block")
-            if name in self.sequences:
-                raise FileAnimationError(f"Sequence already exists with name '{name}'")
-            self._collate = (name, [], None)
-            logger.debug(f"Starting collate block '{name}'")
+            storage_name = self._registerDefName(name, 'sequences', self.sequences)
+            self._collate = (storage_name, [], None)
+            logger.debug(f"Starting collate block '{storage_name}'")
         elif subcmd == 'anon':
             if name:  ## a trailing '|' yields an empty name, which is allowed
                 raise FileAnimationError("collate|anon takes no name, only insert arguments")
@@ -1283,12 +1325,24 @@ class FileAnimation(FullFrameAnimation):
         self._mergeLibrary(lib, import_scale)
 
     def _mergeLibrary(self, lib, import_scale):
-        """Merge a parsed library's sprites, segments, and sequences into this file."""
-        self.sprites.update(lib.sprites)
-        self.segments.update(lib.segments)
+        """Merge a parsed library's sprites, segments, and sequences into this file.
+
+        Entries that are local in the library (lib._locals) are not exported.
+        Entries that are local in this file (self._locals) are not overwritten
+        by the import, so a '.' or '_' definition always masks an imported one.
+        """
+        for name, frame in lib.sprites.items():
+            ## Skip the library's own private entries, and don't overwrite
+            ## local definitions in this file (they shadow the import).
+            if name not in lib._locals['sprites'] and name not in self._locals['sprites']:
+                self.sprites[name] = frame
+        for name, seg in lib.segments.items():
+            if name not in lib._locals['segments'] and name not in self._locals['segments']:
+                self.segments[name] = seg
         for name, frames in lib.sequences.items():
-            self.sequences[name] = [(t * import_scale, f) for t, f in frames]
-            logger.debug(f"Imported sequence '{name}'")
+            if name not in lib._locals['sequences'] and name not in self._locals['sequences']:
+                self.sequences[name] = [(t * import_scale, f) for t, f in frames]
+                logger.debug(f"Imported sequence '{name}'")
 
     def _parseSandbox(self, subcmd):
         if subcmd == 'start':
