@@ -98,6 +98,8 @@ class FileAnimation(FullFrameAnimation):
         ## frames at each step to share a delay (see _collateOverlay).
         self._collate:     Optional[Tuple[Optional[str], List, Optional['InsertArgs']]] = None
         self._sandbox      = None  ## SandboxParser during sandbox|start/end
+        self._sandbox_name = None  ## storage name for a named sandbox block (None = anonymous)
+        self._sandbox_anon_args: Optional['InsertArgs'] = None  ## insert args during sandbox|anon
         self._skip_block   = None  ## 'sequence'/'flatten'/'sandbox' while skipping a disabled block
         ## Looping config set by the 'loop' command (at most one allowed).
         ## _max_restarts is the number of times the animation restarts after
@@ -142,6 +144,8 @@ class FileAnimation(FullFrameAnimation):
         obj._merge        = None
         obj._collate      = None
         obj._sandbox      = None
+        obj._sandbox_name = None
+        obj._sandbox_anon_args = None
         obj._skip_block   = None
         obj._loop_set     = False
         obj._max_restarts = 0
@@ -266,7 +270,7 @@ class FileAnimation(FullFrameAnimation):
                 'merge':    ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None}, handler=self._parseMerge),
                 'collate':  ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None}, handler=self._parseCollate),
                 'import':   ArgSpec(1, 1, handler=self._parseImport),
-                'sandbox':  ArgSpec(1, 0, handler=self._parseSandbox),
+                'sandbox':  ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None, 'reverse': 'false', 'shift_step': '0'}, handler=self._parseSandbox),
                 'loop':     ArgSpec(1, 1, handler=self._parseLoop),
                 'title':    ArgSpec(1, 0, handler=self._parseTitle),
             }
@@ -1389,17 +1393,29 @@ class FileAnimation(FullFrameAnimation):
                 self.sequences[name] = [(t * import_scale, f) for t, f in frames]
                 logger.debug(f"Imported sequence '{name}'")
 
-    def _parseSandbox(self, subcmd):
-        if subcmd == 'start':
+    def _parseSandbox(self, subcmd, name=None, shift='0', repeat='1', scale=None, mode='frame', start=None, end=None, reverse='false', shift_step='0'):
+        if subcmd in ('start', 'anon'):
             if self._sandbox is not None:
                 raise FileAnimationError("Cannot nest sandbox blocks")
             if self.sequence is not None or self._repeat is not None or self._flatten is not None:
                 raise FileAnimationError("Cannot start a sandbox block inside another block")
 
+            if subcmd == 'anon':
+                if name:  ## a trailing '|' yields an empty name, which is allowed
+                    raise FileAnimationError("sandbox|anon takes no name, only insert arguments")
+                ## sandbox frames already carry their final delays (like a plain
+                ## sandbox block, which extends without rescaling), so scale
+                ## defaults to 1 here rather than the file scale.
+                self._sandbox_anon_args = InsertArgs(shift, repeat, '1' if scale is None else scale, mode, start, end, reverse, shift_step)
+                self._sandbox_name = None
+            else:
+                ## A named sandbox is stored in the sequences namespace at end
+                ## (like sequence|start) instead of appended to the animation.
+                self._sandbox_name = self._registerDefName(name, 'sequences', self.sequences) if name else None
             ## Imported lazily to avoid a circular import with animation_sandbox
             from pyxielib.animation_sandbox import SandboxParser
             self._sandbox = SandboxParser(scale=self.scale, size=self.size)
-            logger.debug("Starting sandbox block")
+            logger.debug(f"Starting sandbox block{f' (name={self._sandbox_name})' if self._sandbox_name else ''}")
         elif subcmd == 'end':
             self._endSandbox()
         else:
@@ -1410,8 +1426,21 @@ class FileAnimation(FullFrameAnimation):
             raise FileAnimationError("No sandbox block to end")
 
         sandbox = self._sandbox
+        name = self._sandbox_name
+        anon_args = self._sandbox_anon_args
         self._sandbox = None
-        self.active.extend(sandbox.fullFrames())
+        self._sandbox_name = None
+        self._sandbox_anon_args = None
+        frames = sandbox.fullFrames()
+        if anon_args is not None:
+            ## Anonymous block with insert args: slice/transform/insert it like sequence|anon.
+            self._appendInsertedFrames(frames, anon_args, "anonymous sandbox")
+        elif name is None:
+            ## Plain block: append the printed frames to the active animation.
+            self.active.extend(frames)
+        else:
+            ## Named block: register the frames as a reusable sequence.
+            self.sequences[name] = frames
         logger.debug(f"Ended sandbox block ({len(sandbox.printed)} printed animations)")
 
     @staticmethod

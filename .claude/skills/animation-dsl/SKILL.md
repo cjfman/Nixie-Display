@@ -221,6 +221,20 @@ any block) and is not permitted in library files.
 `animation_library.py` (see [Sandbox block](#sandbox-block) below). Printed
 animations are appended to the file as full frames.
 
+**`sandbox|start|name`** — a *named* sandbox block. Instead of appending its
+printed frames to the file, the result is registered in the **sequences**
+namespace under `name` (like `sequence|start|name`), so it can be reused with
+`sequence|insert|name` and is exported on import. The `_`/`.` local-namespace
+prefixes apply to `name` just as they do for a named sequence.
+
+**`sandbox|anon`** — anonymous sandbox block. Takes no name; accepts the same
+`shift`/`repeat`/`scale`/`mode`/`start`/`end`/`reverse`/`shift_step` arguments as
+`sequence|anon`, slicing/transforming the printed frames and inserting them at
+`sandbox|end`. Because sandbox frames already carry their final delays (like a
+plain `sandbox|start`, which appends without rescaling), `scale` here defaults to
+`1` rather than the file scale — so `sandbox|anon` with no arguments is identical
+to a plain `sandbox|start`.
+
 **`<type>|disable`** — disable a block without removing it. Every line through
 the matching `<type>|end` is skipped unparsed (so even broken content inside is
 ignored), and all arguments on the `disable` line itself are ignored. Change a
