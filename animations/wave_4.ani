@@ -1,0 +1,34 @@
+title|Wave 4
+scale|0.12
+loop|forever
+
+## Mixes all four levels: four crests of ascending height (peaks 1,2,3,4)
+## roll across in sequence. Period 21 tubes (tiles seamlessly across the 16),
+## one tube shift per frame.
+sprite|b0|0x0000
+sprite|b1|0x0008
+sprite|b2|0x0808
+sprite|b3|0x0888
+sprite|b4|0x0889
+
+frame|1|{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b2}{b1}{b0}{b1}
+frame|1|{b0}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b2}{b1}{b0}
+frame|1|{b1}{b0}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b2}{b1}
+frame|1|{b0}{b1}{b0}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b2}
+frame|1|{b1}{b0}{b1}{b0}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}
+frame|1|{b2}{b1}{b0}{b1}{b0}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}
+frame|1|{b1}{b2}{b1}{b0}{b1}{b0}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}
+frame|1|{b0}{b1}{b2}{b1}{b0}{b1}{b0}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}
+frame|1|{b1}{b0}{b1}{b2}{b1}{b0}{b1}{b0}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}
+frame|1|{b2}{b1}{b0}{b1}{b2}{b1}{b0}{b1}{b0}{b0}{b1}{b2}{b3}{b4}{b3}{b2}
+frame|1|{b3}{b2}{b1}{b0}{b1}{b2}{b1}{b0}{b1}{b0}{b0}{b1}{b2}{b3}{b4}{b3}
+frame|1|{b2}{b3}{b2}{b1}{b0}{b1}{b2}{b1}{b0}{b1}{b0}{b0}{b1}{b2}{b3}{b4}
+frame|1|{b1}{b2}{b3}{b2}{b1}{b0}{b1}{b2}{b1}{b0}{b1}{b0}{b0}{b1}{b2}{b3}
+frame|1|{b0}{b1}{b2}{b3}{b2}{b1}{b0}{b1}{b2}{b1}{b0}{b1}{b0}{b0}{b1}{b2}
+frame|1|{b1}{b0}{b1}{b2}{b3}{b2}{b1}{b0}{b1}{b2}{b1}{b0}{b1}{b0}{b0}{b1}
+frame|1|{b2}{b1}{b0}{b1}{b2}{b3}{b2}{b1}{b0}{b1}{b2}{b1}{b0}{b1}{b0}{b0}
+frame|1|{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b2}{b1}{b0}{b1}{b2}{b1}{b0}{b1}{b0}
+frame|1|{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b2}{b1}{b0}{b1}{b2}{b1}{b0}{b1}
+frame|1|{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b2}{b1}{b0}{b1}{b2}{b1}{b0}
+frame|1|{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b2}{b1}{b0}{b1}{b2}{b1}
+frame|1|{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b2}{b1}{b0}{b1}{b2}

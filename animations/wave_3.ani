@@ -1,0 +1,29 @@
+title|Wave 3
+scale|0.12
+loop|forever
+
+## Like wave_2.ani but calmer: a tall crest (peak 3, a full center stroke with
+## no top cap) followed by a short crest (peak 1, just baseline dashes). The
+## short crests read as a low ripple rather than a distinct wave.
+## Period 16 (one full pattern across the display), shifted one tube per frame.
+sprite|b0|0x0000
+sprite|b1|0x0008
+sprite|b2|0x0808
+sprite|b3|0x0888
+
+frame|1|{b0}{b1}{b2}{b3}{b3}{b2}{b1}{b0}{b0}{b0}{b1}{b1}{b1}{b1}{b0}{b0}
+frame|1|{b0}{b0}{b1}{b2}{b3}{b3}{b2}{b1}{b0}{b0}{b0}{b1}{b1}{b1}{b1}{b0}
+frame|1|{b0}{b0}{b0}{b1}{b2}{b3}{b3}{b2}{b1}{b0}{b0}{b0}{b1}{b1}{b1}{b1}
+frame|1|{b1}{b0}{b0}{b0}{b1}{b2}{b3}{b3}{b2}{b1}{b0}{b0}{b0}{b1}{b1}{b1}
+frame|1|{b1}{b1}{b0}{b0}{b0}{b1}{b2}{b3}{b3}{b2}{b1}{b0}{b0}{b0}{b1}{b1}
+frame|1|{b1}{b1}{b1}{b0}{b0}{b0}{b1}{b2}{b3}{b3}{b2}{b1}{b0}{b0}{b0}{b1}
+frame|1|{b1}{b1}{b1}{b1}{b0}{b0}{b0}{b1}{b2}{b3}{b3}{b2}{b1}{b0}{b0}{b0}
+frame|1|{b0}{b1}{b1}{b1}{b1}{b0}{b0}{b0}{b1}{b2}{b3}{b3}{b2}{b1}{b0}{b0}
+frame|1|{b0}{b0}{b1}{b1}{b1}{b1}{b0}{b0}{b0}{b1}{b2}{b3}{b3}{b2}{b1}{b0}
+frame|1|{b0}{b0}{b0}{b1}{b1}{b1}{b1}{b0}{b0}{b0}{b1}{b2}{b3}{b3}{b2}{b1}
+frame|1|{b1}{b0}{b0}{b0}{b1}{b1}{b1}{b1}{b0}{b0}{b0}{b1}{b2}{b3}{b3}{b2}
+frame|1|{b2}{b1}{b0}{b0}{b0}{b1}{b1}{b1}{b1}{b0}{b0}{b0}{b1}{b2}{b3}{b3}
+frame|1|{b3}{b2}{b1}{b0}{b0}{b0}{b1}{b1}{b1}{b1}{b0}{b0}{b0}{b1}{b2}{b3}
+frame|1|{b3}{b3}{b2}{b1}{b0}{b0}{b0}{b1}{b1}{b1}{b1}{b0}{b0}{b0}{b1}{b2}
+frame|1|{b2}{b3}{b3}{b2}{b1}{b0}{b0}{b0}{b1}{b1}{b1}{b1}{b0}{b0}{b0}{b1}
+frame|1|{b1}{b2}{b3}{b3}{b2}{b1}{b0}{b0}{b0}{b1}{b1}{b1}{b1}{b0}{b0}{b0}
