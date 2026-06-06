@@ -1,0 +1,21 @@
+title|Wave
+scale|0.12
+loop|forever
+
+## A smooth sine wave scrolling left to right, drawn as center-column bars.
+## Period 8 tubes, height profile [2,3,4,3,2,1,0,1] phase-shifted one tube
+## per frame. Two crests across the 16 tubes keep each group near 12 segments.
+sprite|b0|0x0000
+sprite|b1|0x0008
+sprite|b2|0x0808
+sprite|b3|0x0888
+sprite|b4|0x0889
+
+frame|1|{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}
+frame|1|{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}
+frame|1|{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}
+frame|1|{b1}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b4}{b3}{b2}
+frame|1|{b2}{b1}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b4}{b3}
+frame|1|{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b4}
+frame|1|{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}
+frame|1|{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}{b3}{b4}{b3}{b2}{b1}{b0}{b1}{b2}
