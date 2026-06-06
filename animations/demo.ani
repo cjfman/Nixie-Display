@@ -6,7 +6,7 @@ import|slideout
 import|waves
 
 ## Start up
-sequence|anon|scale=0.01
+sequence|start|start_up|scale=0.01
 repeat|start|4
 frame|50|_
 frame|50|
@@ -273,7 +273,7 @@ frame|100|
 sequence|end
 
 ## Random spin
-sandbox|start
+sandbox|start|spin_demo
 spin = SpinAnimation(rate=10) |               SpinAnimation(rate=10, offset=4) |               SpinAnimation(rate=10, reverse=True)\
     |  SpinAnimation(rate=10, offset=3) |     SpinAnimation(rate=10, offset=1) |               SpinAnimation(rate=10)\
     |  SpinAnimation(rate=10, reverse=True) | SpinAnimation(rate=10, reverse=True, offset=9) | SpinAnimation(rate=10, offset=-1)\
@@ -285,7 +285,7 @@ sandbox|end
 
 ## Crashes
 scale|1
-sequence|anon|scale=.1
+sequence|start|crashes|scale=.1
 frame|10|
 sequence|insert|crash_16
 frame|4|
@@ -302,8 +302,13 @@ frame|4|
 sequence|end
 
 ## Zap
-sequence|anon
-scale|1
+collate|start|zap_final
+|zap|scale=0.02
+|zap_rev|scale=0.02
+|x_spin_2|shift=7|repeat=3|scale=.05|delay=0.375
+collate|end
+
+sequence|start|zap_demo
 sequence|insert|zap|scale=.02
 frame|0.5|
 sequence|insert|zap_rev|scale=.02
@@ -314,29 +319,51 @@ frame|0.5|
 sequence|insert|zap_rev|scale=.01
 sequence|insert|zap|scale=.01
 frame|0.5|
+sequence|insert|zap_final
 sequence|end
 
-collate|anon
-|zap|scale=0.02
-|zap_rev|scale=0.02
-|x_spin_2|shift=7|repeat=3|scale=.05|delay=0.375
-collate|end
-frame|1|
-
 ## Hallways
-sequence|anon
+sequence|start|hallway_demo
 frame|0.5|_{16}
 frame|0.5|_{7}{0x0408}{0x1008}_{7}
 sequence|insert|hallway|scale=2|end=2|mode=time
 sequence|insert|hallway|scale=2|start=2|end=4|mode=time|repeat=2
 sequence|insert|hallway|scale=2|start=4|mode=time
-frame|0.5|_{7}{0x0408}{0x1008}_{7}
-frame|0.5|_{16}
 sequence|end
 
 ## Dancing bars
-scale|.05
-sequence|insert|swipe
+sequence|start|slide_out
+frame|1|_{16} # {7}{r_rail}{l_rail}
+frame|1|_{16}
+frame|1|_{7} {2}_{7}
+frame|1|_{7} {2}_{7}
+frame|1|_{7} {2}_{7}
+frame|1|_{6} {4}_{6}
+frame|1|_{6} {4}_{6}
+frame|1|_{6} {4}_{6}
+frame|1|_{5} {6}_{5}
+frame|1|_{5} {6}_{5}
+frame|1|_{5} {6}_{5}
+frame|1|_{4} {8}_{5}
+frame|1|_{4} {8}_{5}
+frame|1|_{4} {8}_{5}
+frame|1|_{3} {10}_{3}
+frame|1|_{3} {10}_{3}
+frame|1|_{3} {10}_{3}
+frame|1|_{2} {12}_{2}
+frame|1|_{2} {12}_{2}
+frame|1|_{2} {12}_{2}
+frame|1|_{1} {14}_{1}
+frame|1|_{1} {14}_{1}
+frame|1|_{1} {14}_{1}
+sequence|end
+
+merge|start|push_out
+|swipe
+|slide_out
+merge|end
+sequence|start|dancing_bars
+sequence|insert|push_out
 frame|10|{l_rail} {14}{r_rail}
 sequence|insert|swipe|reverse=True
 frame|10| {7}{r_rail}{l_rail}
@@ -374,19 +401,27 @@ frame|1|\|{16}
 frame|1|/{16}
 frame|5|-{16}
 
-sequence|insert|slideout_even|scale=0.3
+sequence|insert|slideout_even|scale=3
+sequence|end
 
 ## Waves
 sequence|start|wave_window
 frame|1|{wave_profile}{wave_profile}
 sequence|end
-sequence|insert|wave_window|scale=0.12|repeat=46|shift_step=-1|reverse=true
-sequence|insert|wave_window|scale=0.12|repeat=46|shift_step=-1|reverse=true
-sequence|insert|wave_window|scale=0.12|repeat=46|shift_step=-1|reverse=true
 
-## Collapse
-#frame|50|{full_frame}
-#frame|50|{0x2218}{mb_rail}{14}{0x220c}
-#frame|50|_{16}
-#frame|50| !{16}
-#frame|50|
+sequence|start|waves_demo
+sequence|insert|wave_window|shift=-28|repeat=46|shift_step=-1|reverse=true
+sequence|insert|wave_window|shift=-28|repeat=46|shift_step=-1|reverse=true
+sequence|insert|wave_window|shift=-28|repeat=46|shift_step=-1|reverse=true
+sequence|end
+
+## Fully assembled
+sequence|insert|start_up|scale=0.01
+sequence|insert|spin_demo
+sequence|insert|crashes|scale=.1
+sequence|insert|zap_demo
+frame|1|
+sequence|insert|hallway_demo
+sequence|insert|dancing_bars|scale=0.05
+frame|1|
+sequence|insert|waves_demo|scale=0.12

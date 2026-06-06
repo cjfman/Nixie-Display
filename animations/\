@@ -1,0 +1,20 @@
+## Waves
+sequence|start|wave_window
+frame|1|{wave_profile}{wave_profile}
+sequence|end
+
+sequence|start|waves_start
+frame|1|{wave_profile} {16}
+sequence|end
+
+sequence|anon|end=17|scale=0.12
+sequence|insert|waves_start|repeat=62|shift_step=-1|reverse=true|shift=17
+sequence|end
+
+sequence|start|waves_demo
+sequence|insert|wave_window|repeat=46|shift_step=-1|reverse=true
+sequence|insert|wave_window|repeat=46|shift_step=-1|reverse=true
+sequence|insert|wave_window|repeat=46|shift_step=-1|reverse=true
+sequence|end
+
+sequence|insert|waves_demo|scale=0.12

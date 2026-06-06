@@ -1,0 +1,32 @@
+## Waves that slide in from the left. Self-contained (no import).
+##
+## The profile is a 46-tube wave followed by a 16-tube blank gap (period 62).
+## Scrolling it rightward (reverse=true) means new content enters from the left:
+## the gap clears the screen, then the waves slide in from the left, cross, and
+## exit right into the next gap. Loops forever with no jump because the gap makes
+## the loop point an empty screen.
+
+title|Waves slidein
+scale|0.12
+loop|forever
+
+sprite|b0|0x0000
+sprite|b1|0x0008
+sprite|b2|0x0808
+sprite|b3|0x0888
+sprite|b4|0x0889
+
+segment|crest_1|{b1}
+segment|crest_2|{b1}{b2}{b1}
+segment|crest_3|{b1}{b2}{b3}{b2}{b1}
+segment|crest_4|{b1}{b2}{b3}{b4}{b3}{b2}{b1}
+
+## 46-tube wave + 16-tube blank gap = 62-tube period.
+segment|wave_profile|{b0}{crest_1}{b0}{crest_3}{b0}{b0}{crest_2}{b0}{b0}{crest_4}{b0}{b0}{crest_2}{b0}{b0}{crest_1}{b0}{crest_4}{b0}{crest_2}{b0}{crest_1}{b0}{b0}{b0}{16}
+
+sequence|start|wave_window
+frame|1|{wave_profile}{wave_profile}
+sequence|end
+## shift=-(period-16) = -46 starts the loop on the empty gap, so the animation
+## opens with the slide-in instead of part-way through the wave.
+sequence|insert|wave_window|shift=-46|repeat=62|shift_step=-1|reverse=true
