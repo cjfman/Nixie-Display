@@ -1,0 +1,32 @@
+## A longer wave with five crest heights, including crest_5. Self-contained (no
+## import) so it doesn't depend on waves.alib.
+##
+## crest_5 is a wider crest with a flat full-height top: three b4 tubes in a row
+## ({b4}{3}), making it 9 tubes wide (vs crest_4's 7). The swept insert's repeat
+## must equal the wave_profile period (currently 87) for a seamless loop.
+
+title|Waves 2
+scale|0.12
+loop|forever
+
+sprite|b0|0x0000
+sprite|b1|0x0008
+sprite|b2|0x0808
+sprite|b3|0x0888
+sprite|b4|0x0889
+
+segment|crest_1|{b1}
+segment|crest_2|{b1}{b2}{b1}
+segment|crest_3|{b1}{b2}{b3}{b2}{b1}
+segment|crest_4|{b1}{b2}{b3}{b4}{b3}{b2}{b1}
+segment|crest_5|{b1}{b2}{b3}{b4}{3}{b3}{b2}{b1}
+
+## A longer, randomized profile (87-tube period). Peaks: 2,3,1,5,2,1,4,1,3,4,1,4,2,5,1
+## with random 1-2 trough gaps; the two crest_5s are well separated so each towers
+## over the surrounding peaks.
+segment|wave_profile|{b0}{crest_2}{b0}{crest_3}{b0}{b0}{crest_1}{b0}{b0}{crest_5}{b0}{b0}{crest_2}{b0}{crest_1}{b0}{crest_4}{b0}{crest_1}{b0}{crest_3}{b0}{b0}{crest_4}{b0}{b0}{crest_1}{b0}{b0}{crest_4}{b0}{crest_2}{b0}{b0}{crest_5}{b0}{b0}{crest_1}{b0}
+
+sequence|start|wave_window
+frame|1|{wave_profile}{wave_profile}
+sequence|end
+sequence|insert|wave_window|repeat=87|shift_step=-1|reverse=true
