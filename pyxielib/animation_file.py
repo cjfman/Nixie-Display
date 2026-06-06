@@ -295,7 +295,33 @@ class FileAnimation(FullFrameAnimation):
             errors = [f"Line {l_no}: {msg}" for l_no, msg in errors]
             raise FileAnimationError(f"Found {num} errors:\n" + "\n".join(errors))
 
+        ## The whole file is parsed; crop every emitted frame to the display.
+        ## (Library files keep their sequences/segments full-width and emit no
+        ## top-level frames, so this is a no-op for them.)
+        if not self._library_mode:
+            self._truncateFrames()
+
         return self.fullframes
+
+    def _truncateFrames(self):
+        """Crop every top-level frame to the display width after the whole file
+        has loaded.
+
+        Frames are built and stored at their natural width while parsing so a
+        layout wider than the display (e.g. a doubled profile shifted before it
+        is shown) survives intermediate transforms. Here each emitted frame is
+        cropped to ``self.size`` tubes; frames narrower than the display are
+        padded with blanks so the controller always receives a full row.
+        """
+        for i, (delay, full) in enumerate(self.fullframes):
+            frames = full.getFrames()
+            if len(frames) > self.size:
+                frames = frames[:self.size]
+            elif len(frames) < self.size:
+                frames = frames + [Frame()] * (self.size - len(frames))
+            else:
+                continue
+            self.fullframes[i] = (delay, FullFrame(frames))
 
     def _routeSandboxLine(self, line, pending, line_no, errors):
         """Feed one line to the open sandbox, joining lines that end with '\\'.
@@ -454,14 +480,10 @@ class FileAnimation(FullFrameAnimation):
 
         frames = self._parseSegmentHlpr(line)
 
-        ## Fix number of frames
-        num_frames = len(frames)
-        if num_frames > self.size:
-            frames = frames[:self.size]
-        elif num_frames < self.size:
-            missing = self.size - num_frames
-            frames += [Frame()]*missing
-
+        ## Frames are kept at their natural width here; the whole file is cropped
+        ## to the display size once it has finished loading (see _truncateFrames).
+        ## Storing them full-width until then lets a layout wider than the display
+        ## (e.g. a doubled scroll profile) survive shifting before the final crop.
         if length:
             ## Add the frames
             self.active.append((length, FullFrame(frames)))
@@ -590,15 +612,18 @@ class FileAnimation(FullFrameAnimation):
         return update
 
     def _shiftFullFrame(self, full_frame: FullFrame, shift: int) -> FullFrame:
+        """Slide a frame along the tube axis. A positive shift moves content
+        right (blank-padding the left); a negative shift moves it left, dropping
+        leading tubes. The frame keeps its natural width here — cropping to the
+        display size happens once the file is fully loaded (_truncateFrames), so
+        tubes a positive shift pushes past the display edge survive long enough
+        to wrap a wider-than-display layout.
+        """
         frames = full_frame.getFrames()
         if shift > 0:
             frames = [Frame()] * shift + frames
-            frames = frames[:self.size]
         elif shift < 0:
             frames = frames[abs(shift):]
-        missing = self.size - len(frames)
-        if missing > 0:
-            frames += [Frame()] * missing
         return FullFrame(frames)
 
     def _parseSequence(self, subcmd, name=None, shift='0', repeat='1', scale=None, mode='frame', start=None, end=None, reverse='false'):
@@ -668,8 +693,6 @@ class FileAnimation(FullFrameAnimation):
         if self.sequence is None:
             raise FileAnimationError(f"{kind} is only valid inside a sequence")
         frames = self._parseSegmentHlpr(line)
-        if len(frames) > self.size:
-            frames = frames[:self.size]
         self._modifiers.append((kind, frames))
 
     def _applyModifiers(self, frames):
@@ -706,7 +729,10 @@ class FileAnimation(FullFrameAnimation):
         fully-cleared tube becomes a blank Frame.
         """
         result = []
-        for i in range(self.size):
+        ## Span both inputs; tubes the mask doesn't reach contribute 0 (cleared).
+        ## The result is cropped to the display size at load end (_truncateFrames).
+        width = max(len(base), len(mask))
+        for i in range(width):
             code = base[i].decode() if i < len(base) else 0
             code &= mask[i].decode() if i < len(mask) else 0
             result.append(HexFrame(code) if code else Frame())
@@ -943,7 +969,10 @@ class FileAnimation(FullFrameAnimation):
 
     def _flattenSegments(self, segments: List[List[Frame]]) -> List[Frame]:
         result = []
-        for i in range(self.size):
+        ## Span the widest input; the result is cropped to the display size with
+        ## the rest of the file at load end (_truncateFrames).
+        width = max((len(seg) for seg in segments), default=0)
+        for i in range(width):
             ## Collect the frame at tube position i from every segment
             tube_frames = [seg[i] for seg in segments if i < len(seg)]
 
