@@ -80,6 +80,14 @@ extension is appended automatically when `filepath` doesn't already end in it
 All options are **named arguments** (see [Named arguments](#named-arguments)):
 
 - **`shift=N`** (integer, default `0`) — slides the sequence left/right along the tube axis.
+- **`shift_step=N`** (integer, default `0`) — advances the shift by `N` per
+  repeated copy (a *swept* insert): copy `i` lands at `shift + i*shift_step`.
+  Combined with `repeat`, one line emits a whole scroll. A positive shift blank-
+  pads the left; a negative shift drops leading tubes — so to scroll a layout
+  wider than the display and have it wrap, build the sequence wider than 16 tubes
+  (e.g. a doubled profile) and sweep with a negative step. Frames keep their full
+  width until the file finishes loading, then every emitted frame is cropped to
+  the display size.
 - **`repeat=N`** (positive integer, default `1`) — inserts the sequence N times.
 - **`scale=F`** (float, default the current `scale`) — multiplies each inserted frame's delay.
 - **`mode=M`** — units for `start`/`end` slicing: `frame` (default, frame indices),
@@ -92,11 +100,13 @@ All options are **named arguments** (see [Named arguments](#named-arguments)):
   two frames before the end). A boundary's magnitude may not exceed the sequence's
   length (frame count in `frame` mode; total duration in the time modes).
 - **`reverse=B`** (`true`/`false`, any case, default `false`) — when `true`,
-  reverses the frame order before `shift`/`scale`/`repeat` are applied (after the
-  `start`/`end` sub-range is selected).
+  reverses the order of the whole expanded result. For a plain insert this just
+  reverses the frame order (as before); for a swept insert (`shift_step`) it also
+  reverses the copy order, so the sweep runs the other way — handy for flipping a
+  scroll's direction without changing `shift`/`shift_step`.
 
 **`sequence|anon`** — anonymous sequence block. Takes no name; accepts the same
-`shift`/`repeat`/`scale`/`mode`/`start`/`end`/`reverse` arguments as `sequence|insert`.
+`shift`/`shift_step`/`repeat`/`scale`/`mode`/`start`/`end`/`reverse` arguments as `sequence|insert`.
 Equivalent to defining a named sequence from the enclosed frames and immediately
 inserting it at `sequence|end`; the sequence is not registered under a name.
 

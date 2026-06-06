@@ -28,6 +28,8 @@ class InsertArgs:
     errors carry a line number. ``shift``/``repeat``/``scale`` transform the
     inserted copy (as they always have); ``mode``/``start``/``end`` select a
     sub-range of the sequence *before* those transforms (see _sliceFrames).
+    ``shift_step`` advances the shift by a fixed amount per repeated copy (a
+    swept insert), so copy ``i`` lands at ``shift + i*shift_step``.
 
     Shared by sequence|insert and sequence|anon, and structured so merge|anon
     and collate|anon can adopt the same slicing simply by parsing these named
@@ -40,6 +42,7 @@ class InsertArgs:
     start:  Optional[str] = None
     end:    Optional[str] = None
     reverse: str = 'false'
+    shift_step: str = '0'
 
 
 class ArgSpec:
@@ -255,7 +258,7 @@ class FileAnimation(FullFrameAnimation):
                 'segment':  ArgSpec(2, 0, handler=self._parseSegment),
                 'frame':    ArgSpec(2, 0, handler=self._parseFrame),
                 'scale':    ArgSpec(1, 0, handler=self._parseScale),
-                'sequence': ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None, 'reverse': 'false'}, handler=self._parseSequence),
+                'sequence': ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None, 'reverse': 'false', 'shift_step': '0'}, handler=self._parseSequence),
                 'overlay':  ArgSpec(1, 0, handler=self._parseOverlay),
                 'mask':     ArgSpec(1, 0, handler=self._parseMask),
                 'repeat':   ArgSpec(1, 1, handler=self._parseRepeat),
@@ -626,7 +629,7 @@ class FileAnimation(FullFrameAnimation):
             frames = frames[abs(shift):]
         return FullFrame(frames)
 
-    def _parseSequence(self, subcmd, name=None, shift='0', repeat='1', scale=None, mode='frame', start=None, end=None, reverse='false'):
+    def _parseSequence(self, subcmd, name=None, shift='0', repeat='1', scale=None, mode='frame', start=None, end=None, reverse='false', shift_step='0'):
         if subcmd == 'start':
             if name is None:
                 raise FileAnimationError("Cannot start a sequence without a name")
@@ -652,7 +655,7 @@ class FileAnimation(FullFrameAnimation):
             ## Build into a throwaway list; sequence|end inserts it with these args
             self.active = []
             self.sequence = '<anon>'
-            self._anon_args = InsertArgs(shift, repeat, scale, mode, start, end, reverse)
+            self._anon_args = InsertArgs(shift, repeat, scale, mode, start, end, reverse, shift_step)
             self._modifiers = []
             logger.debug("Starting anonymous sequence")
         elif subcmd == 'end':
@@ -672,7 +675,7 @@ class FileAnimation(FullFrameAnimation):
                 self._appendInsertedFrames(frames, anon_args, "anonymous sequence")
             logger.debug(f"Completed sequence '{closed}'")
         elif subcmd == 'insert':
-            self._insertSequence(name, InsertArgs(shift, repeat, scale, mode, start, end, reverse))
+            self._insertSequence(name, InsertArgs(shift, repeat, scale, mode, start, end, reverse, shift_step))
         else:
             raise FileAnimationError(f"Unknown sequence subcommand '{subcmd}'")
 
@@ -766,14 +769,18 @@ class FileAnimation(FullFrameAnimation):
         """Slice, transform, and append a sequence's frames per its InsertArgs.
 
         ``mode``/``start``/``end`` first select a sub-range of the sequence (see
-        _sliceFrames). Then, as before, ``shift`` slides each frame along the
-        tube axis, ``scale`` multiplies each frame's delay (defaulting to the
-        file's current scale), ``reverse`` flips the frame order, and ``repeat``
-        controls how many copies of the (shifted, scaled, reversed) sub-range are
-        appended.
+        _sliceFrames). Then ``scale`` multiplies each frame's delay (defaulting
+        to the file's current scale) and ``repeat`` controls how many copies are
+        appended. ``shift`` slides the frames along the tube axis; ``shift_step``
+        advances that slide by a fixed amount per copy (a swept insert), so copy
+        ``i`` is placed at ``shift + i*shift_step``. ``reverse`` flips the order
+        of the whole expanded result — for a plain insert that just reverses the
+        frame order (as before), and for a swept insert it also reverses the copy
+        order, so the sweep runs the other way.
         """
         ## Convert the raw string arguments to numbers
         shift_n  = self._intArg('sequence|insert shift', args.shift)
+        step_n   = self._intArg('sequence|insert shift_step', args.shift_step)
         repeat_n = self._intArg('sequence|insert repeat', args.repeat)
         if repeat_n < 1:
             raise FileAnimationError("sequence|insert repeat must be a positive integer")
@@ -783,20 +790,29 @@ class FileAnimation(FullFrameAnimation):
 
         ## Select the requested sub-range before any transform. scale_f is needed
         ## up front because 'scaled_time' boundaries are measured against it.
-        frames = self._sliceFrames(frames, args, scale_f)
-        if reverse:
-            frames = list(reversed(frames))
-
-        ## Build the transformed copy once, then append it repeat_n times.
-        ## Each entry is a (delay, FullFrame) tuple, so shift rewrites the frame
-        ## and scale rewrites the delay.
-        if shift_n:
-            frames = [(t, self._shiftFullFrame(f, shift_n)) for t, f in frames]
+        base = self._sliceFrames(frames, args, scale_f)
         if scale_f != 1:
-            frames = [(t * scale_f, f) for t, f in frames]
-        for _ in range(repeat_n):
-            self.active.extend(frames)
-        logger.debug(f"Inserted {label} (shift={shift_n}, repeat={repeat_n}, scale={scale_f})")
+            base = [(t * scale_f, f) for t, f in base]
+
+        ## Expand the repeats, shifting copy i by shift_n + i*step_n. Each entry
+        ## is a (delay, FullFrame) tuple, so the shift rewrites the frame while
+        ## the (already scaled) delay rides along unchanged.
+        expanded: List[TimeFullFrame] = []
+        for i in range(repeat_n):
+            shift_i = shift_n + i * step_n
+            if shift_i:
+                expanded.extend((t, self._shiftFullFrame(f, shift_i)) for t, f in base)
+            else:
+                expanded.extend(base)
+
+        ## Reverse the whole expanded timeline. With step_n == 0 every copy is
+        ## identical, so this matches the old "reverse the frame order" behavior;
+        ## with a sweep it also flips the copy order, reversing the sweep.
+        if reverse:
+            expanded = list(reversed(expanded))
+
+        self.active.extend(expanded)
+        logger.debug(f"Inserted {label} (shift={shift_n}, step={step_n}, repeat={repeat_n}, scale={scale_f}, reverse={reverse})")
 
     def _sliceFrames(self, frames, args: 'InsertArgs', scale_f):
         """Return the sub-range of ``frames`` selected by mode/start/end.
