@@ -1,13 +1,14 @@
 ## Scratch Space
 
 scale|0.1
-sprite|dash_l|0x2000
-sprite|dash_r|0x0200
+sprite|.dash_l|0x2000
+sprite|.dash_r|0x0200
 
-## Slide out
-sequence|start|slideout
-## 32 to 30
+## Slide out flat
+sequence|start|slideout_flat
 frame|1|-{16}
+
+## 32 to 30
 frame|1|{dash_r}-{14}{dash_l}
 
 ## 30 to 28
@@ -175,4 +176,285 @@ frame|1| {1}{dash_l} {12}{dash_r}
 frame|1| {0}{dash_r} {14}{dash_l}
 frame|1| {0}{dash_l} {14}{dash_r}
 frame|1| 
+sequence|end
+
+## Slide out even (each section has equal total duration: 1 × scale)
+sequence|start|slideout_even
+frame|1|-{16}
+
+## 32 to 30
+frame|1|{dash_r}-{14}{dash_l}
+
+## 30 to 28
+frame|0.5|{dash_l}-{14}{dash_r}
+frame|0.5| {1}-{14}
+
+## 28 to 26
+frame|0.333| {0}{dash_r}{dash_r}-{12}{dash_l}{dash_l}
+frame|0.333| {0}{dash_l}{dash_r}-{12}{dash_l}{dash_r}
+frame|0.333| {1}{dash_r}-{12}{dash_l}
+
+## 26 to 24
+frame|0.25| {1}{dash_l}-{12}{dash_r}
+frame|0.25|{dash_r} -{12} {dash_l}
+frame|0.25|{dash_l} -{12} {dash_r}
+frame|0.25| {2}-{12}
+
+## 24 to 22
+frame|0.2| {1}{dash_r}{dash_r}-{10}{dash_l}{dash_l}
+frame|0.2| {1}{dash_l}{dash_r}-{10}{dash_l}{dash_r}
+frame|0.2| {0}{dash_r} {1}{dash_r}-{10}{dash_l} {1}{dash_l}
+frame|0.2| {0}{dash_l} {1}{dash_r}-{10}{dash_l} {1}{dash_r}
+frame|0.2| {2}{dash_r}-{10}{dash_l}
+
+## 22 to 20
+frame|0.1667| {2}{dash_l} {0}-{10} {0}{dash_r}
+frame|0.1667| {1}{dash_r} {1}-{10} {1}{dash_l}
+frame|0.1667| {1}{dash_l} {1}-{10} {1}{dash_r}
+frame|0.1667| {0}{dash_r} {2}-{10} {2}{dash_l}
+frame|0.1667| {0}{dash_l} {2}-{10} {2}{dash_r}
+frame|0.1667| {3}-{10}
+
+## 20 to 18
+frame|0.1429| {2}{dash_r} {0}{dash_r}-{8}{dash_l} {0}{dash_l}
+frame|0.1429| {2}{dash_l} {0}{dash_r}-{8}{dash_l} {0}{dash_r}
+frame|0.1429| {1}{dash_r} {1}{dash_r}-{8}{dash_l} {1}{dash_l}
+frame|0.1429| {1}{dash_l} {1}{dash_r}-{8}{dash_l} {1}{dash_r}
+frame|0.1429| {0}{dash_r} {2}{dash_r}-{8}{dash_l} {2}{dash_l}
+frame|0.1429| {0}{dash_l} {2}{dash_r}-{8}{dash_l} {2}{dash_r}
+frame|0.1429| {3}{dash_r}-{8}{dash_l}
+
+## 18 to 16
+frame|0.125| {3}{dash_l} {0}-{8} {0}{dash_r}
+frame|0.125| {2}{dash_r} {1}-{8} {1}{dash_l}
+frame|0.125| {2}{dash_l} {1}-{8} {1}{dash_r}
+frame|0.125| {1}{dash_r} {2}-{8} {2}{dash_l}
+frame|0.125| {1}{dash_l} {2}-{8} {2}{dash_r}
+frame|0.125| {0}{dash_r} {3}-{8} {3}{dash_l}
+frame|0.125| {0}{dash_l} {3}-{8} {3}{dash_r}
+frame|0.125| {4}-{8}
+
+## 16 to 14
+frame|0.1111| {3}{dash_r} {0}{dash_r}-{6}{dash_l} {0}{dash_l}
+frame|0.1111| {3}{dash_l} {0}{dash_r}-{6}{dash_l} {0}{dash_r}
+frame|0.1111| {2}{dash_r} {1}{dash_r}-{6}{dash_l} {1}{dash_l}
+frame|0.1111| {2}{dash_l} {1}{dash_r}-{6}{dash_l} {1}{dash_r}
+frame|0.1111| {1}{dash_r} {2}{dash_r}-{6}{dash_l} {2}{dash_l}
+frame|0.1111| {1}{dash_l} {2}{dash_r}-{6}{dash_l} {2}{dash_r}
+frame|0.1111| {0}{dash_r} {3}{dash_r}-{6}{dash_l} {3}{dash_l}
+frame|0.1111| {0}{dash_l} {3}{dash_r}-{6}{dash_l} {3}{dash_r}
+frame|0.1111| {4}{dash_r}-{6}{dash_l}
+
+## 14 to 12
+frame|0.1| {4}{dash_l} {0}-{6} {0}{dash_r}
+frame|0.1| {3}{dash_r} {1}-{6} {1}{dash_l}
+frame|0.1| {3}{dash_l} {1}-{6} {1}{dash_r}
+frame|0.1| {2}{dash_r} {2}-{6} {2}{dash_l}
+frame|0.1| {2}{dash_l} {2}-{6} {2}{dash_r}
+frame|0.1| {1}{dash_r} {3}-{6} {3}{dash_l}
+frame|0.1| {1}{dash_l} {3}-{6} {3}{dash_r}
+frame|0.1| {0}{dash_r} {4}-{6} {4}{dash_l}
+frame|0.1| {0}{dash_l} {4}-{6} {4}{dash_r}
+frame|0.1| {5}-{6}
+
+## 12 to 10
+frame|0.0909| {4}{dash_r} {0}{dash_r}-{4}{dash_l} {0}{dash_l}
+frame|0.0909| {4}{dash_l} {0}{dash_r}-{4}{dash_l} {0}{dash_r}
+frame|0.0909| {3}{dash_r} {1}{dash_r}-{4}{dash_l} {1}{dash_l}
+frame|0.0909| {3}{dash_l} {1}{dash_r}-{4}{dash_l} {1}{dash_r}
+frame|0.0909| {2}{dash_r} {2}{dash_r}-{4}{dash_l} {2}{dash_l}
+frame|0.0909| {2}{dash_l} {2}{dash_r}-{4}{dash_l} {2}{dash_r}
+frame|0.0909| {1}{dash_r} {3}{dash_r}-{4}{dash_l} {3}{dash_l}
+frame|0.0909| {1}{dash_l} {3}{dash_r}-{4}{dash_l} {3}{dash_r}
+frame|0.0909| {0}{dash_r} {4}{dash_r}-{4}{dash_l} {4}{dash_l}
+frame|0.0909| {0}{dash_l} {4}{dash_r}-{4}{dash_l} {4}{dash_r}
+frame|0.0909| {5}{dash_r}-{4}{dash_l}
+
+## 10 to 8
+frame|0.0833| {5}{dash_l} {0}-{4} {0}{dash_r}
+frame|0.0833| {4}{dash_r} {1}-{4} {1}{dash_l}
+frame|0.0833| {4}{dash_l} {1}-{4} {1}{dash_r}
+frame|0.0833| {3}{dash_r} {2}-{4} {2}{dash_l}
+frame|0.0833| {3}{dash_l} {2}-{4} {2}{dash_r}
+frame|0.0833| {2}{dash_r} {3}-{4} {3}{dash_l}
+frame|0.0833| {2}{dash_l} {3}-{4} {3}{dash_r}
+frame|0.0833| {1}{dash_r} {4}-{4} {4}{dash_l}
+frame|0.0833| {1}{dash_l} {4}-{4} {4}{dash_r}
+frame|0.0833| {0}{dash_r} {5}-{4} {5}{dash_l}
+frame|0.0833| {0}{dash_l} {5}-{4} {5}{dash_r}
+frame|0.0833| {6}-{4}
+
+## 8 to 6
+frame|0.0769| {5}{dash_r} {0}{dash_r}-{2}{dash_l} {0}{dash_l}
+frame|0.0769| {5}{dash_l} {0}{dash_r}-{2}{dash_l} {0}{dash_r}
+frame|0.0769| {4}{dash_r} {1}{dash_r}-{2}{dash_l} {1}{dash_l}
+frame|0.0769| {4}{dash_l} {1}{dash_r}-{2}{dash_l} {1}{dash_r}
+frame|0.0769| {3}{dash_r} {2}{dash_r}-{2}{dash_l} {2}{dash_l}
+frame|0.0769| {3}{dash_l} {2}{dash_r}-{2}{dash_l} {2}{dash_r}
+frame|0.0769| {2}{dash_r} {3}{dash_r}-{2}{dash_l} {3}{dash_l}
+frame|0.0769| {2}{dash_l} {3}{dash_r}-{2}{dash_l} {3}{dash_r}
+frame|0.0769| {1}{dash_r} {4}{dash_r}-{2}{dash_l} {4}{dash_l}
+frame|0.0769| {1}{dash_l} {4}{dash_r}-{2}{dash_l} {4}{dash_r}
+frame|0.0769| {0}{dash_r} {5}{dash_r}-{2}{dash_l} {5}{dash_l}
+frame|0.0769| {0}{dash_l} {5}{dash_r}-{2}{dash_l} {5}{dash_r}
+frame|0.0769| {6}{dash_r}-{2}{dash_l}
+
+## 6 to 4
+frame|0.0714| {6}{dash_l} {0}-{2} {0}{dash_r}
+frame|0.0714| {5}{dash_r} {1}-{2} {1}{dash_l}
+frame|0.0714| {5}{dash_l} {1}-{2} {1}{dash_r}
+frame|0.0714| {4}{dash_r} {2}-{2} {2}{dash_l}
+frame|0.0714| {4}{dash_l} {2}-{2} {2}{dash_r}
+frame|0.0714| {3}{dash_r} {3}-{2} {3}{dash_l}
+frame|0.0714| {3}{dash_l} {3}-{2} {3}{dash_r}
+frame|0.0714| {2}{dash_r} {4}-{2} {4}{dash_l}
+frame|0.0714| {2}{dash_l} {4}-{2} {4}{dash_r}
+frame|0.0714| {1}{dash_r} {5}-{2} {5}{dash_l}
+frame|0.0714| {1}{dash_l} {5}-{2} {5}{dash_r}
+frame|0.0714| {0}{dash_r} {6}-{2} {6}{dash_l}
+frame|0.0714| {0}{dash_l} {6}-{2} {6}{dash_r}
+frame|0.0714| {7}-{2}
+
+## 4 to 2
+frame|0.0667| {6}{dash_r} {0}{dash_r}{dash_l} {0}{dash_l}
+frame|0.0667| {6}{dash_l} {0}{dash_r}{dash_l} {0}{dash_r}
+frame|0.0667| {5}{dash_r} {1}{dash_r}{dash_l} {1}{dash_l}
+frame|0.0667| {5}{dash_l} {1}{dash_r}{dash_l} {1}{dash_r}
+frame|0.0667| {4}{dash_r} {2}{dash_r}{dash_l} {2}{dash_l}
+frame|0.0667| {4}{dash_l} {2}{dash_r}{dash_l} {2}{dash_r}
+frame|0.0667| {3}{dash_r} {3}{dash_r}{dash_l} {3}{dash_l}
+frame|0.0667| {3}{dash_l} {3}{dash_r}{dash_l} {3}{dash_r}
+frame|0.0667| {2}{dash_r} {4}{dash_r}{dash_l} {4}{dash_l}
+frame|0.0667| {2}{dash_l} {4}{dash_r}{dash_l} {4}{dash_r}
+frame|0.0667| {1}{dash_r} {5}{dash_r}{dash_l} {5}{dash_l}
+frame|0.0667| {1}{dash_l} {5}{dash_r}{dash_l} {5}{dash_r}
+frame|0.0667| {0}{dash_r} {6}{dash_r}{dash_l} {6}{dash_l}
+frame|0.0667| {0}{dash_l} {6}{dash_r}{dash_l} {6}{dash_r}
+frame|0.0667| {7}{dash_r}{dash_l}
+
+## 2 to 0
+frame|0.0625| {7}{dash_l} {0}{dash_r}
+frame|0.0625| {6}{dash_r} {2}{dash_l}
+frame|0.0625| {6}{dash_l} {2}{dash_r}
+frame|0.0625| {5}{dash_r} {4}{dash_l}
+frame|0.0625| {5}{dash_l} {4}{dash_r}
+frame|0.0625| {4}{dash_r} {6}{dash_l}
+frame|0.0625| {4}{dash_l} {6}{dash_r}
+frame|0.0625| {3}{dash_r} {8}{dash_l}
+frame|0.0625| {3}{dash_l} {8}{dash_r}
+frame|0.0625| {2}{dash_r} {10}{dash_l}
+frame|0.0625| {2}{dash_l} {10}{dash_r}
+frame|0.0625| {1}{dash_r} {12}{dash_l}
+frame|0.0625| {1}{dash_l} {12}{dash_r}
+frame|0.0625| {0}{dash_r} {14}{dash_l}
+frame|0.0625| {0}{dash_l} {14}{dash_r}
+frame|0.0625|
+sequence|end
+
+
+## Double Slide out
+sequence|start|double_slideout_even
+## 16 to 14
+frame|1|-{16}
+frame|1| -{14}
+
+## 14 to 12
+frame|0.5|- -{12} -
+frame|0.5| {2}-{12}
+
+## 12 to 10
+frame|0.3| - -{10} -
+frame|0.3|- {2}-{10} {2}-
+frame|0.3| {3}-{10} {3}-
+
+## 10 to 8
+frame|0.25| {2}- {1}-{8} {1}- {2}
+frame|0.25| {1}- {2}-{8} {2}- {1}
+frame|0.25| {0}- {3}-{8} {3}- {0}
+frame|0.25| {4}-{8} {4}
+
+## 8 to 6
+frame|0.2| {3}- {1}-{6} {1}- {3}
+frame|0.2| {2}- {2}-{6} {2}- {2}
+frame|0.2| {1}- {3}-{6} {3}- {1}
+frame|0.2| {0}- {4}-{6} {4}- {0}
+frame|0.2| {5}-{6} {5}
+
+## 6 to 4
+frame|0.167| {4}- {1}-{4} {1}- {4}
+frame|0.167| {3}- {2}-{4} {2}- {3}
+frame|0.167| {2}- {3}-{4} {3}- {2}
+frame|0.167| {1}- {4}-{4} {4}- {1}
+frame|0.167| {0}- {5}-{4} {5}- {0}
+frame|0.167| {6}-{4} {6}
+
+## 4 to 2
+frame|0.143| {5}- {1}-{2} {1}- {5}
+frame|0.143| {4}- {2}-{2} {2}- {4}
+frame|0.143| {3}- {3}-{2} {3}- {3}
+frame|0.143| {2}- {4}-{2} {4}- {2}
+frame|0.143| {1}- {5}-{2} {5}- {1}
+frame|0.143| {0}- {6}-{2} {6}- {0}
+frame|0.143| {7}-{2} {7}
+
+## 2 to 0
+frame|0.125| {6}- {2}- {6}
+frame|0.125| {5}- {4}- {5}
+frame|0.125| {4}- {6}- {4}
+frame|0.125| {3}- {8}- {3}
+frame|0.125| {2}- {10}- {2}
+frame|0.125| {1}- {12}- {1}
+sequence|end
+
+sequence|start|double_slideout_flat
+## 16 to 14
+frame|1|-{16}
+frame|1| -{14}
+
+## 14 to 12
+frame|1|- -{12} -
+frame|1| {2}-{12}
+
+## 12 to 10
+frame|1| - -{10} -
+frame|1|- {2}-{10} {2}-
+frame|1| {3}-{10} {3}-
+
+## 10 to 8
+frame|1| {2}- {1}-{8} {1}- {2}
+frame|1| {1}- {2}-{8} {2}- {1}
+frame|1| {0}- {3}-{8} {3}- {0}
+frame|1| {4}-{8} {4}
+
+## 8 to 6
+frame|1| {3}- {1}-{6} {1}- {3}
+frame|1| {2}- {2}-{6} {2}- {2}
+frame|1| {1}- {3}-{6} {3}- {1}
+frame|1| {0}- {4}-{6} {4}- {0}
+frame|1| {5}-{6} {5}
+
+## 6 to 4
+frame|1| {4}- {1}-{4} {1}- {4}
+frame|1| {3}- {2}-{4} {2}- {3}
+frame|1| {2}- {3}-{4} {3}- {2}
+frame|1| {1}- {4}-{4} {4}- {1}
+frame|1| {0}- {5}-{4} {5}- {0}
+frame|1| {6}-{4} {6}
+
+## 4 to 2
+frame|1| {5}- {1}-{2} {1}- {5}
+frame|1| {4}- {2}-{2} {2}- {4}
+frame|1| {3}- {3}-{2} {3}- {3}
+frame|1| {2}- {4}-{2} {4}- {2}
+frame|1| {1}- {5}-{2} {5}- {1}
+frame|1| {0}- {6}-{2} {6}- {0}
+frame|1| {7}-{2} {7}
+
+## 2 to 0
+frame|1| {6}- {2}- {6}
+frame|1| {5}- {4}- {5}
+frame|1| {4}- {6}- {4}
+frame|1| {3}- {8}- {3}
+frame|1| {2}- {10}- {2}
+frame|1| {1}- {12}- {1}
 sequence|end

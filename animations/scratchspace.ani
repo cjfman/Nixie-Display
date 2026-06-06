@@ -2,4 +2,4 @@
 
 import|slideout
 
-sequence|insert|slideout|scale=0.1
+sequence|insert|slideout_even|scale=0.3
