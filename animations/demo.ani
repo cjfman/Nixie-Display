@@ -404,16 +404,9 @@ frame|5|-{16}
 sequence|insert|slideout_even|scale=3
 sequence|end
 
-## Waves
-sequence|start|wave_window
-frame|1|{wave_profile}{wave_profile}
-sequence|end
-
-sequence|start|waves_demo
-sequence|insert|wave_window|shift=-28|repeat=46|shift_step=-1|reverse=true
-sequence|insert|wave_window|shift=-28|repeat=46|shift_step=-1|reverse=true
-sequence|insert|wave_window|shift=-28|repeat=46|shift_step=-1|reverse=true
-sequence|end
+## Waves: a 3-pass rightward scroll of wave_profile, stored as a named sequence
+## and inserted (with scale) in the assembly below.
+scroll|start|waves_demo|3|wave_profile|direction=right|blanking=true
 
 ## Fully assembled
 sequence|insert|start_up|scale=0.01

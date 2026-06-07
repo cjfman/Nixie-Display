@@ -26,7 +26,5 @@ segment|crest_5|{b1}{b2}{b3}{b4}{3}{b3}{b2}{b1}
 ## over the surrounding peaks.
 segment|wave_profile|{b0}{crest_2}{b0}{crest_3}{b0}{b0}{crest_1}{b0}{b0}{crest_5}{b0}{b0}{crest_2}{b0}{crest_1}{b0}{crest_4}{b0}{crest_1}{b0}{crest_3}{b0}{b0}{crest_4}{b0}{b0}{crest_1}{b0}{b0}{crest_4}{b0}{crest_2}{b0}{b0}{crest_5}{b0}{b0}{crest_1}{b0}
 
-sequence|start|wave_window
-frame|1|{wave_profile}{wave_profile}
-sequence|end
-sequence|insert|wave_window|repeat=87|shift_step=-1|reverse=true
+## Scrolled rightward with the scroll command; a plain scroll loops seamlessly.
+scroll|anon|2|wave_profile|direction=right

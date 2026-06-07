@@ -1,10 +1,8 @@
-## Waves that slide in from the left. Self-contained (no import).
+## Waves that slide in from the left, using the scroll command. Self-contained.
 ##
-## The profile is a 46-tube wave followed by a 16-tube blank gap (period 62).
-## Scrolling it rightward (reverse=true) means new content enters from the left:
-## the gap clears the screen, then the waves slide in from the left, cross, and
-## exit right into the next gap. Loops forever with no jump because the gap makes
-## the loop point an empty screen.
+## direction=right makes content enter from the left; blanking=true adds a blank
+## lead-in (empty screen) so the waves slide in, and the linear pass ends on
+## blanks too, so loop|forever wraps cleanly (empty -> empty).
 
 title|Waves slidein
 scale|0.12
@@ -21,12 +19,7 @@ segment|crest_2|{b1}{b2}{b1}
 segment|crest_3|{b1}{b2}{b3}{b2}{b1}
 segment|crest_4|{b1}{b2}{b3}{b4}{b3}{b2}{b1}
 
-## 46-tube wave + 16-tube blank gap = 62-tube period.
-segment|wave_profile|{b0}{crest_1}{b0}{crest_3}{b0}{b0}{crest_2}{b0}{b0}{crest_4}{b0}{b0}{crest_2}{b0}{b0}{crest_1}{b0}{crest_4}{b0}{crest_2}{b0}{crest_1}{b0}{b0}{b0}{16}
+## 46-tube wave (peaks 1,3,2,4,2,1,4,2,1); the blank lead-in/out comes from blanking.
+segment|wave_profile|{b0}{crest_1}{b0}{crest_3}{b0}{b0}{crest_2}{b0}{b0}{crest_4}{b0}{b0}{crest_2}{b0}{b0}{crest_1}{b0}{crest_4}{b0}{crest_2}{b0}{crest_1}{b0}{b0}
 
-sequence|start|wave_window
-frame|1|{wave_profile}{wave_profile}
-sequence|end
-## shift=-(period-16) = -46 starts the loop on the empty gap, so the animation
-## opens with the slide-in instead of part-way through the wave.
-sequence|insert|wave_window|shift=-46|repeat=62|shift_step=-1|reverse=true
+scroll|anon|2|wave_profile|direction=right|blanking=true
