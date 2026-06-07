@@ -2,7 +2,7 @@
 ## scrolled rightward with the scroll command. Peaks: 1,3,2,4,2,1,4,2,1 over a
 ## 46-tube period. A plain scroll (no slides/blanking) loops seamlessly.
 
-title|Waves
+title|*Waves
 import|waves.alib
 scale|0.12
 loop|forever

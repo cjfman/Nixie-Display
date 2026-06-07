@@ -5,7 +5,7 @@
 ## ({b4}{3}), making it 9 tubes wide (vs crest_4's 7). The swept insert's repeat
 ## must equal the wave_profile period (currently 87) for a seamless loop.
 
-title|Waves 2
+title|*Waves 2
 scale|0.12
 loop|forever
 
