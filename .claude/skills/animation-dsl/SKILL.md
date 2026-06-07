@@ -152,9 +152,11 @@ arguments:
     appears only in the first loop and the tail `segment[slide_out:]` only in the
     last (so first = `segment[:slide_out]`, middles = `segment[slide_in:slide_out]`,
     last = `segment[slide_in:]`). Negatives count from the end.
-- **`blanking=B`** (`true`/`false`, default `false`) — append a display-width run
-  of blanks so the content slides on/off an empty screen: a lead-out for `left`,
-  a lead-in for `right`. (Also switches the scroll from cyclic to a linear pass.)
+- **`blanking=B`** (`true`/`false`, default `false`) — bracket the track with a
+  display-width run of blanks on each end, so the content slides on from an empty
+  screen and off to one (a clean wash-in/out in either direction; the empty ends
+  also make a `loop|forever` wrap seamlessly). Also switches the scroll from
+  cyclic to a linear pass.
 
 ---
 

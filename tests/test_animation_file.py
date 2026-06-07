@@ -90,11 +90,15 @@ class ScrollTest(_AniTest):
         expected = [track[o:o + 16] for o in range(0, len(track) - 16 + 1)]
         self.assertEqual(self._codes(ani), expected)
 
-    def test_blanking_lead_in_right_and_lead_out_left(self):
-        right = self._codes(self._load(self.DEFS + "scroll|anon|2|MN|direction=right|blanking=true\n"))
-        self.assertTrue(all(c == ' ' for c in right[0]))   # right: blank lead-in
-        left = self._codes(self._load(self.DEFS + "scroll|anon|2|MN|direction=left|blanking=true\n"))
-        self.assertTrue(all(c == ' ' for c in left[-1]))   # left: blank lead-out
+    def test_blanking_brackets_both_ends(self):
+        ## Blanking puts a blank lead-in AND lead-out on both directions, so a
+        ## forever loop wraps blank->blank.
+        for direction in ('right', 'left'):
+            codes = self._codes(self._load(
+                self.DEFS + f"scroll|anon|2|MN|direction={direction}|blanking=true\n"))
+            self.assertTrue(all(c == ' ' for c in codes[0]), direction)
+            self.assertTrue(all(c == ' ' for c in codes[-1]), direction)
+            self.assertTrue(any('m' in c for c in codes), direction)  # content appears
 
     def test_named_scroll_defines_sequence(self):
         ani = self._load(

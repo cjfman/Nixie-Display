@@ -907,9 +907,9 @@ class FileAnimation(FullFrameAnimation):
         ``cyclic`` windows the track as a closed loop (the window wraps from the
         end back to the start), so a forever file loop has no boundary jump. The
         non-cyclic path is one linear pass from one end to the other; ``direction``
-        picks which end leads, and ``blank`` appends a display-width run of blanks
-        so the content slides on/off an empty screen (a lead-out for 'left', a
-        lead-in for 'right').
+        picks which end leads, and ``blank`` brackets the track with a display-width
+        run of blanks on each end so the content slides on from an empty screen and
+        off to one (a clean wash-in/out in either direction).
         """
         width = self.size
         track = list(track)
@@ -923,7 +923,7 @@ class FileAnimation(FullFrameAnimation):
             windows = [FullFrame(doubled[o:o + width]) for o in offsets]
         else:
             if blank:
-                track = track + [Frame()] * width
+                track = [Frame()] * width + track + [Frame()] * width
             total = len(track)
             if total <= width:
                 offsets = [0]
