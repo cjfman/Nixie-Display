@@ -125,25 +125,31 @@ a repeat block.
 
 ### Scroll
 
-**`scroll|start|name|loop|segment`** / **`scroll|anon|loop|segment`** — scroll a
-named segment to produce motion. `scroll|start` stores the result as a named
+**`scroll|create|name|loop|segment`** / **`scroll|anon|loop|segment`** — scroll a
+named segment to produce motion. `scroll|create` stores the result as a named
 sequence (reuse it with `sequence|insert`); `scroll|anon` inserts the frames
-directly. `loop` is positional and must be ≥ 2.
+directly. `loop` is positional and must be ≥ 1.
 
 The command windows a tube-space *track* (which is `loop` copies of `segment`
 with the slides applied to the first/last copy) at the display width. A plain
 scroll — no slides and no blanking — has no real ends, so it is windowed
 *cyclically* and loops seamlessly (a `loop|forever` file loop has no boundary
-jump). Adding a slide or blanking gives the scroll genuine start/end content, so
-it becomes one linear pass instead. Either way the user is responsible for making
-the content connect (e.g. a periodic segment, or matching slide segments). Named
-arguments:
+jump); one period (`loop=1`) already loops, so `loop` only matters for a finite
+play of N cycles. For a cyclic scroll the `step` must evenly divide the scrolled
+length, else it can't close seamlessly and the command errors. Adding a slide or
+blanking gives the scroll genuine start/end content, so it becomes one linear
+pass instead. Either way the user is responsible for making the content connect
+(e.g. a periodic segment, or matching slide segments). An empty segment, or
+integer slide indices that leave no content, are errors. Named arguments:
 
-- **`step=N`** (positive integer, default `1`) — tubes advanced per frame.
+- **`step=N`** (positive integer, default `1`) — tubes advanced per frame. For a
+  cyclic scroll it must divide the scrolled length.
 - **`direction=D`** — `right` (default) or `left`. `left` windows the track
   forward (first frame = `track[0:width]`, last = `track[-width:]`); `right` is
   the same windows reversed, so content moves the other way.
-- **`loop`** — positional, ≥ 2 (counts the first and last loops).
+- **`loop`** — positional, ≥ 1 (counts the first and last loops; for a plain
+  cyclic scroll one period already loops, so use `loop=1` unless you want N
+  finite cycles).
 - **`slide_in=X`** / **`slide_out=X`** (default none) — a one-time intro/outro on
   the first/last loop. `X` is either:
   - a **named segment**, concatenated in tube-space (prepended to the first loop

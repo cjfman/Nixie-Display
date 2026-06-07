@@ -807,7 +807,7 @@ class FileAnimation(FullFrameAnimation):
         """Scroll a segment to produce motion.
 
         Forms:
-          scroll|start|NAME|LOOP|SEGMENT  -- define a named sequence
+          scroll|create|NAME|LOOP|SEGMENT  -- define a named sequence
           scroll|anon|LOOP|SEGMENT        -- insert the scrolled frames here
 
         The segment is scrolled ``LOOP`` times (>=2) by ``step`` tubes per frame
@@ -818,9 +818,9 @@ class FileAnimation(FullFrameAnimation):
         last). ``blanking`` appends a screen of blanks so the content slides on/off
         an empty display. See the animation-dsl skill for the full model.
         """
-        if subcmd == 'start':
+        if subcmd == 'create':
             if p3 is None:
-                raise FileAnimationError("scroll|start requires a name, a loop count, and a segment")
+                raise FileAnimationError("scroll|create requires a name, a loop count, and a segment")
             name, loop_s, seg_name = p1, p2, p3
         elif subcmd == 'anon':
             if p3 is not None:
@@ -834,8 +834,8 @@ class FileAnimation(FullFrameAnimation):
             raise FileAnimationError("scroll is only valid at the top level, not inside another block")
 
         loop_n = self._intArg('scroll loop', loop_s)
-        if loop_n < 2:
-            raise FileAnimationError("scroll loop must be at least 2")
+        if loop_n < 1:
+            raise FileAnimationError("scroll loop must be at least 1")
         step_n = self._intArg('scroll step', step)
         if step_n < 1:
             raise FileAnimationError("scroll step must be a positive integer")
@@ -845,13 +845,24 @@ class FileAnimation(FullFrameAnimation):
 
         if seg_name not in self.segments:
             raise FileAnimationError(f"scroll segment '{seg_name}' doesn't exist")
+        main = self.segments[seg_name]
+        if not main:
+            raise FileAnimationError(f"scroll segment '{seg_name}' is empty")
 
         ## A plain scroll (no slides, no blanking) has no real ends, so it is
         ## windowed cyclically and loops seamlessly. Slides or blanking give the
         ## scroll genuine start/end content, so those window linearly.
         cyclic = slide_in is None and slide_out is None and not blank
-        track = self._scrollTrack(self.segments[seg_name], loop_n, slide_in, slide_out)
+        track = self._scrollTrack(main, loop_n, slide_in, slide_out)
+        ## A cyclic loop only closes seamlessly when the step evenly divides the
+        ## scrolled length; otherwise the wrap frame would jump a different amount.
+        if cyclic and len(track) % step_n != 0:
+            raise FileAnimationError(
+                f"scroll step {step_n} must divide the scrolled length {len(track)} "
+                f"for a seamless loop (use a dividing step, or add blanking)")
         windows = self._scrollWindows(track, step_n, direction, blank, cyclic)
+        if not windows:
+            raise FileAnimationError(f"scroll of '{seg_name}' produced no frames")
 
         if name is None:
             ## Anonymous: insert into the animation, applying the file scale (like
@@ -885,6 +896,15 @@ class FileAnimation(FullFrameAnimation):
         size = len(main)
         si_seg, si_idx = self._scrollSlide(slide_in, 'slide_in')
         so_seg, so_idx = self._scrollSlide(slide_out, 'slide_out')
+
+        ## Integer slide indices must leave content in the repeated (middle) body;
+        ## an out-of-range or order-inverting index otherwise collapses loops to
+        ## empty silently (Python slicing yields []).
+        if si_idx is not None or so_idx is not None:
+            core = main[(0 if si_idx is None else si_idx):(size if so_idx is None else so_idx)]
+            if not core:
+                raise FileAnimationError(
+                    "scroll slide_in/slide_out indices leave no content to scroll")
 
         track: List[Frame] = []
         for i in range(loop_n):

@@ -406,7 +406,7 @@ sequence|end
 
 ## Waves: a 3-pass rightward scroll of wave_profile, stored as a named sequence
 ## and inserted (with scale) in the assembly below.
-scroll|start|waves_demo|3|wave_profile|direction=right|blanking=true
+scroll|create|waves_demo|3|wave_profile|direction=right|blanking=true
 
 ## Fully assembled
 sequence|insert|start_up|scale=0.01

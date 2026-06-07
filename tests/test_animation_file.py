@@ -103,7 +103,7 @@ class ScrollTest(_AniTest):
     def test_named_scroll_defines_sequence(self):
         ani = self._load(
             self.DEFS
-            + "scroll|start|sc|3|MN|direction=left\n"
+            + "scroll|create|sc|3|MN|direction=left\n"
             + "sequence|insert|sc\n"
         )
         self.assertIn('sc', ani.sequences)
@@ -128,10 +128,34 @@ class ScrollTest(_AniTest):
         self.assertNotEqual(len(plain), len(blanked))
         self.assertTrue(all(c == ' ' for c in blanked[-1]))
 
-    def test_loop_must_be_at_least_two(self):
+    def test_loop_one_is_allowed(self):
+        ## loop=1 is a single seamless period (cyclic) — no duplication.
+        ani = self._load(self.DEFS + "scroll|anon|1|MN|direction=left\n")
+        self.assertTrue(len(ani.fullframes) > 0)
+
+    def test_loop_zero_rejected(self):
         with self.assertRaises(Exception) as ctx:
-            self._load(self.DEFS + "scroll|anon|1|MN|direction=left\n")
-        self.assertIn('at least 2', str(ctx.exception))
+            self._load(self.DEFS + "scroll|anon|0|MN|direction=left\n")
+        self.assertIn('at least 1', str(ctx.exception))
+
+    def test_cyclic_requires_step_to_divide_length(self):
+        ## period 20, step=3 does not divide -> cannot loop seamlessly -> error.
+        with self.assertRaises(Exception) as ctx:
+            self._load("scale|1\nsegment|A|abcdefghijklmnopqrst\nscroll|anon|1|A|step=3\n")
+        self.assertIn('divide', str(ctx.exception))
+
+    def test_empty_segment_errors_cleanly(self):
+        with self.assertRaises(Exception) as ctx:
+            self._load("segment|E|\nscroll|anon|2|E|direction=left\n")
+        msg = str(ctx.exception)
+        self.assertIn('empty', msg)
+        self.assertNotIn('tubeCount', msg)  # not the opaque downstream crash
+
+    def test_out_of_range_integer_slide_errors(self):
+        ## slide_in past the segment end empties the middle loop -> clean error.
+        with self.assertRaises(Exception) as ctx:
+            self._load(self.DEFS + "scroll|anon|3|MN|slide_in=99|direction=left\n")
+        self.assertIn('no content', str(ctx.exception))
 
 
 class ReverseBackCompatTest(_AniTest):
