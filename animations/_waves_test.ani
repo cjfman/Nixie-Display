@@ -1,8 +1,0 @@
-## scroll test: waves slide in from the left, scroll a few times, then slide out.
-## direction=right + blanking=true gives a blank lead-in (slide in from the left)
-## and the linear pass ends on blanks (slide out), so it loops cleanly.
-import|waves
-scale|0.12
-#loop|forever
-
-scroll|anon|3|wave_profile|direction=right|blanking=true
