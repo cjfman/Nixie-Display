@@ -1,6 +1,6 @@
 """
-Tests for FileAnimation frame handling: deferred truncation and the
-``shift_step`` swept insert (with reverse-aware behavior).
+Tests for FileAnimation frame handling: deferred truncation and the ``scroll``
+command.
 
 Run directly:      python tests/test_animation_file.py
 Or via unittest:   python -m unittest discover tests
@@ -59,42 +59,75 @@ class DeferredTruncationTest(_AniTest):
         self.assertEqual(self._codes(ani), ['BCDEFGHIJKLMNOPA'])
 
 
-class ShiftStepTest(_AniTest):
-    BODY = (
-        "segment|p|ABCDEFGHIJKLMNOP\n"
-        "sequence|start|win\n"
-        "frame|1|{p}\n"
-        "sequence|end\n"
+class ScrollTest(_AniTest):
+    ## 16-wide segments so each window is a clean, identifiable block.
+    DEFS = (
+        "scale|1\n"
+        "segment|IN|iiiiiiiiiiiiiiii\n"
+        "segment|MN|mmmmmmmmmmmmmmmm\n"
+        "segment|OT|oooooooooooooooo\n"
     )
 
-    def test_sweep_advances_shift_per_copy(self):
-        ani = self._load(self.BODY + "sequence|insert|win|repeat=4|shift_step=-1\n")
+    def test_segment_slides_left(self):
+        ## TRACK = IN ++ MN*4 ++ OT, windowed forward: first IN, last OT.
+        ani = self._load(self.DEFS + "scroll|anon|4|MN|slide_in=IN|slide_out=OT|direction=left\n")
         codes = self._codes(ani)
-        self.assertEqual(len(codes), 4)
-        ## copy i is shifted left by i: its first tube is the (i)th letter
-        self.assertEqual([c[0] for c in codes], ['A', 'B', 'C', 'D'])
-        ## ...and a left shift blank-pads the right (cropped/padded at load end)
-        self.assertEqual(codes[1], 'BCDEFGHIJKLMNOP ')
-        self.assertEqual(codes[3], 'DEFGHIJKLMNOP   ')
+        self.assertEqual(codes[0], 'i' * 16)
+        self.assertEqual(codes[-1], 'o' * 16)
 
-    def test_base_shift_adds_to_step(self):
-        ani = self._load(self.BODY + "sequence|insert|win|shift=-1|repeat=3|shift_step=-1\n")
-        ## copy i shifted by -1 + -i  ->  first tubes B, C, D
-        self.assertEqual([c[0] for c in self._codes(ani)], ['B', 'C', 'D'])
+    def test_direction_right_reverses(self):
+        ## right is the reverse traversal: first frame is the track's tail (OT).
+        ani = self._load(self.DEFS + "scroll|anon|3|MN|slide_in=IN|slide_out=OT|direction=right\n")
+        codes = self._codes(ani)
+        self.assertEqual(codes[0], 'o' * 16)
+        self.assertEqual(codes[-1], 'i' * 16)
 
-    def test_reverse_flips_sweep_order(self):
-        fwd = self._codes(self._load(self.BODY + "sequence|insert|win|repeat=4|shift_step=-1\n"))
-        rev = self._codes(self._load(self.BODY + "sequence|insert|win|repeat=4|shift_step=-1|reverse=true\n"))
-        ## reverse runs the sweep the other way: copy order is reversed
-        self.assertEqual(rev, list(reversed(fwd)))
-        self.assertEqual([c[0] for c in rev], ['D', 'C', 'B', 'A'])
+    def test_integer_slices_build_track(self):
+        ## first=A[:slide_out], middles=A[slide_in:slide_out], last=A[slide_in:].
+        a = "abcdefghijklmnopqrst"  # 20 distinct tubes
+        ani = self._load(f"scale|1\nsegment|A|{a}\nscroll|anon|5|A|slide_in=3|slide_out=-2|direction=left\n")
+        track = a[:-2] + a[3:-2] * 3 + a[3:]
+        expected = [track[o:o + 16] for o in range(0, len(track) - 16 + 1)]
+        self.assertEqual(self._codes(ani), expected)
 
-    def test_step_zero_matches_plain_repeat(self):
-        plain = self._codes(self._load(self.BODY + "sequence|insert|win|repeat=3|shift=-2\n"))
-        swept = self._codes(self._load(self.BODY + "sequence|insert|win|repeat=3|shift=-2|shift_step=0\n"))
-        self.assertEqual(plain, swept)
-        self.assertEqual(len(plain), 3)
-        self.assertTrue(all(c == plain[0] for c in plain))
+    def test_blanking_lead_in_right_and_lead_out_left(self):
+        right = self._codes(self._load(self.DEFS + "scroll|anon|2|MN|direction=right|blanking=true\n"))
+        self.assertTrue(all(c == ' ' for c in right[0]))   # right: blank lead-in
+        left = self._codes(self._load(self.DEFS + "scroll|anon|2|MN|direction=left|blanking=true\n"))
+        self.assertTrue(all(c == ' ' for c in left[-1]))   # left: blank lead-out
+
+    def test_named_scroll_defines_sequence(self):
+        ani = self._load(
+            self.DEFS
+            + "scroll|start|sc|3|MN|direction=left\n"
+            + "sequence|insert|sc\n"
+        )
+        self.assertIn('sc', ani.sequences)
+        self.assertTrue(len(ani.fullframes) > 0)
+
+    def test_plain_scroll_loops_seamlessly(self):
+        ## No slides/blanking -> cyclic windowing: the frame after the last wraps
+        ## continuously to the first (a clean one-step right shift across the seam).
+        a = "abcdefghijklmnopqrst"  # period 20 > width 16
+        ani = self._load(f"scale|1\nsegment|A|{a}\nscroll|anon|2|A|direction=right\n")
+        codes = self._codes(ani)
+        n = len(codes)
+        for i in range(n):
+            cur, nxt = codes[i], codes[(i + 1) % n]
+            self.assertEqual(nxt[1:], cur[:-1])  # right shift by one, incl. wrap
+
+    def test_blanking_is_not_cyclic(self):
+        ## blanking forces a linear pass (so it can have an empty lead).
+        a = "abcdefghijklmnopqrst"
+        plain = self._codes(self._load(f"scale|1\nsegment|A|{a}\nscroll|anon|2|A|direction=left\n"))
+        blanked = self._codes(self._load(f"scale|1\nsegment|A|{a}\nscroll|anon|2|A|direction=left|blanking=true\n"))
+        self.assertNotEqual(len(plain), len(blanked))
+        self.assertTrue(all(c == ' ' for c in blanked[-1]))
+
+    def test_loop_must_be_at_least_two(self):
+        with self.assertRaises(Exception) as ctx:
+            self._load(self.DEFS + "scroll|anon|1|MN|direction=left\n")
+        self.assertIn('at least 2', str(ctx.exception))
 
 
 class ReverseBackCompatTest(_AniTest):

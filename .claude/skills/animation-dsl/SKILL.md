@@ -80,14 +80,6 @@ extension is appended automatically when `filepath` doesn't already end in it
 All options are **named arguments** (see [Named arguments](#named-arguments)):
 
 - **`shift=N`** (integer, default `0`) — slides the sequence left/right along the tube axis.
-- **`shift_step=N`** (integer, default `0`) — advances the shift by `N` per
-  repeated copy (a *swept* insert): copy `i` lands at `shift + i*shift_step`.
-  Combined with `repeat`, one line emits a whole scroll. A positive shift blank-
-  pads the left; a negative shift drops leading tubes — so to scroll a layout
-  wider than the display and have it wrap, build the sequence wider than 16 tubes
-  (e.g. a doubled profile) and sweep with a negative step. Frames keep their full
-  width until the file finishes loading, then every emitted frame is cropped to
-  the display size.
 - **`repeat=N`** (positive integer, default `1`) — inserts the sequence N times.
 - **`scale=F`** (float, default the current `scale`) — multiplies each inserted frame's delay.
 - **`mode=M`** — units for `start`/`end` slicing: `frame` (default, frame indices),
@@ -100,13 +92,11 @@ All options are **named arguments** (see [Named arguments](#named-arguments)):
   two frames before the end). A boundary's magnitude may not exceed the sequence's
   length (frame count in `frame` mode; total duration in the time modes).
 - **`reverse=B`** (`true`/`false`, any case, default `false`) — when `true`,
-  reverses the order of the whole expanded result. For a plain insert this just
-  reverses the frame order (as before); for a swept insert (`shift_step`) it also
-  reverses the copy order, so the sweep runs the other way — handy for flipping a
-  scroll's direction without changing `shift`/`shift_step`.
+  reverses the frame order before `shift`/`scale`/`repeat` are applied (after the
+  `start`/`end` sub-range is selected).
 
 **`sequence|anon`** — anonymous sequence block. Takes no name; accepts the same
-`shift`/`shift_step`/`repeat`/`scale`/`mode`/`start`/`end`/`reverse` arguments as `sequence|insert`.
+`shift`/`repeat`/`scale`/`mode`/`start`/`end`/`reverse` arguments as `sequence|insert`.
 Equivalent to defining a named sequence from the enclosed frames and immediately
 inserting it at `sequence|end`; the sequence is not registered under a name.
 
@@ -130,6 +120,41 @@ overlay; a `mask` after an `overlay` clips both.
 **`repeat|start|N`** / **`repeat|end`** — repeat the enclosed frames N times inline.
 May appear inside a named sequence; named sequences may *not* be started inside
 a repeat block.
+
+---
+
+### Scroll
+
+**`scroll|start|name|loop|segment`** / **`scroll|anon|loop|segment`** — scroll a
+named segment to produce motion. `scroll|start` stores the result as a named
+sequence (reuse it with `sequence|insert`); `scroll|anon` inserts the frames
+directly. `loop` is positional and must be ≥ 2.
+
+The command windows a tube-space *track* (which is `loop` copies of `segment`
+with the slides applied to the first/last copy) at the display width. A plain
+scroll — no slides and no blanking — has no real ends, so it is windowed
+*cyclically* and loops seamlessly (a `loop|forever` file loop has no boundary
+jump). Adding a slide or blanking gives the scroll genuine start/end content, so
+it becomes one linear pass instead. Either way the user is responsible for making
+the content connect (e.g. a periodic segment, or matching slide segments). Named
+arguments:
+
+- **`step=N`** (positive integer, default `1`) — tubes advanced per frame.
+- **`direction=D`** — `right` (default) or `left`. `left` windows the track
+  forward (first frame = `track[0:width]`, last = `track[-width:]`); `right` is
+  the same windows reversed, so content moves the other way.
+- **`loop`** — positional, ≥ 2 (counts the first and last loops).
+- **`slide_in=X`** / **`slide_out=X`** (default none) — a one-time intro/outro on
+  the first/last loop. `X` is either:
+  - a **named segment**, concatenated in tube-space (prepended to the first loop
+    for `slide_in`, appended to the last for `slide_out`); or
+  - an **integer** Python slice index into `segment`: the lead `segment[:slide_in]`
+    appears only in the first loop and the tail `segment[slide_out:]` only in the
+    last (so first = `segment[:slide_out]`, middles = `segment[slide_in:slide_out]`,
+    last = `segment[slide_in:]`). Negatives count from the end.
+- **`blanking=B`** (`true`/`false`, default `false`) — append a display-width run
+  of blanks so the content slides on/off an empty screen: a lead-out for `left`,
+  a lead-in for `right`. (Also switches the scroll from cyclic to a linear pass.)
 
 ---
 
@@ -228,7 +253,7 @@ namespace under `name` (like `sequence|start|name`), so it can be reused with
 prefixes apply to `name` just as they do for a named sequence.
 
 **`sandbox|anon`** — anonymous sandbox block. Takes no name; accepts the same
-`shift`/`repeat`/`scale`/`mode`/`start`/`end`/`reverse`/`shift_step` arguments as
+`shift`/`repeat`/`scale`/`mode`/`start`/`end`/`reverse` arguments as
 `sequence|anon`, slicing/transforming the printed frames and inserting them at
 `sandbox|end`. Because sandbox frames already carry their final delays (like a
 plain `sandbox|start`, which appends without rescaling), `scale` here defaults to

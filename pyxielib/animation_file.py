@@ -28,8 +28,6 @@ class InsertArgs:
     errors carry a line number. ``shift``/``repeat``/``scale`` transform the
     inserted copy (as they always have); ``mode``/``start``/``end`` select a
     sub-range of the sequence *before* those transforms (see _sliceFrames).
-    ``shift_step`` advances the shift by a fixed amount per repeated copy (a
-    swept insert), so copy ``i`` lands at ``shift + i*shift_step``.
 
     Shared by sequence|insert and sequence|anon, and structured so merge|anon
     and collate|anon can adopt the same slicing simply by parsing these named
@@ -42,7 +40,6 @@ class InsertArgs:
     start:  Optional[str] = None
     end:    Optional[str] = None
     reverse: str = 'false'
-    shift_step: str = '0'
 
 
 class ArgSpec:
@@ -262,7 +259,8 @@ class FileAnimation(FullFrameAnimation):
                 'segment':  ArgSpec(2, 0, handler=self._parseSegment),
                 'frame':    ArgSpec(2, 0, handler=self._parseFrame),
                 'scale':    ArgSpec(1, 0, handler=self._parseScale),
-                'sequence': ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None, 'reverse': 'false', 'shift_step': '0'}, handler=self._parseSequence),
+                'sequence': ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None, 'reverse': 'false'}, handler=self._parseSequence),
+                'scroll':   ArgSpec(3, 1, named={'step': '1', 'direction': 'right', 'slide_in': None, 'slide_out': None, 'blanking': 'false'}, handler=self._parseScroll),
                 'overlay':  ArgSpec(1, 0, handler=self._parseOverlay),
                 'mask':     ArgSpec(1, 0, handler=self._parseMask),
                 'repeat':   ArgSpec(1, 1, handler=self._parseRepeat),
@@ -270,7 +268,7 @@ class FileAnimation(FullFrameAnimation):
                 'merge':    ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None}, handler=self._parseMerge),
                 'collate':  ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None}, handler=self._parseCollate),
                 'import':   ArgSpec(1, 1, handler=self._parseImport),
-                'sandbox':  ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None, 'reverse': 'false', 'shift_step': '0'}, handler=self._parseSandbox),
+                'sandbox':  ArgSpec(1, 1, named={'shift': '0', 'repeat': '1', 'scale': None, 'mode': 'frame', 'start': None, 'end': None, 'reverse': 'false'}, handler=self._parseSandbox),
                 'loop':     ArgSpec(1, 1, handler=self._parseLoop),
                 'title':    ArgSpec(1, 0, handler=self._parseTitle),
             }
@@ -633,7 +631,7 @@ class FileAnimation(FullFrameAnimation):
             frames = frames[abs(shift):]
         return FullFrame(frames)
 
-    def _parseSequence(self, subcmd, name=None, shift='0', repeat='1', scale=None, mode='frame', start=None, end=None, reverse='false', shift_step='0'):
+    def _parseSequence(self, subcmd, name=None, shift='0', repeat='1', scale=None, mode='frame', start=None, end=None, reverse='false'):
         if subcmd == 'start':
             if name is None:
                 raise FileAnimationError("Cannot start a sequence without a name")
@@ -659,7 +657,7 @@ class FileAnimation(FullFrameAnimation):
             ## Build into a throwaway list; sequence|end inserts it with these args
             self.active = []
             self.sequence = '<anon>'
-            self._anon_args = InsertArgs(shift, repeat, scale, mode, start, end, reverse, shift_step)
+            self._anon_args = InsertArgs(shift, repeat, scale, mode, start, end, reverse)
             self._modifiers = []
             logger.debug("Starting anonymous sequence")
         elif subcmd == 'end':
@@ -679,7 +677,7 @@ class FileAnimation(FullFrameAnimation):
                 self._appendInsertedFrames(frames, anon_args, "anonymous sequence")
             logger.debug(f"Completed sequence '{closed}'")
         elif subcmd == 'insert':
-            self._insertSequence(name, InsertArgs(shift, repeat, scale, mode, start, end, reverse, shift_step))
+            self._insertSequence(name, InsertArgs(shift, repeat, scale, mode, start, end, reverse))
         else:
             raise FileAnimationError(f"Unknown sequence subcommand '{subcmd}'")
 
@@ -773,18 +771,13 @@ class FileAnimation(FullFrameAnimation):
         """Slice, transform, and append a sequence's frames per its InsertArgs.
 
         ``mode``/``start``/``end`` first select a sub-range of the sequence (see
-        _sliceFrames). Then ``scale`` multiplies each frame's delay (defaulting
-        to the file's current scale) and ``repeat`` controls how many copies are
-        appended. ``shift`` slides the frames along the tube axis; ``shift_step``
-        advances that slide by a fixed amount per copy (a swept insert), so copy
-        ``i`` is placed at ``shift + i*shift_step``. ``reverse`` flips the order
-        of the whole expanded result — for a plain insert that just reverses the
-        frame order (as before), and for a swept insert it also reverses the copy
-        order, so the sweep runs the other way.
+        _sliceFrames). Then ``shift`` slides each frame along the tube axis,
+        ``scale`` multiplies each frame's delay (defaulting to the file's current
+        scale), ``reverse`` flips the frame order, and ``repeat`` controls how
+        many copies of the (shifted, scaled, reversed) sub-range are appended.
         """
         ## Convert the raw string arguments to numbers
         shift_n  = self._intArg('sequence|insert shift', args.shift)
-        step_n   = self._intArg('sequence|insert shift_step', args.shift_step)
         repeat_n = self._intArg('sequence|insert repeat', args.repeat)
         if repeat_n < 1:
             raise FileAnimationError("sequence|insert repeat must be a positive integer")
@@ -794,29 +787,154 @@ class FileAnimation(FullFrameAnimation):
 
         ## Select the requested sub-range before any transform. scale_f is needed
         ## up front because 'scaled_time' boundaries are measured against it.
-        base = self._sliceFrames(frames, args, scale_f)
-        if scale_f != 1:
-            base = [(t * scale_f, f) for t, f in base]
-
-        ## Expand the repeats, shifting copy i by shift_n + i*step_n. Each entry
-        ## is a (delay, FullFrame) tuple, so the shift rewrites the frame while
-        ## the (already scaled) delay rides along unchanged.
-        expanded: List[TimeFullFrame] = []
-        for i in range(repeat_n):
-            shift_i = shift_n + i * step_n
-            if shift_i:
-                expanded.extend((t, self._shiftFullFrame(f, shift_i)) for t, f in base)
-            else:
-                expanded.extend(base)
-
-        ## Reverse the whole expanded timeline. With step_n == 0 every copy is
-        ## identical, so this matches the old "reverse the frame order" behavior;
-        ## with a sweep it also flips the copy order, reversing the sweep.
+        frames = self._sliceFrames(frames, args, scale_f)
         if reverse:
-            expanded = list(reversed(expanded))
+            frames = list(reversed(frames))
 
-        self.active.extend(expanded)
-        logger.debug(f"Inserted {label} (shift={shift_n}, step={step_n}, repeat={repeat_n}, scale={scale_f}, reverse={reverse})")
+        ## Build the transformed copy once, then append it repeat_n times.
+        ## Each entry is a (delay, FullFrame) tuple, so shift rewrites the frame
+        ## and scale rewrites the delay.
+        if shift_n:
+            frames = [(t, self._shiftFullFrame(f, shift_n)) for t, f in frames]
+        if scale_f != 1:
+            frames = [(t * scale_f, f) for t, f in frames]
+        for _ in range(repeat_n):
+            self.active.extend(frames)
+        logger.debug(f"Inserted {label} (shift={shift_n}, repeat={repeat_n}, scale={scale_f})")
+
+    def _parseScroll(self, subcmd, p1, p2, p3=None, step='1', direction='right',
+                     slide_in=None, slide_out=None, blanking='false'):
+        """Scroll a segment to produce motion.
+
+        Forms:
+          scroll|start|NAME|LOOP|SEGMENT  -- define a named sequence
+          scroll|anon|LOOP|SEGMENT        -- insert the scrolled frames here
+
+        The segment is scrolled ``LOOP`` times (>=2) by ``step`` tubes per frame
+        in ``direction`` (left/right). ``slide_in``/``slide_out`` add a one-time
+        intro/outro to the first/last loop: a named segment is concatenated in
+        tube-space, an integer is a Python slice of the main segment (the lead is
+        dropped from every loop but the first, the tail from every loop but the
+        last). ``blanking`` appends a screen of blanks so the content slides on/off
+        an empty display. See the animation-dsl skill for the full model.
+        """
+        if subcmd == 'start':
+            if p3 is None:
+                raise FileAnimationError("scroll|start requires a name, a loop count, and a segment")
+            name, loop_s, seg_name = p1, p2, p3
+        elif subcmd == 'anon':
+            if p3 is not None:
+                raise FileAnimationError("scroll|anon takes a loop count and a segment, not a name")
+            name, loop_s, seg_name = None, p1, p2
+        else:
+            raise FileAnimationError(f"Unknown scroll subcommand '{subcmd}'")
+
+        if (self.sequence is not None or self._repeat is not None or self._flatten is not None
+                or self._merge is not None or self._collate is not None):
+            raise FileAnimationError("scroll is only valid at the top level, not inside another block")
+
+        loop_n = self._intArg('scroll loop', loop_s)
+        if loop_n < 2:
+            raise FileAnimationError("scroll loop must be at least 2")
+        step_n = self._intArg('scroll step', step)
+        if step_n < 1:
+            raise FileAnimationError("scroll step must be a positive integer")
+        if direction not in ('left', 'right'):
+            raise FileAnimationError(f"scroll direction must be 'left' or 'right', not '{direction}'")
+        blank = self._boolArg('scroll blanking', blanking)
+
+        if seg_name not in self.segments:
+            raise FileAnimationError(f"scroll segment '{seg_name}' doesn't exist")
+
+        ## A plain scroll (no slides, no blanking) has no real ends, so it is
+        ## windowed cyclically and loops seamlessly. Slides or blanking give the
+        ## scroll genuine start/end content, so those window linearly.
+        cyclic = slide_in is None and slide_out is None and not blank
+        track = self._scrollTrack(self.segments[seg_name], loop_n, slide_in, slide_out)
+        windows = self._scrollWindows(track, step_n, direction, blank, cyclic)
+
+        if name is None:
+            ## Anonymous: insert into the animation, applying the file scale (like
+            ## a direct frame).
+            self.active.extend((self.scale, w) for w in windows)
+            logger.debug(f"Inserted anonymous scroll of '{seg_name}' ({len(windows)} frames)")
+        else:
+            ## Named: store in the sequences namespace with raw delays (scale is
+            ## applied later by sequence|insert), like sequence|start.
+            storage = self._registerDefName(name, 'sequences', self.sequences)
+            self.sequences[storage] = [(1.0, w) for w in windows]
+            logger.debug(f"Defined scroll sequence '{storage}' ({len(windows)} frames)")
+
+    def _scrollSlide(self, value, label):
+        """Resolve a slide_in/slide_out argument.
+
+        Returns (segment_frames, None) for a named segment, (None, slice_index)
+        for an integer (Python slice index), or (None, None) when omitted.
+        """
+        if value is None:
+            return None, None
+        try:
+            return None, int(value)
+        except (TypeError, ValueError):
+            if value not in self.segments:
+                raise FileAnimationError(f"scroll {label} segment '{value}' doesn't exist")
+            return list(self.segments[value]), None
+
+    def _scrollTrack(self, main, loop_n, slide_in, slide_out):
+        """Build the tube-space track the scroll windows over (see _parseScroll)."""
+        size = len(main)
+        si_seg, si_idx = self._scrollSlide(slide_in, 'slide_in')
+        so_seg, so_idx = self._scrollSlide(slide_out, 'slide_out')
+
+        track: List[Frame] = []
+        for i in range(loop_n):
+            ## The slide_in lead is kept only in the first loop; the slide_out
+            ## tail only in the last. Integer indices slice the main segment
+            ## (Python semantics, so negatives count from the end).
+            start = 0    if (si_idx is None or i == 0)          else si_idx
+            end   = size if (so_idx is None or i == loop_n - 1) else so_idx
+            body  = list(main[start:end])
+            if si_seg is not None and i == 0:
+                body = si_seg + body
+            if so_seg is not None and i == loop_n - 1:
+                body = body + so_seg
+            track.extend(body)
+        return track
+
+    def _scrollWindows(self, track, step, direction, blank, cyclic):
+        """Window ``track`` (list of Frame) at the display width into frames.
+
+        ``cyclic`` windows the track as a closed loop (the window wraps from the
+        end back to the start), so a forever file loop has no boundary jump. The
+        non-cyclic path is one linear pass from one end to the other; ``direction``
+        picks which end leads, and ``blank`` appends a display-width run of blanks
+        so the content slides on/off an empty screen (a lead-out for 'left', a
+        lead-in for 'right').
+        """
+        width = self.size
+        track = list(track)
+        if cyclic:
+            total = len(track)
+            if total == 0:
+                return []
+            ## Repeat enough that every wrapped window is covered.
+            doubled = track * (width // total + 2)
+            offsets = list(range(0, total, step))
+            windows = [FullFrame(doubled[o:o + width]) for o in offsets]
+        else:
+            if blank:
+                track = track + [Frame()] * width
+            total = len(track)
+            if total <= width:
+                offsets = [0]
+            else:
+                offsets = list(range(0, total - width + 1, step))
+                if offsets[-1] != total - width:
+                    offsets.append(total - width)
+            windows = [FullFrame(track[o:o + width]) for o in offsets]
+        if direction == 'right':
+            windows.reverse()
+        return windows
 
     def _sliceFrames(self, frames, args: 'InsertArgs', scale_f):
         """Return the sub-range of ``frames`` selected by mode/start/end.
@@ -1393,7 +1511,7 @@ class FileAnimation(FullFrameAnimation):
                 self.sequences[name] = [(t * import_scale, f) for t, f in frames]
                 logger.debug(f"Imported sequence '{name}'")
 
-    def _parseSandbox(self, subcmd, name=None, shift='0', repeat='1', scale=None, mode='frame', start=None, end=None, reverse='false', shift_step='0'):
+    def _parseSandbox(self, subcmd, name=None, shift='0', repeat='1', scale=None, mode='frame', start=None, end=None, reverse='false'):
         if subcmd in ('start', 'anon'):
             if self._sandbox is not None:
                 raise FileAnimationError("Cannot nest sandbox blocks")
@@ -1406,7 +1524,7 @@ class FileAnimation(FullFrameAnimation):
                 ## sandbox frames already carry their final delays (like a plain
                 ## sandbox block, which extends without rescaling), so scale
                 ## defaults to 1 here rather than the file scale.
-                self._sandbox_anon_args = InsertArgs(shift, repeat, '1' if scale is None else scale, mode, start, end, reverse, shift_step)
+                self._sandbox_anon_args = InsertArgs(shift, repeat, '1' if scale is None else scale, mode, start, end, reverse)
                 self._sandbox_name = None
             else:
                 ## A named sandbox is stored in the sequences namespace at end
