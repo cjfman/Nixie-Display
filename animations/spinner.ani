@@ -1,0 +1,17 @@
+title|Spinner
+scale|0.1
+loop|forever
+
+## A field of little loading-spinners: every tube shows a line through its centre
+## rotating clockwise |  /  -  \, the four clean orientations a 14-segment tube
+## can draw. Each tube is offset one step from its left neighbour, so equal
+## orientations line up into diagonal bands that march across the display.
+sprite|ln_v|0x0880 ## |  centre verticals
+sprite|ln_f|0x1100 ## /  NE+SW diagonals
+sprite|ln_h|0x2200 ## -  mid-bars
+sprite|ln_b|0x0440 ## \  NW+SE diagonals
+
+frame|1|{ln_v}{ln_f}{ln_h}{ln_b}{ln_v}{ln_f}{ln_h}{ln_b}{ln_v}{ln_f}{ln_h}{ln_b}{ln_v}{ln_f}{ln_h}{ln_b}
+frame|1|{ln_f}{ln_h}{ln_b}{ln_v}{ln_f}{ln_h}{ln_b}{ln_v}{ln_f}{ln_h}{ln_b}{ln_v}{ln_f}{ln_h}{ln_b}{ln_v}
+frame|1|{ln_h}{ln_b}{ln_v}{ln_f}{ln_h}{ln_b}{ln_v}{ln_f}{ln_h}{ln_b}{ln_v}{ln_f}{ln_h}{ln_b}{ln_v}{ln_f}
+frame|1|{ln_b}{ln_v}{ln_f}{ln_h}{ln_b}{ln_v}{ln_f}{ln_h}{ln_b}{ln_v}{ln_f}{ln_h}{ln_b}{ln_v}{ln_f}{ln_h}
