@@ -202,6 +202,7 @@ class WiFiScanItem(ListItem):
             return
         if ret != 0:
             self.state = 'failed'
+            return
 
         networks = set()
         known = set(self.wifi.network_ssids())
@@ -226,7 +227,7 @@ class WiFiScanItem(ListItem):
             self.reset()
             self.set_done()
 
-    def key_alpha_num(self, c):
+    def key_char(self, c):
         if 'password' == self.state:
             if self.passwd is None:
                 self.passwd = c
@@ -243,9 +244,12 @@ class WiFiScanItem(ListItem):
 
 class WiFiSelectItem(ListItem):
     def __init__(self, wifi, **kwargs):
-        super().__init__("WiFi Select", wifi.network_ssids(), **kwargs)
+        super().__init__("WiFi Select", **kwargs)
         self.wifi = wifi
         self.state = 'select'
+
+    def activate(self):
+        self.set_values(self.wifi.network_ssids())
 
     def for_display(self) -> str:
         self.poll()
@@ -295,7 +299,7 @@ class WiFiSelectItem(ListItem):
             self.state = 'done'
             self.set_done()
 
-    def key_alpha_num(self, c):
+    def key_char(self, c):
         if self.state != 'confirm':
             return
 
