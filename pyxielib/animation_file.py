@@ -517,11 +517,12 @@ class FileAnimation(FullFrameAnimation):
         """Parse the 'title' command, which sets the menu display name.
 
         Takes one alpha-numeric positional argument and overrides the default
-        title (the file name without its extension). Allowed at most once.
+        title (the file name without its extension). '*' is also allowed (the
+        menu ignores it when sorting). Allowed at most once.
         """
         if self._title_set:
             raise FileAnimationError("Only one 'title' command is allowed")
-        if not re.fullmatch(r"[A-Za-z0-9 _]+", title):
+        if not re.fullmatch(r"[A-Za-z0-9 _*]+", title):
             raise FileAnimationError(f"title must be an alpha-numeric string, not '{title}'")
         self.title = title
         self._title_set = True

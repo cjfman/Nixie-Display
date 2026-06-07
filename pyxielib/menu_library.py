@@ -438,20 +438,34 @@ class AnimationLibraryItem(ListItem):
             name = self._unique_name(FileAnimation.read_title(os.path.join(self.path, path)), counts)
             ani_paths[name] = path
 
-        self.set_values(sorted(ani_paths))
+        self.set_values(sorted(ani_paths, key=self.sort_key))
         self.ani_paths = ani_paths
 
     @staticmethod
+    def sort_key(name) -> str:
+        """Normalize a menu name into the key it should be ordered by.
+
+        Strips leading marker characters (anything non-alphanumeric, e.g. a '*'
+        favorite prefix), drops the '<'/'>' of a '<N>' disambiguation suffix so
+        'Rain<2>' sorts next to 'Rain', and lower-cases so titled animations
+        interleave with filename-based ones instead of all sorting ahead.
+        """
+        name = re.sub(r"^[^0-9A-Za-z]+", '', name)
+        name = name.replace('<', '').replace('>', '')
+        return name.lower()
+
+    @staticmethod
     def _unique_name(title, counts) -> str:
-        """Disambiguate a repeated title by appending '(N)'.
+        """Disambiguate a repeated title by appending '<N>'.
 
         ``counts`` maps each title to how many files have used it so far. The
-        first file keeps the bare title; the Nth (N>1) file becomes 'title(N)'
-        (e.g. 'Clock', 'Clock(2)', 'Clock(3)').
+        first file keeps the bare title; the Nth (N>1) file becomes 'title<N>'
+        (e.g. 'Clock', 'Clock<2>', 'Clock<3>'). Angle brackets are used because
+        the nixie can render '<'/'>' but not '('/')' or '['/']' (all NOCODE).
         """
         seen = counts.get(title, 0)
         counts[title] = seen + 1
-        return title if seen == 0 else f"{title}({seen + 1})"
+        return title if seen == 0 else f"{title}<{seen + 1}>"
 
     def key_enter(self):
         ## Ignore input while a load is in flight or an animation is playing

@@ -233,10 +233,11 @@ copies). Body-line arguments unique to `collate`:
 ### Metadata
 
 **`title|name`** — set the animation's display name for the **Animations** user
-menu. `name` is a single alpha-numeric string. Allowed at most once per file.
-When omitted (or left empty), the menu falls back to the file name without its
-`.ani` extension. When several files resolve to the same name, the menu keeps the
-first as-is and appends `(N)` to later repeats (`Clock`, `Clock(2)`, `Clock(3)`).
+menu. `name` is alpha-numeric plus space, `_`, and `*`. Allowed at most once per
+file. A `*` is kept in the displayed name but ignored when the menu sorts the
+list. When omitted (or left empty), the menu falls back to the file name without
+its `.ani` extension. When several files resolve to the same name, the menu keeps
+the first as-is and appends `<N>` to later repeats (`Clock`, `Clock<2>`, `Clock<3>`).
 
 ### Flow control
 
