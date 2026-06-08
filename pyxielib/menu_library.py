@@ -471,6 +471,14 @@ class AnimationLibraryItem(ListItem):
         counts[title] = seen + 1
         return title if seen == 0 else f"{title}<{seen + 1}>"
 
+    def _cancel(self):
+        """Cancel any in-flight load or playing animation, staying at the list."""
+        if self.loading:
+            self._load_id += 1
+            self.loading = False
+        elif self.selected is not None:
+            self.selected = None
+
     def key_enter(self):
         ## Ignore input while a load is in flight or an animation is playing
         if self.loading or self.selected is not None:
@@ -481,6 +489,18 @@ class AnimationLibraryItem(ListItem):
             self._load_id += 1
             path = os.path.join(self.path, self.ani_paths[name])
             threading.Thread(target=self._load, args=(path, self._load_id), daemon=True).start()
+
+    def key_esc(self):
+        if self.loading or self.selected is not None:
+            self._cancel()
+        else:
+            self.set_done()
+
+    def key_backspace(self):
+        if self.loading or self.selected is not None:
+            self._cancel()
+        else:
+            self.set_done()
 
     def _load(self, path, load_id):
         """Parse the selected animation (runs in a background thread).
