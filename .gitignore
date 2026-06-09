@@ -19,6 +19,7 @@ __pycache__/
 ## C compiler files
 *.o
 *.a
+nixie-boot/nixie_boot
 
 ## Tap Revolution runtime settings (defaults/example are tracked; persistent isn't)
 config/tap_revolution.yaml
