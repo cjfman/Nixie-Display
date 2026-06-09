@@ -2,6 +2,7 @@ import re
 import os
 import subprocess
 import threading
+from typing import List, Optional
 
 from pyxielib.navigator import DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
@@ -96,6 +97,69 @@ class GitStatusItem(ListItem):
         if result.returncode != 0:
             return None
         return result.stdout.decode('utf8').strip()
+
+
+class SystemInfoItem(ListItem):
+    def __init__(self, **kwargs):
+        super().__init__("System Info", **kwargs)
+
+    def activate(self):
+        self.set_values(self._gather())
+
+    @staticmethod
+    def _gather() -> List[str]:
+        items = []
+        items.append("OS: " + SystemInfoItem._read_os_release())
+        items.append("Kernel: " + (SystemInfoItem._run('uname', '-r') or "N/A"))
+        hw = SystemInfoItem._hardware_model()
+        items.append("HW: " + (hw or "N/A"))
+        ver = SystemInfoItem._run('python3', '--version')
+        items.append(ver or "Python: N/A")
+        items.append("Up: " + (SystemInfoItem._run('uptime', '-p') or "N/A"))
+        items.append("CPU: " + SystemInfoItem._cpu_temp())
+        mem = SystemInfoItem._run('sh', '-c', "free -h --si | awk 'NR==2{print $3\"/\"$2}'")
+        items.append("Mem: " + (mem or "N/A"))
+        disk = SystemInfoItem._run('sh', '-c', "df -h / | awk 'NR==2{print $3\"/\"$2}'")
+        items.append("Disk: " + (disk or "N/A"))
+        return items
+
+    @staticmethod
+    def _run(*args) -> Optional[str]:
+        try:
+            r = subprocess.run(list(args), capture_output=True, check=False, timeout=5)
+            return r.stdout.decode().strip() if r.returncode == 0 else None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _read_os_release() -> str:
+        try:
+            with open('/etc/os-release') as f:
+                for line in f:
+                    if line.startswith('PRETTY_NAME='):
+                        return line.split('=', 1)[1].strip().strip('"')
+        except OSError:
+            pass
+        return "N/A"
+
+    @staticmethod
+    def _hardware_model() -> Optional[str]:
+        try:
+            with open('/proc/cpuinfo') as f:
+                for line in f:
+                    if line.startswith('Model'):
+                        return line.split(':', 1)[1].strip()
+        except OSError:
+            pass
+        return None
+
+    @staticmethod
+    def _cpu_temp() -> str:
+        try:
+            raw = open('/sys/class/thermal/thermal_zone0/temp').read().strip()
+            return f"{int(raw) / 1000:.1f}C"
+        except OSError:
+            return "N/A"
 
 
 class RebootItem(DelayedCommandItem):
