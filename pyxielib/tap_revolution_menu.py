@@ -346,6 +346,10 @@ class TapRevolutionSettingsItem(MenuItem):
         if self.state == 'bucket_edit':
             return self._display_bucket_edit()
         if self.state == 'save_confirm':
+            if self._flash_msg:
+                if time.time() >= self._flash_until:
+                    self.set_done()
+                return self._flash_msg
             return "SAVE Y/N"
         return ''
 
@@ -626,9 +630,11 @@ class TapRevolutionSettingsItem(MenuItem):
         if c.lower() == 'y':
             self.config.settings = copy.deepcopy(self._draft)
             self.config.save()
-            self.set_done()
+            self._flash_msg   = "SAVED"
+            self._flash_until = time.time() + _SETTINGS_FLASH_SECS
         elif c.lower() == 'n':
-            self.set_done()
+            self._flash_msg   = "CANCELED"
+            self._flash_until = time.time() + _SETTINGS_FLASH_SECS
 
 
 class ResetSettingsItem(MenuItem):
