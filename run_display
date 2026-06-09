@@ -71,9 +71,16 @@ def get_args():
 
 
 def make_tap_config(cfg):
-    """Build the Tap Revolution config from the master config's path references."""
+    """Build the Tap Revolution config from the master config's path references.
+
+    Falls back to the project-relative defaults/persistent paths when no master
+    config is present (or when it omits tap_revolution paths), so settings
+    persist to disk even without a --config flag.
+    """
     section = cfg.get('tap_revolution') or {}
-    return TapRevolutionConfig(section.get('defaults_file'), section.get('persistent_file'))
+    defaults  = section.get('defaults_file')  or os.path.join(file_dir, 'config', 'tap_revolution.defaults.yaml')
+    persistent = section.get('persistent_file') or os.path.join(file_dir, 'config', 'tap_revolution.yaml')
+    return TapRevolutionConfig(defaults, persistent)
 
 
 def setup_logging(logfile=None, loglevel='info'):
