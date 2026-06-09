@@ -104,6 +104,17 @@ class TapRevolutionConfig:
         self.settings = copy.deepcopy(self._defaults)
         self._write(self._defaults)
 
+    @staticmethod
+    def validate_buckets(buckets) -> bool:
+        """True iff thresholds strictly increase and points strictly decrease."""
+        ordered = sorted(buckets, key=lambda b: float(b['threshold']))
+        for i in range(len(ordered) - 1):
+            if float(ordered[i]['threshold']) >= float(ordered[i + 1]['threshold']):
+                return False
+            if int(ordered[i]['points']) <= int(ordered[i + 1]['points']):
+                return False
+        return True
+
     def _hit_windows(self) -> Tuple[Tuple[str, float, int], ...]:
         """Score buckets as ascending (name, threshold, points) for the animation."""
         buckets = sorted(self.settings['score_buckets'], key=lambda b: float(b['threshold']))

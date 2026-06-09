@@ -1,11 +1,15 @@
+import collections
+import copy
 import logging
 import re
 import os
 import subprocess
 import threading
+import time
 from typing import List, Optional
 
 from pyxielib import tap_revolution as taplib
+from pyxielib.tap_revolution_config import TapRevolutionConfig as _TRConfig
 from pyxielib.navigator import DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
 from pyxielib.animation import Animation, MarqueeAnimation
@@ -777,14 +781,389 @@ class TapRevolutionLevelsItem(ListItem):
         self.key_esc()
 
 
-class TapRevolutionSettingsItem(ListItem):
-    """Read-only, scrollable view of the current Tap Revolution settings."""
+## Named tuple for one row in the settings list.
+## label(draft)->str  get(draft)->value  set(draft,value)->None (None for readonly)
+_SettingEntry = collections.namedtuple('_SettingEntry', ['tag', 'type', 'label', 'get', 'set'])
+
+## Seconds the cursor is ON within each 0.5 s blink period.
+_CURSOR_ON_SECS = 0.25
+## Duration to show validation-failure / save-done flash messages.
+_SETTINGS_FLASH_SECS = 1.0
+
+
+def _build_items(draft):
+    """Build the ordered list of _SettingEntry for ``draft``."""
+    items = []
+
+    def _add(tag, kind, label_fn, get_fn, set_fn=None):
+        items.append(_SettingEntry(tag, kind, label_fn, get_fn, set_fn))
+
+    for lane, key_name in (('left', 'L'), ('right', 'R'), ('up', 'U'), ('down', 'D')):
+        _lane = lane
+        _add(f'key_{lane}', 'key_binding',
+             lambda d, ln=_lane, kn=key_name: f"KEY {kn} {str(d['keys'][ln]).upper()}",
+             lambda d, ln=_lane: d['keys'][ln],
+             lambda d, v, ln=_lane: d['keys'].__setitem__(ln, v))
+
+    for i, bucket in enumerate(sorted(draft['score_buckets'], key=lambda b: float(b['threshold']))):
+        _i = i
+        _name = bucket['name']
+        _add(f'bucket_{i}', 'bucket',
+             lambda d, n=_name: n,
+             lambda d, i2=_i: sorted(d['score_buckets'], key=lambda b: float(b['threshold']))[i2],
+             None)
+
+    _add('bad_enabled', 'bool',
+         lambda d: "BAD " + ("ON" if d['bad_tap'].get('enabled', True) else "OFF"),
+         lambda d: d['bad_tap'].get('enabled', True),
+         lambda d, v: d['bad_tap'].__setitem__('enabled', v))
+
+    if draft['bad_tap'].get('enabled', True):
+        _add('bad_penalty', 'int',
+             lambda d: f"BAD -{int(d['bad_tap']['penalty'])}PTS",
+             lambda d: d['bad_tap']['penalty'],
+             lambda d, v: d['bad_tap'].__setitem__('penalty', v))
+        _add('bad_cooldown', 'ms',
+             lambda d: f"COOLDOWN {round(float(d['bad_tap']['cooldown']) * 1000)}MS",
+             lambda d: d['bad_tap']['cooldown'],
+             lambda d, v: d['bad_tap'].__setitem__('cooldown', v))
+
+    _add('grace', 'ms',
+         lambda d: f"GRACE {round(float(d['grace']) * 1000)}MS",
+         lambda d: d['grace'],
+         lambda d, v: d.__setitem__('grace', v))
+
+    _add('flash_secs', 'ms',
+         lambda d: f"FLASH {round(float(d['flash_secs']) * 1000)}MS",
+         lambda d: d['flash_secs'],
+         lambda d, v: d.__setitem__('flash_secs', v))
+
+    _add('judge_flash', 'bool',
+         lambda d: "JUDGE " + ("ON" if d['judge_flash'] else "OFF"),
+         lambda d: d['judge_flash'],
+         lambda d, v: d.__setitem__('judge_flash', v))
+
+    _add('results_secs', 'int',
+         lambda d: f"RESULTS {int(d['results_secs'])}S",
+         lambda d: d['results_secs'],
+         lambda d, v: d.__setitem__('results_secs', v))
+
+    ## Read-only entries
+    _add('score_width', 'readonly',
+         lambda d: f"SCORE WIDTH {int(d['score_width'])}",
+         lambda d: d['score_width'])
+
+    _add('hit_flash', 'readonly',
+         lambda d: f"HIT FLASH {d['hit_flash']['frame_secs']*1000:.0f}MS",
+         lambda d: d['hit_flash'])
+
+    return items
+
+
+class TapRevolutionSettingsItem(MenuItem):
+    """Editable, scrollable settings for Tap Revolution.
+
+    Implements a state machine (browse / edit / bucket / bucket_edit /
+    save_confirm) entirely within one MenuItem so the Navigator's back/done
+    machinery is not involved until the user chooses to save or discard.
+    """
     def __init__(self, config, **kwargs):
         super().__init__("Settings", **kwargs)
         self.config = config
+        self._reset_state()
+
+    ## ------------------------------------------------------------------ ##
+    ## Lifecycle                                                            ##
+    ## ------------------------------------------------------------------ ##
 
     def activate(self):
-        self.set_values(self.config.summary_lines())
+        self._draft = copy.deepcopy(self.config.settings)
+        self._rebuild_items()
+
+    def reset(self):
+        super().reset()
+        self._reset_state()
+
+    def _reset_state(self):
+        self.state         = 'browse'
+        self._draft        = copy.deepcopy(self.config.settings)
+        self._items        = []
+        self._idx          = 0
+        self._bucket_idx   = 0
+        self._bucket_sub   = 0
+        self._bucket_orig  = None
+        self._edit_buffer  = ''
+        self._edit_bool    = False
+        self._edit_orig    = None
+        self._flash_msg    = ''
+        self._flash_until  = 0.0
+
+    def _rebuild_items(self):
+        self._items = _build_items(self._draft)
+        self._idx = max(0, min(self._idx, len(self._items) - 1))
+
+    ## ------------------------------------------------------------------ ##
+    ## Display                                                              ##
+    ## ------------------------------------------------------------------ ##
+
+    def for_display(self) -> str:
+        if self.state == 'browse':
+            return self._display_browse()
+        if self.state == 'edit':
+            return self._display_edit()
+        if self.state == 'bucket':
+            return self._display_bucket()
+        if self.state == 'bucket_edit':
+            return self._display_bucket_edit()
+        if self.state == 'save_confirm':
+            return "SAVE Y/N"
+        return ''
+
+    def _cursor(self, s) -> str:
+        """Append a blinking underlined-space cursor to s."""
+        if time.time() % 0.5 < _CURSOR_ON_SECS:
+            return s + ' !'
+        return s
+
+    def _display_browse(self) -> str:
+        if self._flash_msg and time.time() < self._flash_until:
+            return self._flash_msg
+        if not self._items:
+            return "No Settings"
+        return self._items[self._idx].label(self._draft)
+
+    def _display_edit(self) -> str:
+        entry = self._items[self._idx]
+        if entry.type == 'key_binding':
+            return "PRESS KEY"
+        if entry.type == 'bool':
+            val = "ON" if self._edit_bool else "OFF"
+            return self._cursor(val)
+        ## numeric (ms or int): show label prefix + buffer
+        label = entry.label(self._draft)
+        ## Strip trailing unit suffix to show raw digits during edit
+        buf = self._edit_buffer or ''
+        return self._cursor(f"{self._edit_prefix(entry)} {buf}")
+
+    def _edit_prefix(self, entry) -> str:
+        """Short label to show before the edit buffer."""
+        label = entry.label(self._draft)
+        ## Drop trailing digits/units (keep the descriptive word part)
+        for sep in (' ', '-'):
+            if sep in label:
+                return label.rsplit(sep, 1)[0]
+        return label
+
+    def _display_bucket(self) -> str:
+        bucket = self._current_bucket()
+        if self._bucket_sub == 0:
+            return f"THRESH {round(float(bucket['threshold']) * 1000)}MS"
+        return f"POINTS {int(bucket['points'])}"
+
+    def _display_bucket_edit(self) -> str:
+        bucket = self._current_bucket()
+        if self._bucket_sub == 0:
+            return self._cursor(f"THRESH {self._edit_buffer}")
+        return self._cursor(f"POINTS {self._edit_buffer}")
+
+    ## ------------------------------------------------------------------ ##
+    ## Key dispatch                                                         ##
+    ## ------------------------------------------------------------------ ##
+
+    def key_enter(self):
+        if self.state == 'browse':
+            self._browse_enter()
+        elif self.state == 'edit':
+            self._edit_commit()
+        elif self.state == 'bucket':
+            self._bucket_enter()
+        elif self.state == 'bucket_edit':
+            self._bucket_edit_commit()
+
+    def key_esc(self):
+        if self.state == 'browse':
+            self.state = 'save_confirm'
+        elif self.state == 'edit':
+            self.state = 'browse'
+        elif self.state == 'bucket':
+            self._bucket_exit()
+        elif self.state == 'bucket_edit':
+            self.state = 'bucket'
+            self._edit_buffer = ''
+        elif self.state == 'save_confirm':
+            self.set_done()
+
+    def key_backspace(self):
+        self.key_esc()
+
+    def key_up(self):
+        if self.state == 'browse':
+            self._idx = max(0, self._idx - 1)
+        elif self.state == 'edit':
+            if self._items[self._idx].type == 'key_binding':
+                self._key_binding_commit('up')
+            else:
+                self._edit_toggle_bool()
+        elif self.state == 'bucket':
+            self._bucket_sub = max(0, self._bucket_sub - 1)
+
+    def key_down(self):
+        if self.state == 'browse':
+            self._idx = min(len(self._items) - 1, self._idx + 1)
+        elif self.state == 'edit':
+            if self._items[self._idx].type == 'key_binding':
+                self._key_binding_commit('down')
+            else:
+                self._edit_toggle_bool()
+        elif self.state == 'bucket':
+            self._bucket_sub = min(1, self._bucket_sub + 1)
+
+    def key_left(self):
+        if self.state == 'edit':
+            if self._items[self._idx].type == 'key_binding':
+                self._key_binding_commit('left')
+            else:
+                self._edit_toggle_bool()
+
+    def key_right(self):
+        if self.state == 'edit':
+            if self._items[self._idx].type == 'key_binding':
+                self._key_binding_commit('right')
+            else:
+                self._edit_toggle_bool()
+
+    def key_char(self, c):
+        if self.state == 'save_confirm':
+            self._save_confirm_char(c)
+        elif self.state == 'edit':
+            self._edit_char(c)
+        elif self.state == 'bucket_edit':
+            self._bucket_edit_char(c)
+
+    ## ------------------------------------------------------------------ ##
+    ## Browse helpers                                                       ##
+    ## ------------------------------------------------------------------ ##
+
+    def _browse_enter(self):
+        if not self._items:
+            return
+        entry = self._items[self._idx]
+        if entry.type == 'readonly':
+            return
+        if entry.type == 'bucket':
+            self._enter_bucket()
+            return
+        ## Editable scalar: enter edit mode
+        self._edit_orig = entry.get(self._draft)
+        self._edit_buffer = ''
+        if entry.type == 'bool':
+            self._edit_bool = bool(entry.get(self._draft))
+        self.state = 'edit'
+
+    ## ------------------------------------------------------------------ ##
+    ## Edit helpers (scalar)                                                ##
+    ## ------------------------------------------------------------------ ##
+
+    def _edit_toggle_bool(self):
+        if self._items[self._idx].type == 'bool':
+            self._edit_bool = not self._edit_bool
+
+    def _edit_char(self, c):
+        entry = self._items[self._idx]
+        if entry.type == 'key_binding':
+            self._key_binding_commit(c)
+        elif c.isdigit() and len(self._edit_buffer) < 5:
+            self._edit_buffer += c
+
+    def _edit_commit(self):
+        entry = self._items[self._idx]
+        if entry.type == 'bool':
+            entry.set(self._draft, self._edit_bool)
+            self._rebuild_items()
+        elif entry.type in ('ms', 'int'):
+            if self._edit_buffer:
+                raw = int(self._edit_buffer)
+                value = raw / 1000.0 if entry.type == 'ms' else raw
+                entry.set(self._draft, value)
+        self._edit_buffer = ''
+        self.state = 'browse'
+
+    def _key_binding_commit(self, value):
+        """Immediately commit an arrow-name or char as a key binding."""
+        entry = self._items[self._idx]
+        entry.set(self._draft, value)
+        self._edit_buffer = ''
+        self.state = 'browse'
+
+    ## ------------------------------------------------------------------ ##
+    ## Bucket helpers                                                       ##
+    ## ------------------------------------------------------------------ ##
+
+    def _current_bucket(self):
+        ordered = sorted(self._draft['score_buckets'], key=lambda b: float(b['threshold']))
+        return ordered[self._bucket_idx]
+
+    def _current_bucket_global_idx(self):
+        """Index into the original (unordered) score_buckets list."""
+        ordered = sorted(self._draft['score_buckets'], key=lambda b: float(b['threshold']))
+        target = ordered[self._bucket_idx]
+        for i, b in enumerate(self._draft['score_buckets']):
+            if b is target:
+                return i
+        return 0
+
+    def _enter_bucket(self):
+        ## Which bucket position in the _items list is at _idx?
+        bucket_entries = [e for e in self._items if e.type == 'bucket']
+        pos = next((i for i, e in enumerate(bucket_entries) if e.tag == self._items[self._idx].tag), 0)
+        self._bucket_idx = pos
+        self._bucket_sub = 0
+        self._bucket_orig = copy.deepcopy(self._current_bucket())
+        self.state = 'bucket'
+
+    def _bucket_enter(self):
+        bucket = self._current_bucket()
+        self._edit_buffer = str(round(float(bucket['threshold']) * 1000)) if self._bucket_sub == 0 else str(int(bucket['points']))
+        self.state = 'bucket_edit'
+
+    def _bucket_edit_commit(self):
+        if not self._edit_buffer:
+            self.state = 'bucket'
+            return
+        bucket = self._current_bucket()
+        raw = int(self._edit_buffer)
+        if self._bucket_sub == 0:
+            bucket['threshold'] = raw / 1000.0
+        else:
+            bucket['points'] = raw
+        self._edit_buffer = ''
+        self.state = 'bucket'
+
+    def _bucket_edit_char(self, c):
+        if c.isdigit() and len(self._edit_buffer) < 5:
+            self._edit_buffer += c
+
+    def _bucket_exit(self):
+        if not _TRConfig.validate_buckets(self._draft['score_buckets']):
+            ## Revert this bucket and flash a warning
+            gi = self._current_bucket_global_idx()
+            if self._bucket_orig is not None:
+                self._draft['score_buckets'][gi] = self._bucket_orig
+            self._flash_msg = "INVALID"
+            self._flash_until = time.time() + _SETTINGS_FLASH_SECS
+        self.state = 'browse'
+
+    ## ------------------------------------------------------------------ ##
+    ## Save-confirm helpers                                                 ##
+    ## ------------------------------------------------------------------ ##
+
+    def _save_confirm_char(self, c):
+        if c.lower() == 'y':
+            self.config.settings = copy.deepcopy(self._draft)
+            self.config.save()
+            self.set_done()
+        elif c.lower() == 'n':
+            self.set_done()
 
 
 class ResetSettingsItem(MenuItem):
