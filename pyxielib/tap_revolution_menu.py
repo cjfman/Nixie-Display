@@ -49,19 +49,26 @@ def _underline_str(s):
 
 
 def _key_display(val) -> str:
-    """Format a bound key for display: arrow names get ' arrow' appended."""
+    """Format a bound key for display: arrow names get ' key' appended."""
     v = str(val).lower()
-    return (v + ' arrow') if v in _ARROW_NAMES else v.upper()
+    return (v + ' key') if v in _ARROW_NAMES else v.upper()
+
+
+def _build_score_items(draft):
+    """Sub-list for the Score Ranges sub-menu: one entry per scoring bucket."""
+    return [
+        _s_entry(f'bucket_{i}', 'bucket', lambda d, n=b['name']: n, None,
+                 lambda d, j=i: sorted(d['score_buckets'], key=lambda x: float(x['threshold']))[j])
+        for i, b in enumerate(sorted(draft['score_buckets'], key=lambda b: float(b['threshold'])))
+    ]
 
 
 def _build_items(draft):
-    """Main browse list. Key bindings and bad-tap settings live in sub-menus."""
+    """Main browse list. Key bindings, score ranges, and bad-tap settings live in sub-menus."""
     return [
-        _s_entry('key_mappings', 'submenu', lambda d: "KEY MAPPINGS", None, None),
-        *[_s_entry(f'bucket_{i}', 'bucket', lambda d, n=b['name']: n, None,
-                   lambda d, j=i: sorted(d['score_buckets'], key=lambda x: float(x['threshold']))[j])
-          for i, b in enumerate(sorted(draft['score_buckets'], key=lambda b: float(b['threshold'])))],
-        _s_entry('bad_submenu', 'submenu', lambda d: "BAD/GHOST HIT", None, None),
+        _s_entry('key_mappings',  'submenu', lambda d: "KEY MAPPINGS",  None, None),
+        _s_entry('score_ranges',  'submenu', lambda d: "SCORE RANGES",  None, None),
+        _s_entry('bad_submenu',   'submenu', lambda d: "BAD/GHOST HIT", None, None),
         _s_entry('grace', 'ms',
                  lambda d: f"GRACE {round(float(d['grace']) * 1000)}MS", "GRACE",
                  lambda d: d['grace'], lambda d, v: d.__setitem__('grace', v)),
@@ -300,10 +307,13 @@ class TapRevolutionSettingsItem(MenuItem):
     ## ------------------------------------------------------------------ ##
 
     def activate(self):
-        self._draft    = copy.deepcopy(self.config.settings)
-        self._original = copy.deepcopy(self.config.settings)
-        self._items    = _build_items(self._draft)
-        self._idx      = max(0, min(self._idx, len(self._items) - 1))
+        self._draft       = copy.deepcopy(self.config.settings)
+        self._original    = copy.deepcopy(self.config.settings)
+        self._items       = _build_items(self._draft)
+        self._idx         = max(0, min(self._idx, len(self._items) - 1))
+        self.state        = 'browse'
+        self._flash_msg   = ''
+        self._flash_until = 0.0
 
     def reset(self):
         super().reset()
@@ -366,6 +376,8 @@ class TapRevolutionSettingsItem(MenuItem):
         return self._items[self._idx].label(self._draft)
 
     def _display_sub_browse(self) -> str:
+        if self._flash_msg and time.time() < self._flash_until:
+            return self._flash_msg
         if not self._sub_items:
             return "Empty"
         return self._sub_items[self._sub_idx].label(self._draft)
@@ -502,9 +514,14 @@ class TapRevolutionSettingsItem(MenuItem):
         if entry.type == 'readonly':
             return
         if entry.type == 'submenu':
-            self._sub_tag   = entry.tag
-            self._sub_items = _build_key_items() if entry.tag == 'key_mappings' else _build_bad_items(self._draft)
-            self._sub_idx   = 0
+            self._sub_tag = entry.tag
+            if entry.tag == 'key_mappings':
+                self._sub_items = _build_key_items()
+            elif entry.tag == 'score_ranges':
+                self._sub_items = _build_score_items(self._draft)
+            else:
+                self._sub_items = _build_bad_items(self._draft)
+            self._sub_idx = 0
             self.state = 'sub_browse'
         elif entry.type == 'bucket':
             self._enter_bucket()
@@ -523,6 +540,8 @@ class TapRevolutionSettingsItem(MenuItem):
             self._edit_entry   = entry
             self._return_state = 'sub_browse'
             self.state = 'key_capture'
+        elif entry.type == 'bucket':
+            self._enter_bucket()
         else:
             self._enter_edit(entry, 'sub_browse')
 
@@ -589,9 +608,8 @@ class TapRevolutionSettingsItem(MenuItem):
         return 0
 
     def _enter_bucket(self):
-        bucket_entries = [e for e in self._items if e.type == 'bucket']
-        self._bucket_idx = next(
-            (i for i, e in enumerate(bucket_entries) if e.tag == self._items[self._idx].tag), 0)
+        ## Bucket index is encoded in the tag (e.g. 'bucket_1' → 1)
+        self._bucket_idx  = int(self._sub_items[self._sub_idx].tag.split('_')[1])
         self._bucket_sub  = 0
         self._bucket_orig = copy.deepcopy(self._current_bucket())
         self.state = 'bucket'
@@ -620,7 +638,7 @@ class TapRevolutionSettingsItem(MenuItem):
                 self._draft['score_buckets'][gi] = self._bucket_orig
             self._flash_msg   = "INVALID"
             self._flash_until = time.time() + _SETTINGS_FLASH_SECS
-        self.state = 'browse'
+        self.state = 'sub_browse'  ## return to Score Ranges sub-menu
 
     ## ------------------------------------------------------------------ ##
     ## Save-confirm helpers                                                 ##

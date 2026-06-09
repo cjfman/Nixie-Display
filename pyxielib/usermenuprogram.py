@@ -122,6 +122,15 @@ class UserMenuProgram(Program):
 
             msg = self.navigator.for_display()
 
+            ## A menu item may call set_done() from for_display() (e.g. a timed
+            ## flash). Process the Navigator back-transition here so it fires on
+            ## schedule without needing a keypress.
+            if self.navigator.node.is_done():
+                if not self.navigator.back():
+                    self.menu_exit()
+                    return None
+                msg = self.navigator.for_display()
+
         ## Return now if this is an animation
         if isinstance(msg, Animation):
             ## Allow animation to complete
