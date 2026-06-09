@@ -112,13 +112,20 @@ class SystemInfoItem(ListItem):
     @staticmethod
     def _gather() -> List[str]:
         items = []
+        ip = SystemInfoItem._run('sh', '-c', "ip route get 8.8.8.8 2>/dev/null | head -1 | cut -d' ' -f7")
+        if ip and re.match(r'^\d{1,3}(\.\d{1,3}){3}$', ip):
+            items.append("IP: " + ip)
+        else:
+            items.append("IP: N/A")
         items.append("OS: " + SystemInfoItem._read_os_release())
-        items.append("Kernel: " + (SystemInfoItem._run('uname', '-r') or "N/A"))
+        kernel = SystemInfoItem._run('uname', '-r') or "N/A"
+        items.append("Kernel: " + kernel.split('-')[0])
         hw = SystemInfoItem._hardware_model()
-        items.append("HW: " + (hw or "N/A"))
+        items.append("HW: " + (SystemInfoItem._shorten_hw(hw) if hw else "N/A"))
         ver = SystemInfoItem._run('python3', '--version')
         items.append(ver or "Python: N/A")
-        items.append("Up: " + (SystemInfoItem._run('uptime', '-p') or "N/A"))
+        uptime = SystemInfoItem._run('uptime', '-p')
+        items.append("Up: " + (SystemInfoItem._shorten_uptime(uptime) if uptime else "N/A"))
         items.append("CPU: " + SystemInfoItem._cpu_temp())
         mem = SystemInfoItem._run('sh', '-c', "free -h --si | awk 'NR==2{print $3\"/\"$2}'")
         items.append("Mem: " + (mem or "N/A"))
@@ -136,11 +143,15 @@ class SystemInfoItem(ListItem):
 
     @staticmethod
     def _read_os_release() -> str:
+        """Return a compact OS name: strips GNU/Linux and parentheticals."""
         try:
             with open('/etc/os-release') as f:
                 for line in f:
                     if line.startswith('PRETTY_NAME='):
-                        return line.split('=', 1)[1].strip().strip('"')
+                        name = line.split('=', 1)[1].strip().strip('"')
+                        name = re.sub(r'\s*\(.*?\)', '', name)
+                        name = name.replace('GNU/Linux', '')
+                        return ' '.join(name.split())[:12]
         except OSError:
             pass
         return "N/A"
@@ -155,6 +166,29 @@ class SystemInfoItem(ListItem):
         except OSError:
             pass
         return None
+
+    @staticmethod
+    def _shorten_hw(model: str) -> str:
+        """Abbreviate e.g. 'Raspberry Pi 4 Model B Rev 1.4' → 'RPi 4B'."""
+        model = model.replace('Raspberry Pi', 'RPi')
+        model = re.sub(r'\s*Rev\s+[\d.]+', '', model)
+        model = model.replace(' Model ', '')
+        return ' '.join(model.split())
+
+    @staticmethod
+    def _shorten_uptime(uptime: str) -> str:
+        """Compact 'up 3 days, 4 hours, 22 minutes' → '3d 4h 22m'."""
+        parts = []
+        m = re.search(r'(\d+)\s+day', uptime)
+        if m:
+            parts.append(m.group(1) + 'd')
+        m = re.search(r'(\d+)\s+hour', uptime)
+        if m:
+            parts.append(m.group(1) + 'h')
+        m = re.search(r'(\d+)\s+min', uptime)
+        if m:
+            parts.append(m.group(1) + 'm')
+        return ' '.join(parts) if parts else uptime
 
     @staticmethod
     def _cpu_temp() -> str:

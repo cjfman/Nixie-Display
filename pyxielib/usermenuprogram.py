@@ -49,7 +49,6 @@ class UserMenuProgram(Program):
             menulib.AnimationLibraryItem(ani_path),
             trmenulib.TapRevolutionMenu(tap_config, levels_path, watcher=self.watcher, size=self.size),
             menulib.MirrorItem("Mirror Mode"),
-            menulib.IpItem(),
             menulib.SystemInfoItem(),
             menulib.GitStatusItem(),
             menulib.WiFiMenu(),
