@@ -659,28 +659,33 @@ class ResetSettingsItem(MenuItem):
     """Restore Tap Revolution settings to the defaults file, behind a y/n confirm."""
     def __init__(self, config, **kwargs):
         super().__init__("Reset Settings", **kwargs)
-        self.config = config
-        self.state  = 'confirm'
+        self.config       = config
+        self._flash_until = 0.0
 
     def activate(self):
-        self.state = 'confirm'
+        self._flash_until = 0.0
 
     def reset(self):
         super().reset()
-        self.state = 'confirm'
+        self._flash_until = 0.0
 
     def for_display(self) -> str:
-        return "Settings reset" if self.state == 'done' else "Reset Y/N"
+        if self._flash_until:
+            if time.time() < self._flash_until:
+                return "DONE"
+            self.set_done()
+            return "DONE"
+        return "Reset Y/N"
 
     def key_char(self, c):
-        if self.state == 'done':
+        if self._flash_until:
             self.set_done()
         elif c.lower() == 'y':
             self.config.reset()
-            self.state = 'done'
+            self._flash_until = time.time() + _SETTINGS_FLASH_SECS
         elif c.lower() == 'n':
             self.set_done()
 
     def key_enter(self):
-        if self.state == 'done':
+        if self._flash_until:
             self.set_done()
