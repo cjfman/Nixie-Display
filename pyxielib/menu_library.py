@@ -555,26 +555,41 @@ class ProgramListItem(ListItem):
         self.selected = None
 
 
-class TapRevolutionItem(ListItem):
+class TapRevolutionMenu(Menu):
+    """The Tap Revolution game menu: Play (levels), Settings (view), Reset Settings.
+
+    All three children share one ``TapRevolutionConfig`` so a reset (or a future
+    in-game edit) is reflected the next time a level is launched.
+    """
+    def __init__(self, config, levels_path, *, watcher=None, size=16, **kwargs):
+        super().__init__("Tap Revolution", [
+            TapRevolutionLevelsItem(config, levels_path, watcher=watcher, size=size),
+            TapRevolutionSettingsItem(config),
+            ResetSettingsItem(config),
+        ], **kwargs)
+
+
+class TapRevolutionLevelsItem(ListItem):
     """Dance-Dance-Revolution-style rhythm game.
 
     Lists levels (``.trl`` files in ``levels_path`` plus the built-in
-    programmatic charts); selecting one launches a ``TapRevolutionAnimation``.
-    While playing, the arrow keys are taps routed into the animation — timestamped
-    by the key watcher so hit timing is accurate regardless of poll latency — and
-    list navigation is suspended. When the chart finishes (or the player backs out
-    early) a results marquee plays before returning to the level list.
+    programmatic charts); selecting one launches a ``TapRevolutionAnimation`` built
+    from the shared config. While playing, the configured action keys are taps
+    routed into the animation — timestamped by the key watcher so hit timing is
+    accurate regardless of poll latency — and list navigation is suspended. When
+    the chart finishes (or the player backs out early) a results marquee plays
+    before returning to the level list.
     """
-    RESULTS_SECS = 6
-
-    def __init__(self, levels_path, *, watcher=None, size=16, **kwargs):
-        super().__init__("Tap Revolution", **kwargs)
+    def __init__(self, config, levels_path, *, watcher=None, size=16, **kwargs):
+        super().__init__("Play", **kwargs)
+        self.config      = config
         self.levels_path = levels_path
         self.watcher     = watcher
         self.size        = size
         self.level_files = {}
         self.animation   = None
         self.results     = None
+        self.key_lane    = {}
 
     def activate(self):
         self.level_files = self._scan_levels()
@@ -612,6 +627,7 @@ class TapRevolutionItem(ListItem):
         self.level_files = {}
         self.animation   = None
         self.results     = None
+        self.key_lane    = {}
 
     def _playing(self) -> bool:
         return self.animation is not None and self.results is None
@@ -632,7 +648,8 @@ class TapRevolutionItem(ListItem):
         return super().for_display()
 
     def _make_results(self) -> Animation:
-        return MarqueeAnimation.fromText(self.animation.results_text(), self.size, freeze=self.RESULTS_SECS)
+        return MarqueeAnimation.fromText(self.animation.results_text(), self.size,
+                                         freeze=self.config.results_secs())
 
     def _load_level(self, name):
         """Resolve a menu name to a Level, or None if it can't be loaded."""
@@ -647,36 +664,41 @@ class TapRevolutionItem(ListItem):
             logger.error(f"Failed to load level '{name}': {e}")
             return None
 
-    def _tap(self, lane):
+    def _play_key(self, token):
+        """Route a key press to the lane it's bound to (no-op if unbound)."""
+        if not self._playing():
+            return False
+        lane = self.key_lane.get(token)
+        if lane is None:
+            return False
         when = self.watcher.last_pop_time if self.watcher is not None else None
         self.animation.tap(lane, when)
+        return True
 
     def key_enter(self):
         if self.animation is not None or self.results is not None:
             return
         level = self._load_level(self.current_value())
         if level is not None:
-            self.animation = taplib.TapRevolutionAnimation(level, size=self.size)
+            self.key_lane = self.config.key_lane_map()
+            self.animation = taplib.TapRevolutionAnimation(level, size=self.size, **self.config.animation_kwargs())
 
     def key_up(self):
-        if self._playing():
-            self._tap('U')
-        else:
+        if not self._play_key('UP'):
             super().key_up()
 
     def key_down(self):
-        if self._playing():
-            self._tap('D')
-        else:
+        if not self._play_key('DOWN'):
             super().key_down()
 
     def key_left(self):
-        if self._playing():
-            self._tap('L')
+        self._play_key('LEFT')
 
     def key_right(self):
-        if self._playing():
-            self._tap('R')
+        self._play_key('RIGHT')
+
+    def key_char(self, c):
+        self._play_key(c)
 
     def key_esc(self):
         if self._playing():
@@ -689,3 +711,44 @@ class TapRevolutionItem(ListItem):
 
     def key_backspace(self):
         self.key_esc()
+
+
+class TapRevolutionSettingsItem(ListItem):
+    """Read-only, scrollable view of the current Tap Revolution settings."""
+    def __init__(self, config, **kwargs):
+        super().__init__("Settings", **kwargs)
+        self.config = config
+
+    def activate(self):
+        self.set_values(self.config.summary_lines())
+
+
+class ResetSettingsItem(MenuItem):
+    """Restore Tap Revolution settings to the defaults file, behind a y/n confirm."""
+    def __init__(self, config, **kwargs):
+        super().__init__("Reset Settings", **kwargs)
+        self.config = config
+        self.state  = 'confirm'
+
+    def activate(self):
+        self.state = 'confirm'
+
+    def reset(self):
+        super().reset()
+        self.state = 'confirm'
+
+    def for_display(self) -> str:
+        return "Settings reset" if self.state == 'done' else "Reset Y/N"
+
+    def key_char(self, c):
+        if self.state == 'done':
+            self.set_done()
+        elif c.lower() == 'y':
+            self.config.reset()
+            self.state = 'done'
+        elif c.lower() == 'n':
+            self.set_done()
+
+    def key_enter(self):
+        if self.state == 'done':
+            self.set_done()

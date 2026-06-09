@@ -10,29 +10,38 @@ import time
 import traceback
 
 import pyxielib.animation_library as animationlib
-from pyxielib import assembler, controller, program, scheduler, stockticker, usermenuprogram
+from pyxielib import assembler, config, controller, program, scheduler, stockticker, usermenuprogram
+from pyxielib.tap_revolution_config import TapRevolutionConfig
 
 file_dir = os.path.dirname(os.path.realpath(__file__))
 logger = logging.getLogger(__name__)
 
 
 def make_parser():
+    ## Overridable options default to None so get_args can tell "not supplied on the
+    ## CLI" from an explicit value and fall back to the config file then a hardcoded
+    ## default (see get_args / pyxielib.config.resolve).
     parser = argparse.ArgumentParser(description='Nixie tube controller')
     parser.add_argument('-c', '--controller', required=True, help="The type of controller <terminal,raspi,serial>")
     parser.add_argument('-p', '--print-code', action='store_true', help="Print the code to the output")
     parser.add_argument('-s', '--serial', help="The serial device path. Overrides --controller")
     parser.add_argument('-v', '--verbose', action='store_true', help="Be verbose in output")
+    parser.add_argument('--config', help="Path to a YAML config file (CLI args override it)")
     parser.add_argument('--keyboard-event-file', help="The /dev/input/event file that represents keyboard input")
-    parser.add_argument('--animations-dir', default=os.path.join(file_dir, 'animations'), help="Directory of animations files")
-    parser.add_argument('--levels-dir', default=os.path.join(file_dir, 'levels'), help="Directory of Tap Revolution level files")
-    parser.add_argument('--extended-hours', action='store_true',
+    parser.add_argument('--animations-dir', help="Directory of animations files")
+    parser.add_argument('--levels-dir', help="Directory of Tap Revolution level files")
+    ## A --extended-hours/--no-extended-hours pair (avoids 3.9-only BooleanOptionalAction)
+    ## so either form can override a config value; default None means "not supplied".
+    parser.add_argument('--extended-hours', dest='extended_hours', action='store_const', const=True, default=None,
         help="Show pre-market and after-market stock data")
+    parser.add_argument('--no-extended-hours', dest='extended_hours', action='store_const', const=False,
+        help="Disable pre/after-market stock data (override the config)")
     parser.add_argument('--git-check', type=int, metavar='MINUTES',
         help="Check git for updates every MINUTES minutes and exit when behind origin")
-    parser.add_argument('--git-origin', default='@{u}', metavar='REF',
+    parser.add_argument('--git-origin', metavar='REF',
         help="Git ref to compare HEAD against for --git-check (default: the configured upstream)")
     parser.add_argument('--logfile', help="Write logs to this file instead of stdout")
-    parser.add_argument('--loglevel', default='info',
+    parser.add_argument('--loglevel',
         choices=['trace', 'debug', 'info', 'warning', 'error', 'critical'],
         help="Set the log level (default: info)")
     return parser
@@ -40,6 +49,19 @@ def make_parser():
 
 def get_args():
     args = make_parser().parse_args()
+    cfg = config.load_config(args.config)
+    args.config_data = cfg
+
+    ## Resolve config-overridable options: CLI value > config file > hardcoded default.
+    args.serial              = config.resolve(args.serial, cfg, 'serial')
+    args.keyboard_event_file = config.resolve(args.keyboard_event_file, cfg, 'keyboard_event_file')
+    args.animations_dir      = config.resolve(args.animations_dir, cfg, 'animations_dir', os.path.join(file_dir, 'animations'))
+    args.levels_dir          = config.resolve(args.levels_dir, cfg, 'levels_dir', os.path.join(file_dir, 'levels'))
+    args.extended_hours      = bool(config.resolve(args.extended_hours, cfg, 'extended_hours', False))
+    args.git_check           = config.resolve(args.git_check, cfg, 'git_check')
+    args.git_origin          = config.resolve(args.git_origin, cfg, 'git_origin', '@{u}')
+    args.logfile             = config.resolve(args.logfile, cfg, 'logfile')
+    args.loglevel            = config.resolve(args.loglevel, cfg, 'loglevel', 'info')
 
     ## Fix controller argument
     if args.serial is not None:
@@ -50,6 +72,12 @@ def get_args():
     return args
 
 
+def make_tap_config(cfg):
+    """Build the Tap Revolution config from the master config's path references."""
+    section = cfg.get('tap_revolution') or {}
+    return TapRevolutionConfig(section.get('defaults_file'), section.get('persistent_file'))
+
+
 def setup_logging(logfile=None, loglevel='info'):
     level = logging.getLevelName(loglevel.upper())
     handler = logging.FileHandler(logfile) if logfile else logging.StreamHandler(sys.stdout)
@@ -57,14 +85,14 @@ def setup_logging(logfile=None, loglevel='info'):
         format='%(asctime)s %(levelname)-8s %(name)s: %(message)s')
 
 
-def create_controller(c_type, serial, print_code, verbose):
+def create_controller(c_type, serial, print_code, verbose, raspi_speed=10**6):
     """Create c_type"""
     ctrl = None
     if c_type == 'terminal':
         ctrl = controller.TerminalController(clear_screen=True, print_code=print_code, verbose=verbose)
     elif c_type == 'raspi':
         logger.info("Using the RaspberryPi outputs directly")
-        ctrl = controller.RaspberryPiController(speed=10**6, debug=verbose, print_code=print_code)
+        ctrl = controller.RaspberryPiController(speed=raspi_speed, debug=verbose, print_code=print_code)
     elif c_type == 'serial':
         logger.info("Opening connection to Nixie Control Board")
         ctrl = controller.SerialController(serial, debug=verbose)
@@ -96,7 +124,9 @@ def display_message(ctrl, message):
 
 
 def main(args):
-    ctrl = create_controller(args.controller, args.serial, args.print_code, args.verbose)
+    cfg = getattr(args, 'config_data', {}) or {}
+    raspi_speed = (cfg.get('controller') or {}).get('raspi_speed', 10**6)
+    ctrl = create_controller(args.controller, args.serial, args.print_code, args.verbose, raspi_speed)
     if ctrl is None:
         return 1
 
@@ -118,6 +148,7 @@ def main(args):
             args.keyboard_event_file,
             ani_path=args.animations_dir,
             levels_path=args.levels_dir,
+            tap_config=make_tap_config(cfg),
             controller=ctrl,
             program_map=program_map,
         )
@@ -132,8 +163,10 @@ def main(args):
         ("0    17 * * *", 98, sleep_prgm),
     )
 
-    asmlr = assembler.Assembler(controller=ctrl)
-    schdlr = scheduler.CronScheduler(schl, asmlr, default=clock_prgm, user_menu=user_prgm)
+    periods = config.polling_periods(cfg)
+    asmlr = assembler.Assembler(controller=ctrl, poll_interval=periods['assembler_poll_interval'])
+    schdlr = scheduler.CronScheduler(schl, asmlr, default=clock_prgm, user_menu=user_prgm,
+        period=periods['scheduler_period'], active_period=periods['scheduler_active_period'])
 
     logger.info("Starting program")
     schdlr.run()

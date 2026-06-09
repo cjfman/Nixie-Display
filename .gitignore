@@ -19,3 +19,6 @@ __pycache__/
 ## C compiler files
 *.o
 *.a
+
+## Tap Revolution runtime settings (defaults/example are tracked; persistent isn't)
+config/tap_revolution.yaml

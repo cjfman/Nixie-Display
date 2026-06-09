@@ -6,17 +6,21 @@ from pyxielib.animation import Animation
 from pyxielib.key_watcher import KeyWatcher, TerminalKeyWatcher
 from pyxielib.navigator import DisabledItem, Menu, Navigator
 from pyxielib.program import Program
+from pyxielib.tap_revolution_config import TapRevolutionConfig
 from pyxielib.tube_manager import cmdLen
 
 logger = logging.getLogger(__name__)
 
 
 class UserMenuProgram(Program):
-    def __init__(self, event_path=None, *, program_map=None, ani_path='animations', levels_path='levels', controller=None, **kwargs):
+    def __init__(self, event_path=None, *, program_map=None, ani_path='animations',
+                 levels_path='levels', tap_config=None, controller=None, **kwargs):
         super().__init__("User Control", **kwargs)
         self.event_path       = event_path
         self.program_map      = program_map or {}
         self.controller       = controller
+        ## Fall back to code defaults (no persistence) when no config was supplied.
+        tap_config            = tap_config or TapRevolutionConfig()
         self.active           = False
         self.old_msg          = None
         self.should_exit      = False
@@ -42,7 +46,7 @@ class UserMenuProgram(Program):
         self.navigator = Navigator(Menu("Nixie Menu", [
             menulib.ProgramListItem(self.program_map),
             menulib.AnimationLibraryItem(ani_path),
-            menulib.TapRevolutionItem(levels_path, watcher=self.watcher, size=self.size),
+            menulib.TapRevolutionMenu(tap_config, levels_path, watcher=self.watcher, size=self.size),
             menulib.MirrorItem("Mirror Mode"),
             menulib.IpItem(),
             menulib.GitStatusItem(),

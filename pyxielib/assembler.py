@@ -15,9 +15,10 @@ class Assembler:
     ## cost of more wake-ups; bounded in practice by controller.send() throughput.
     POLL_INTERVAL_SECS = 0.001
 
-    def __init__(self, *, controller: Controller=None, animation: Animation=None):
+    def __init__(self, *, controller: Controller=None, animation: Animation=None, poll_interval=None):
         self.running    = False
         self.shutdown   = False
+        self.poll_interval = poll_interval if poll_interval is not None else self.POLL_INTERVAL_SECS
         self.thread     = threading.Thread(target=self.handler)
         self.lock       = threading.Lock()
         self.cv         = threading.Condition(lock=self.lock)
@@ -54,7 +55,7 @@ class Assembler:
                 if self.animation and self.animation.updateFrameSet():
                     self.controller.send(self.animation.getCode())
 
-                self.cv.wait(self.POLL_INTERVAL_SECS)
+                self.cv.wait(self.poll_interval)
         except Exception as e:
             logger.error(f"Fatal error in assembler thread: {e}")
             traceback.print_exc()

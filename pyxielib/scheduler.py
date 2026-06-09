@@ -72,9 +72,10 @@ class Scheduler:
     ## than after a full idle period. Idle polling stays at `period`.
     ACTIVE_PERIOD = 0.02
 
-    def __init__(self, assembler:Assembler, *, period:float=.1, user_menu:UserMenuProgram=None):
+    def __init__(self, assembler:Assembler, *, period:float=.1, active_period=None, user_menu:UserMenuProgram=None):
         self.assembler = assembler
         self.period    = period
+        self.active_period = active_period if active_period is not None else self.ACTIVE_PERIOD
         self.user_menu = user_menu
         self.running   = False
         self.shutdown  = False
@@ -147,7 +148,7 @@ class Scheduler:
         """How long to sleep between polls: snappy while the menu is active so
         keypress feedback isn't delayed, otherwise the normal idle period."""
         if self.user_menu is not None and self.user_menu.active:
-            return min(self.period, self.ACTIVE_PERIOD)
+            return min(self.period, self.active_period)
 
         return self.period
 

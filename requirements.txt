@@ -3,3 +3,4 @@ croniter
 feedparser
 requests
 evdev
+pyyaml

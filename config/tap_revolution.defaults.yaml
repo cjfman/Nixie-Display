@@ -1,0 +1,38 @@
+# Tap Revolution default settings.
+#
+# This file is the version-controlled baseline. At runtime the game writes a
+# separate persistent file (see tap_revolution.persistent_file in the master
+# config); "Reset Settings" in the game menu copies these defaults back over it.
+# Any key omitted here falls back to the code default.
+
+# Which key triggers each lane. Values are arrow names (left/right/up/down) or a
+# single character (e.g. a/d/w/s for a letter layout).
+keys:
+  left:  left
+  right: right
+  up:    up
+  down:  down
+
+# Score buckets, easiest-to-hardest by time threshold (seconds of timing error).
+# A tap within the widest threshold scores; wider is a miss.
+score_buckets:
+  - {name: BEST, threshold: 0.045, points: 100}
+  - {name: GOOD, threshold: 0.090, points: 70}
+  - {name: OK,   threshold: 0.140, points: 40}
+
+# Tapping a lane with nothing in the hit box is a BAD tap.
+bad_tap:
+  enabled: true    # false -> ghost taps are a no-op and BAD is hidden from results
+  cooldown: 0.15   # seconds the lane ignores further BAD taps (0 disables)
+  penalty: 5       # points subtracted per BAD tap (score never goes below 0)
+
+grace: 0.12        # seconds past the widest window before a note auto-misses
+flash_secs: 0.6    # how long the score section flashes a judgement word
+score_width: 4     # right-hand tubes reserved for the live score
+judge_flash: true  # flash the judgement word in the score section
+results_secs: 6    # freeze time for the end-of-game results (if it fits)
+
+# The quick burst shown on the target tube when a note is hit.
+hit_flash:
+  frames: [x, +, x]
+  frame_secs: 0.05

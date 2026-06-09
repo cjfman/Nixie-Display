@@ -3,7 +3,8 @@
 Arrows scroll across the tubes toward a hit zone; the player presses the matching
 arrow key as each arrow arrives. This module is pure game logic with no menu or
 I/O dependencies so it can be unit tested in isolation. The menu integration lives
-in ``menu_library.TapRevolutionItem``.
+in ``menu_library.TapRevolutionMenu`` (settings come from
+``tap_revolution_config.TapRevolutionConfig``).
 
 A note's source of truth is its *absolute target time in seconds*. Beats are just
 one convenient way to express that time (``offset + beat * 60 / bpm``); the engine
@@ -204,7 +205,9 @@ class TapRevolutionAnimation(Animation):
     """
     def __init__(self, level: Level, *, size=16, score_width=4, judge_flash=True,
                  flash_secs=0.6, hit_windows=None, grace=DEFAULT_GRACE,
-                 cooldown=DEFAULT_COOLDOWN, bad_penalty=DEFAULT_BAD_PENALTY, lead_in=None):
+                 cooldown=DEFAULT_COOLDOWN, bad_penalty=DEFAULT_BAD_PENALTY, bad_enabled=True,
+                 hit_flash_frames=HIT_FLASH_FRAMES, hit_flash_frame_secs=HIT_FLASH_FRAME_SECS,
+                 lead_in=None):
         super().__init__()
         self.level = level
         self.size = size
@@ -223,6 +226,9 @@ class TapRevolutionAnimation(Animation):
         self.grace = grace
         self.cooldown = cooldown
         self.bad_penalty = bad_penalty
+        self.bad_enabled = bad_enabled
+        self.hit_flash_frames = tuple(hit_flash_frames)
+        self.hit_flash_frame_secs = hit_flash_frame_secs
         ## Shift every note so the earliest one scrolls in cleanly from the edge.
         self.lead_in = lead_in if lead_in is not None else self.scroll_time
         self.lock = threading.Lock()
@@ -240,7 +246,7 @@ class TapRevolutionAnimation(Animation):
             self.flash_until = 0.0
             self.hit_flash_at = 0.0      ## wall-clock time of the last tap's feedback
             self.hit_flash_hit = False   ## whether that tap landed a note (-> x+x burst)
-            self.cooldown_until: Dict[str, float] = {}  ## per-lane capture-time lockout
+            self.bad_cooldown_until: Dict[str, float] = {}  ## per-lane lockout after a BAD tap
             self._last_code: Optional[str] = None
 
     def tubeCount(self) -> int:
@@ -261,30 +267,38 @@ class TapRevolutionAnimation(Animation):
         if when is None:
             when = time.time()
         with self.lock:
-            ## Ignore the press entirely (no score, no feedback) while this lane is
-            ## still cooling down, so mashing a key can't register repeatedly.
-            if when < self.cooldown_until.get(lane, 0.0):
-                return
-            self.cooldown_until[lane] = when + self.cooldown
-
             elapsed = when - self.start_time
             note, error = self._nearest_unjudged(lane, elapsed)
-            ## Any tap acknowledges itself by dropping the hit-zone underline; a
-            ## landed note additionally triggers the x+x burst (see _render_hit_zone).
-            self.hit_flash_at = time.time()
-            self.hit_flash_hit = note is not None
-            if note is None:
-                ## Nothing in the hit box: a BAD tap. Dock points and break combo.
-                self.bad_taps += 1
-                self.score = max(0, self.score - self.bad_penalty)
-                self.combo = 0
-                self._flash(BAD_WORD)
-                return
-            word, points = self._judge(error)
-            note.judged = word
-            self.score += points
-            self.combo += 1
-            self._flash(word)
+            if note is not None:
+                ## A real hit always scores — never gated by the bad-tap cooldown.
+                self._register_hit(note, error)
+            elif self.bad_enabled and not (self.cooldown and when < self.bad_cooldown_until.get(lane, 0.0)):
+                ## Nothing in the hit box, and the lane isn't on its bad-tap cooldown.
+                ## When bad taps are disabled a ghost tap is a complete no-op.
+                self._register_bad(lane, when)
+
+    def _register_hit(self, note, error):
+        """Score a landed note and fire the x+x hit-zone burst."""
+        self.hit_flash_at = time.time()
+        self.hit_flash_hit = True
+        word, points = self._judge(error)
+        note.judged = word
+        self.score += points
+        self.combo += 1
+        self._flash(word)
+
+    def _register_bad(self, lane, when):
+        """A tap with nothing in the hit box: dock points, break combo, start the
+        lane's bad-tap cooldown so a flurry of mashes can't rack up the penalty.
+        A ``cooldown`` of 0 disables the lockout (every ghost tap is BAD)."""
+        self.hit_flash_at = time.time()
+        self.hit_flash_hit = False
+        self.bad_taps += 1
+        self.score = max(0, self.score - self.bad_penalty)
+        self.combo = 0
+        self._flash(BAD_WORD)
+        if self.cooldown:
+            self.bad_cooldown_until[lane] = when + self.cooldown
 
     def _nearest_unjudged(self, lane, elapsed) -> Tuple[Optional[_NoteState], float]:
         """The closest unjudged note on ``lane`` within the OK window, and its error."""
@@ -344,12 +358,12 @@ class TapRevolutionAnimation(Animation):
     def _render_hit_zone(self, cell, now) -> str:
         """The target tube: underline marker at rest, dropped on a tap, x+x on a hit."""
         elapsed = now - self.hit_flash_at
-        if elapsed >= len(HIT_FLASH_FRAMES) * HIT_FLASH_FRAME_SECS:
+        if elapsed >= len(self.hit_flash_frames) * self.hit_flash_frame_secs:
             return cell + '!'  ## resting: underline marks the target
         if not self.hit_flash_hit:
             return cell        ## tap acknowledged: underline off briefly
 
-        return HIT_FLASH_FRAMES[int(elapsed / HIT_FLASH_FRAME_SECS)]
+        return self.hit_flash_frames[int(elapsed / self.hit_flash_frame_secs)]
 
     def _render_track(self, elapsed) -> List[str]:
         """Place unjudged notes on the shared lockstep grid, merging chords per tube."""
@@ -401,7 +415,8 @@ class TapRevolutionAnimation(Animation):
             if ns.judged is not None:
                 counts[ns.judged] = counts.get(ns.judged, 0) + 1
 
-        counts[BAD_WORD] = self.bad_taps
+        if self.bad_enabled:
+            counts[BAD_WORD] = self.bad_taps
         counts['SCORE'] = self.score
         return counts
 
@@ -414,7 +429,8 @@ class TapRevolutionAnimation(Animation):
         counts = self.results()
         parts = [f"{word} {counts.get(word, 0)}" for word, _, _ in self.hit_windows]
         parts.append(f"{MISS_WORD} {counts.get(MISS_WORD, 0)}")
-        parts.append(f"{BAD_WORD} {counts.get(BAD_WORD, 0)}")
+        if self.bad_enabled:
+            parts.append(f"{BAD_WORD} {counts.get(BAD_WORD, 0)}")
         parts.append(f"SCORE {counts['SCORE']}")
         return '  '.join(parts)
 

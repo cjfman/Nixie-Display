@@ -3,7 +3,7 @@
 # author a chart when you know the BPM (e.g. from sheet music or a DAW).
 name: Demo
 mode: beat
-bpm: 15
+bpm: 60
 offset: 0.0
 scroll_time: 2.0
 audio:            # reserved for future audio sync

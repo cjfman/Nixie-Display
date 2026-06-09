@@ -1,0 +1,31 @@
+# Example master config for run_display, loaded with: ./run_display -c terminal --config config/nixie.example.yaml
+#
+# Every key here is optional. Precedence is: command-line argument > this file >
+# built-in default. Anything omitted falls back to the built-in default, so a
+# minimal config is fine.
+
+# --- equivalents of command-line arguments (CLI overrides these) ---
+# serial: /dev/ttyACM0          # implies the serial controller
+# keyboard_event_file: /dev/input/event0
+animations_dir: animations
+levels_dir: levels
+extended_hours: false           # pre/after-market stock data
+# git_check: 15                 # minutes between update checks (omit to disable)
+git_origin: "@{u}"
+# logfile: ~/logs/nixie.log
+loglevel: info
+
+# --- thread polling cadences (seconds). Values are clamped to safe bounds. ---
+polling:
+  assembler_poll_interval: 0.001   # frame push rate ceiling   [0.0005 .. 0.05]
+  scheduler_period: 0.1            # idle program poll         [0.01 .. 5.0]
+  scheduler_active_period: 0.02    # poll while the menu is open (<= scheduler_period)
+
+# --- optional controller tuning ---
+# controller:
+#   raspi_speed: 1000000          # SPI clock for the raspi controller
+
+# --- Tap Revolution: paths to its own config files ---
+tap_revolution:
+  defaults_file: config/tap_revolution.defaults.yaml
+  persistent_file: config/tap_revolution.yaml   # written at runtime; gitignored
