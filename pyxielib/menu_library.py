@@ -32,8 +32,9 @@ class GitStatusItem(ListItem):
     """
     FETCH_TIMEOUT = 10
 
-    def __init__(self, **kwargs):
+    def __init__(self, size=16, **kwargs):
         super().__init__("Git Status", **kwargs)
+        self.size = size
         self.fetching = False
         self.fetch_failed = False
 
@@ -64,14 +65,13 @@ class GitStatusItem(ListItem):
         self.set_values(self.git_status())
         self.fetching = False
 
-    @classmethod
-    def git_status(cls):
+    def git_status(self):
         """Build the list of status lines, or a single line on failure."""
-        commit = cls._git('rev-parse', '--short', 'HEAD')
+        commit = self._git('rev-parse', 'HEAD')
         if commit is None:
             return ["Not a git repo"]
-        branch = cls._git('symbolic-ref', '--short', '-q', 'HEAD')
-        return [branch or "Detached HEAD", commit, cls._upstream_status()]
+        branch = self._git('symbolic-ref', '--short', '-q', 'HEAD')
+        return [branch or "Detached HEAD", commit[:self.size], self._upstream_status()]
 
     @classmethod
     def _upstream_status(cls):

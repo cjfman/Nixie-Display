@@ -50,7 +50,7 @@ class UserMenuProgram(Program):
             trmenulib.TapRevolutionMenu(tap_config, levels_path, watcher=self.watcher, size=self.size),
             menulib.MirrorItem("Mirror Mode"),
             menulib.SystemInfoItem(),
-            menulib.GitStatusItem(),
+            menulib.GitStatusItem(size=self.size),
             menulib.WiFiMenu(),
             menulib.SleepItem(self.controller),
             menulib.ExitItem("Exit Program"),
