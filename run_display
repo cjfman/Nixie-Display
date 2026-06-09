@@ -30,12 +30,10 @@ def make_parser():
     parser.add_argument('--keyboard-event-file', help="The /dev/input/event file that represents keyboard input")
     parser.add_argument('--animations-dir', help="Directory of animations files")
     parser.add_argument('--levels-dir', help="Directory of Tap Revolution level files")
-    ## A --extended-hours/--no-extended-hours pair (avoids 3.9-only BooleanOptionalAction)
-    ## so either form can override a config value; default None means "not supplied".
-    parser.add_argument('--extended-hours', dest='extended_hours', action='store_const', const=True, default=None,
-        help="Show pre-market and after-market stock data")
-    parser.add_argument('--no-extended-hours', dest='extended_hours', action='store_const', const=False,
-        help="Disable pre/after-market stock data (override the config)")
+    ## default=None so "not supplied" is distinguishable from an explicit value,
+    ## allowing the config file to be overridden in either direction.
+    parser.add_argument('--extended-hours', action=argparse.BooleanOptionalAction, default=None,
+        help="Show (or --no-extended-hours: hide) pre/after-market stock data")
     parser.add_argument('--git-check', type=int, metavar='MINUTES',
         help="Check git for updates every MINUTES minutes and exit when behind origin")
     parser.add_argument('--git-origin', metavar='REF',
