@@ -2,6 +2,7 @@ import logging
 
 import pyxielib.animation_library as animationlib
 from pyxielib import menu_library as menulib
+from pyxielib import tap_revolution_menu as trmenulib
 from pyxielib.animation import Animation
 from pyxielib.key_watcher import KeyWatcher, TerminalKeyWatcher
 from pyxielib.navigator import DisabledItem, Menu, Navigator
@@ -46,7 +47,7 @@ class UserMenuProgram(Program):
         self.navigator = Navigator(Menu("Nixie Menu", [
             menulib.ProgramListItem(self.program_map),
             menulib.AnimationLibraryItem(ani_path),
-            menulib.TapRevolutionMenu(tap_config, levels_path, watcher=self.watcher, size=self.size),
+            trmenulib.TapRevolutionMenu(tap_config, levels_path, watcher=self.watcher, size=self.size),
             menulib.MirrorItem("Mirror Mode"),
             menulib.IpItem(),
             menulib.SystemInfoItem(),
