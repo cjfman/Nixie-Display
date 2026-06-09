@@ -1,12 +1,16 @@
+import logging
 import re
 import os
 import subprocess
 import threading
 
+from pyxielib import tap_revolution as taplib
 from pyxielib.navigator import DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
-from pyxielib.animation import Animation
+from pyxielib.animation import Animation, MarqueeAnimation
 from pyxielib.animation_file import FileAnimation
+
+logger = logging.getLogger(__name__)
 
 
 class IpItem(SubcommandItem):
@@ -549,3 +553,139 @@ class ProgramListItem(ListItem):
         if self.selected:
             self.selected.reset()
         self.selected = None
+
+
+class TapRevolutionItem(ListItem):
+    """Dance-Dance-Revolution-style rhythm game.
+
+    Lists levels (``.trl`` files in ``levels_path`` plus the built-in
+    programmatic charts); selecting one launches a ``TapRevolutionAnimation``.
+    While playing, the arrow keys are taps routed into the animation — timestamped
+    by the key watcher so hit timing is accurate regardless of poll latency — and
+    list navigation is suspended. When the chart finishes (or the player backs out
+    early) a results marquee plays before returning to the level list.
+    """
+    RESULTS_SECS = 6
+
+    def __init__(self, levels_path, *, watcher=None, size=16, **kwargs):
+        super().__init__("Tap Revolution", **kwargs)
+        self.levels_path = levels_path
+        self.watcher     = watcher
+        self.size        = size
+        self.level_files = {}
+        self.animation   = None
+        self.results     = None
+
+    def activate(self):
+        self.level_files = self._scan_levels()
+        self.set_values(sorted(taplib.BUILTIN_LEVELS) + sorted(self.level_files))
+
+    def _scan_levels(self):
+        """Map each .trl file's 'name:' title to its path; built-ins added separately.
+
+        Repeated titles are disambiguated with a '<N>' suffix, like
+        AnimationLibraryItem (angle brackets render on the nixie; parens don't).
+        """
+        try:
+            files = sorted(x for x in os.listdir(self.levels_path) if x.endswith('.trl'))
+        except OSError:
+            return {}
+
+        levels = {}
+        counts = {}
+        for f in files:
+            path = os.path.join(self.levels_path, f)
+            levels[self._unique_name(taplib.Level.read_title(path), counts)] = path
+
+        return levels
+
+    @staticmethod
+    def _unique_name(title, counts) -> str:
+        """Disambiguate a repeated title by appending '<N>' (first keeps the bare title)."""
+        seen = counts.get(title, 0)
+        counts[title] = seen + 1
+        return title if seen == 0 else f"{title}<{seen + 1}>"
+
+    def reset(self):
+        super().reset()
+        self.set_values(None)
+        self.level_files = {}
+        self.animation   = None
+        self.results     = None
+
+    def _playing(self) -> bool:
+        return self.animation is not None and self.results is None
+
+    def for_display(self):
+        if self.results is not None:
+            if self.results.done():
+                self.animation = None
+                self.results = None
+                return super().for_display()
+            return self.results
+        if self.animation is not None:
+            if self.animation.done():
+                self.results = self._make_results()
+                return self.results
+            return self.animation
+
+        return super().for_display()
+
+    def _make_results(self) -> Animation:
+        return MarqueeAnimation.fromText(self.animation.results_text(), self.size, freeze=self.RESULTS_SECS)
+
+    def _load_level(self, name):
+        """Resolve a menu name to a Level, or None if it can't be loaded."""
+        if name in taplib.BUILTIN_LEVELS:
+            return taplib.BUILTIN_LEVELS[name]
+        path = self.level_files.get(name)
+        if path is None:
+            return None
+        try:
+            return taplib.Level.from_file(path)
+        except Exception as e:
+            logger.error(f"Failed to load level '{name}': {e}")
+            return None
+
+    def _tap(self, lane):
+        when = self.watcher.last_pop_time if self.watcher is not None else None
+        self.animation.tap(lane, when)
+
+    def key_enter(self):
+        if self.animation is not None or self.results is not None:
+            return
+        level = self._load_level(self.current_value())
+        if level is not None:
+            self.animation = taplib.TapRevolutionAnimation(level, size=self.size)
+
+    def key_up(self):
+        if self._playing():
+            self._tap('U')
+        else:
+            super().key_up()
+
+    def key_down(self):
+        if self._playing():
+            self._tap('D')
+        else:
+            super().key_down()
+
+    def key_left(self):
+        if self._playing():
+            self._tap('L')
+
+    def key_right(self):
+        if self._playing():
+            self._tap('R')
+
+    def key_esc(self):
+        if self._playing():
+            self.results = self._make_results()  ## abort -> show score so far
+        elif self.results is not None:
+            self.animation = None
+            self.results = None
+        else:
+            self.set_done()
+
+    def key_backspace(self):
+        self.key_esc()

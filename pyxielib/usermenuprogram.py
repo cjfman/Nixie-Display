@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class UserMenuProgram(Program):
-    def __init__(self, event_path=None, *, program_map=None, ani_path='animations', controller=None, **kwargs):
+    def __init__(self, event_path=None, *, program_map=None, ani_path='animations', levels_path='levels', controller=None, **kwargs):
         super().__init__("User Control", **kwargs)
         self.event_path       = event_path
         self.program_map      = program_map or {}
@@ -42,6 +42,7 @@ class UserMenuProgram(Program):
         self.navigator = Navigator(Menu("Nixie Menu", [
             menulib.ProgramListItem(self.program_map),
             menulib.AnimationLibraryItem(ani_path),
+            menulib.TapRevolutionItem(levels_path, watcher=self.watcher, size=self.size),
             menulib.MirrorItem("Mirror Mode"),
             menulib.IpItem(),
             menulib.GitStatusItem(),
@@ -88,21 +89,23 @@ class UserMenuProgram(Program):
 
     def makeAnimation(self) -> Animation:
         """Make the menu animation"""
-        ## Check the key watcher
-        key = None
+        ## Drain every key queued since the last poll. Processing the whole burst
+        ## in one poll (rather than one key per ~100ms poll) keeps a rhythm game
+        ## responsive; each key still carries its own capture time, so hit timing
+        ## stays accurate even when several arrive together.
+        msg = None
         self.should_interrupt = True
-        if self.watcher.can_pop() and not self.should_exit:
+        while self.watcher.can_pop() and not self.should_exit:
             self.active = True
             try:
                 key = self.watcher.pop()
             except KeyboardInterrupt:
                 self.menu_exit()
                 return None
-
-        ## Enter key into the navigator
-        msg = None
-        if key is not None:
-            msg = self.navigator.key_entry(key)
+            if key is not None:
+                msg = self.navigator.key_entry(key)
+            if self.navigator.should_exit:
+                break
 
         ## If the key watcher didn't return a key, check the
         ## menu for an update anyway

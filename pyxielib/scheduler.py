@@ -67,6 +67,11 @@ class ScheduleEntry:
 
 
 class Scheduler:
+    ## While the user menu is active, poll this often instead of every `period`, so
+    ## a keypress (and its on-screen feedback) is handled within ~one frame rather
+    ## than after a full idle period. Idle polling stays at `period`.
+    ACTIVE_PERIOD = 0.02
+
     def __init__(self, assembler:Assembler, *, period:float=.1, user_menu:UserMenuProgram=None):
         self.assembler = assembler
         self.period    = period
@@ -138,6 +143,14 @@ class Scheduler:
             if ani is not None:
                 self.assembler.setAnimation(ani)
 
+    def _wait_period(self) -> float:
+        """How long to sleep between polls: snappy while the menu is active so
+        keypress feedback isn't delayed, otherwise the normal idle period."""
+        if self.user_menu is not None and self.user_menu.active:
+            return min(self.period, self.ACTIVE_PERIOD)
+
+        return self.period
+
     def handler(self):
         """The main scheduler loop"""
         self.cv.acquire()
@@ -158,7 +171,7 @@ class Scheduler:
                         traceback.print_exc()
                         self.idle()
 
-                self.cv.wait(self.period)
+                self.cv.wait(self._wait_period())
         except Exception as e:
             logger.error(f"Fatal error in scheduler thread: {e}")
             traceback.print_exc()

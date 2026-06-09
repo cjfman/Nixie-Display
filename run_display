@@ -24,6 +24,7 @@ def make_parser():
     parser.add_argument('-v', '--verbose', action='store_true', help="Be verbose in output")
     parser.add_argument('--keyboard-event-file', help="The /dev/input/event file that represents keyboard input")
     parser.add_argument('--animations-dir', default=os.path.join(file_dir, 'animations'), help="Directory of animations files")
+    parser.add_argument('--levels-dir', default=os.path.join(file_dir, 'levels'), help="Directory of Tap Revolution level files")
     parser.add_argument('--extended-hours', action='store_true',
         help="Show pre-market and after-market stock data")
     parser.add_argument('--git-check', type=int, metavar='MINUTES',
@@ -116,6 +117,7 @@ def main(args):
         user_prgm = usermenuprogram.UserMenuProgram(
             args.keyboard_event_file,
             ani_path=args.animations_dir,
+            levels_path=args.levels_dir,
             controller=ctrl,
             program_map=program_map,
         )

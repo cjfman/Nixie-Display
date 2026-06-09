@@ -1,0 +1,21 @@
+# Tap Revolution demo level (beat mode)
+# Notes are placed on beats at the given tempo. This is the easiest way to
+# author a chart when you know the BPM (e.g. from sheet music or a DAW).
+name: Demo
+mode: beat
+bpm: 15
+offset: 0.0
+scroll_time: 2.0
+audio:            # reserved for future audio sync
+
+# beat   arrow(s)
+1.0    left
+2.0    down
+3.0    up
+4.0    right
+5.0    left
+5.5    up
+6.0    right
+6.5    down
+7.0    left, right     # hit both at once
+8.0    up, down

@@ -1,0 +1,20 @@
+# Tap Revolution demo level (time mode)
+# Notes are absolute seconds from the start. Use this when all you have is a
+# recording: tap a chart out by ear (e.g. with the test script's --record mode),
+# no BPM required.
+name: Demo <by ear>
+mode: time
+scroll_time: 2.0
+audio:
+
+# sec    arrow(s)
+0.50   left
+1.00   down
+1.50   up
+2.00   right
+2.50   left
+2.75   up
+3.00   right
+3.25   down
+3.50   left, right
+4.00   up, down

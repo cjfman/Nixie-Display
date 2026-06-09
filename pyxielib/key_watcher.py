@@ -79,6 +79,9 @@ class KeyWatcher:
         self.dev = None
         self.running = True
         self.stopped = False
+        ## Capture timestamp (epoch seconds) of the most recently popped key, so a
+        ## rhythm game can score a tap by when it was pressed, not when polled.
+        self.last_pop_time = None
         self.keys_down = set()
         self.active = (not self.trigger)
         self.thread = threading.Thread(target=self.run)
@@ -91,6 +94,7 @@ class KeyWatcher:
     def reset(self):
         """Reset the key watcher"""
         self.active = (not self.trigger)
+        self.last_pop_time = None
         self.queue = Queue()
 
     def shifted(self) -> bool:
@@ -246,6 +250,9 @@ class KeyWatcher:
         if not key.keycode.startswith('KEY_'):
             return None
 
+        ## Record when the key was physically pressed for accurate hit timing
+        self.last_pop_time = key.event.timestamp()
+
         ## Clean up the key
         return self.code_to_char(key.keycode)
 
@@ -283,6 +290,8 @@ class TerminalKeyWatcher:
         self.queue   = Queue()
         self.running = True
         self.stopped = False
+        ## See KeyWatcher.last_pop_time: capture time of the most recent pop.
+        self.last_pop_time = None
         self._fd     = sys.stdin.fileno()
         self.thread  = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
@@ -290,15 +299,21 @@ class TerminalKeyWatcher:
     def reset(self):
         """Deactivate and discard pending keystrokes"""
         self.active = False
+        self.last_pop_time = None
         self.queue = Queue()
 
     def can_pop(self) -> bool:
         return not self.queue.empty()
 
+    def _enqueue(self, key):
+        """Queue a key paired with its capture time"""
+        self.queue.put((key, time.time()))
+
     def pop(self):
         if self.queue.empty():
             return None
-        return self.queue.get()
+        key, self.last_pop_time = self.queue.get()
+        return key
 
     def stop(self):
         self.running = False
@@ -331,7 +346,7 @@ class TerminalKeyWatcher:
                     if self.owner is not None:
                         self.owner.wake()
                 else:
-                    self.queue.put('ESC')
+                    self._enqueue('ESC')
                 return
 
             if b2 != b'[':
@@ -342,20 +357,20 @@ class TerminalKeyWatcher:
                 arrow_map = {b'A': 'UP', b'B': 'DOWN', b'C': 'RIGHT', b'D': 'LEFT'}
                 key = arrow_map.get(direction)
                 if key:
-                    self.queue.put(key)
+                    self._enqueue(key)
             return
 
         if not self.active:
             return
 
         if b in (b'\n', b'\r'):
-            self.queue.put('ENTER')
+            self._enqueue('ENTER')
         elif b in (b'\x7f', b'\x08'):
-            self.queue.put('BACKSPACE')
+            self._enqueue('BACKSPACE')
         else:
             try:
                 c = b.decode('utf-8')
                 if c.isprintable():
-                    self.queue.put(c)
+                    self._enqueue(c)
             except UnicodeDecodeError:
                 pass
