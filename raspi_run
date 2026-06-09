@@ -4,6 +4,8 @@ cd $HOME/Nixie-Display
 /home/nixie/Nixie-Display/send_text -n -c raspi "Pulling from Git"
 git checkout nixie-live
 git pull -f || echo "Failed to pull latest code from git"
+pip install -q --break-system-packages -r $HOME/Nixie-Display/requirements.txt || \
+    pip install -q -r $HOME/Nixie-Display/requirements.txt
 cd $HOME
 /home/nixie/Nixie-Display/send_text -n -c raspi "Starting..."
 /home/nixie/Nixie-Display/run_display -c raspi --keyboard-event-file /dev/input/event0 --extended-hours --git-check 5 --logfile logs/nixie.log --loglevel debug 2>logs/nixie.stderr
