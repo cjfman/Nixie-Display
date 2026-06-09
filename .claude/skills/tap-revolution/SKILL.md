@@ -1,6 +1,6 @@
 ---
 name: tap-revolution
-description: Reference for the Tap Revolution rhythm game — architecture, data model, config files, menu structure, and the .trl level format. Use when reading, writing, or debugging files in pyxielib/tap_revolution.py, pyxielib/tap_revolution_config.py, pyxielib/menu_library.py (TapRevolutionMenu), levels/, or config/tap_revolution*.yaml.
+description: Reference for the Tap Revolution rhythm game — architecture, data model, config, in-game settings editing, and the .trl level format. Use when reading, writing, or debugging files in pyxielib/tap_revolution.py, pyxielib/tap_revolution_config.py, pyxielib/tap_revolution_menu.py, levels/, or config/tap_revolution*.yaml.
 ---
 
 # Tap Revolution
@@ -15,12 +15,14 @@ as each arrow arrives.
 |---|---|
 | `pyxielib/tap_revolution.py` | Pure game logic — `Note`, `Level`, `TapRevolutionAnimation`. No file I/O or menu deps. |
 | `pyxielib/tap_revolution_config.py` | `TapRevolutionConfig` — loads/merges YAML settings, adapts them for the animation. |
-| `pyxielib/menu_library.py` | `TapRevolutionMenu` and its three children (Play, Settings, Reset Settings). |
+| `pyxielib/tap_revolution_menu.py` | All four menu classes (see Menu structure below). |
 | `pyxielib/key_watcher.py` | `last_pop_time` on both watchers — key capture timestamp for accurate scoring. |
 | `levels/` | `.trl` level files (beat-mode or time-mode). |
 | `config/tap_revolution.defaults.yaml` | Version-controlled default settings. |
-| `config/tap_revolution.yaml` | Runtime persistent settings (gitignored — created from defaults on first run). |
+| `config/tap_revolution.yaml` | Runtime persistent settings (gitignored — seeded from defaults on first run). |
 | `scripts/test_tap_revolution.py` | Terminal preview (`--autoplay`, `--jitter`) and `--record` authoring mode. |
+
+`usermenuprogram.py` imports `tap_revolution_menu` as `trmenulib` (not via `menu_library`).
 
 ---
 
@@ -33,8 +35,8 @@ class Note:
     time: float   # absolute seconds from chart start — the source of truth
     lane: str     # one of 'L', 'R', 'U', 'D'
 ```
-Beats are just one way to *express* a time (`offset + beat * 60 / bpm`); the engine
-and scoring always work in absolute seconds.
+Beats are one way to express a time (`offset + beat * 60 / bpm`); the engine and
+scoring always use absolute seconds.
 
 ### `Level`
 ```python
@@ -43,99 +45,67 @@ class Level:
     name: str
     notes: List[Note]         # sorted by time
     bpm: Optional[float]      # only needed for beat-mode authoring
-    offset: float             # seconds before the first beat
-    scroll_time: float        # seconds for an arrow to cross the full track (default 2.0)
+    offset: float
+    scroll_time: float        # seconds for an arrow to cross the track (default 2.0)
     audio: Optional[str]      # reserved for future audio sync
 ```
 
-**Constructors:**
-- `Level.from_file(path)` — parse a `.trl` file.
-- `Level.from_string(text)` — parse `.trl` content from a string.
-- `Level.from_beats(name, bpm, beats, **kw)` — `beats` is `[(beat, lane), ...]`.
-- `Level.from_times(name, times, **kw)` — `times` is `[(seconds, lane), ...]`.
-- `Level.read_title(path)` — read only the `name:` header (cheap, for menu listing).
+Constructors: `Level.from_file(path)`, `Level.from_string(text)`,
+`Level.from_beats(name, bpm, beats, **kw)`, `Level.from_times(name, times, **kw)`,
+`Level.read_title(path)` (cheap header-only read for menu listing).
 
-**Programmatic levels** available without any file:
-```python
-from pyxielib.tap_revolution import BUILTIN_LEVELS
-level = BUILTIN_LEVELS["Demo <builtin>"]
-```
+Programmatic: `from pyxielib.tap_revolution import BUILTIN_LEVELS` →
+`BUILTIN_LEVELS["Demo <builtin>"]`.
 
 ---
 
 ## Level file format (`.trl`)
 
-Two modes — the parser auto-detects based on the `mode:` header (or presence of `bpm:`).
-
-### Beat mode
 ```
-name: My Level
-mode: beat          # default when bpm is present
-bpm: 120
+# Beat mode (BPM known)          # Time mode (from a recording)
+name: My Level                   name: My Level <by ear>
+mode: beat                       mode: time
+bpm: 120                         scroll_time: 2.0
 offset: 0.0
 scroll_time: 2.0
-audio:              # reserved
 
-# beat   arrow(s)
-1.0    left
-2.0    right, down  # simultaneous notes (comma-separated)
-3.0    up
+1.0   left                       0.50  left
+2.0   right, down                1.00  right, down
+3.0   up                         1.50  up
 ```
 
-### Time mode (author from a recording — no BPM needed)
-```
-name: My Level <by ear>
-mode: time          # note values are absolute seconds
-scroll_time: 2.0
-
-# sec    arrow(s)
-0.50   left
-1.00   right, down
-1.50   up
-```
-
-**Arrow names:** `left`/`right`/`up`/`down` (also `l`/`r`/`u`/`d`).  
-**Header rules:** `key: value` lines before the first note; `#` comments and blank
-lines ignored. `mode` defaults to `beat` if `bpm` is present, else `time`.  
-**Nixie printability:** use `<` and `>` (not `(` and `)`) in level names — parens
-are `NOCODE` on the display.
+Arrow names: `left`/`right`/`up`/`down` (or `l`/`r`/`u`/`d`). `mode` defaults
+to `beat` if `bpm` present, else `time`. Use `<>` not `()` in names — parens are
+NOCODE on the display.
 
 ---
 
 ## `TapRevolutionAnimation`
 
-Subclass of `Animation`. The Assembler drives it at 1 ms polling; scoring runs in
-the scheduler/menu thread — a `threading.Lock` guards shared state.
+Assembler drives `updateFrameSet()` at 1 ms; scoring runs in the scheduler/menu
+thread. A `threading.Lock` guards shared state. `__eq__` is identity.
 
-### Constructor (all keyword-only after `level`)
 ```python
 TapRevolutionAnimation(
     level,
     size=16, score_width=4,
     hit_windows=DEFAULT_HIT_WINDOWS,   # ((name, threshold_s, points), ...)
     grace=DEFAULT_GRACE,               # s past ok_window before auto-miss
-    cooldown=DEFAULT_COOLDOWN,         # s bad-tap lane lockout (0 disables)
+    cooldown=DEFAULT_COOLDOWN,         # s bad-tap lane lockout after a BAD tap (0=off)
     bad_penalty=DEFAULT_BAD_PENALTY,   # points docked per BAD tap
     bad_enabled=True,                  # False -> ghost taps are a no-op
-    judge_flash=True,                  # flash judgement word in score section
+    judge_flash=True,
     flash_secs=0.6,
-    hit_flash_frames=HIT_FLASH_FRAMES,           # ('x', '+', 'x')
-    hit_flash_frame_secs=HIT_FLASH_FRAME_SECS,   # 0.05
+    hit_flash_frames=HIT_FLASH_FRAMES,         # ('x', '+', 'x')
+    hit_flash_frame_secs=HIT_FLASH_FRAME_SECS, # 0.05
     lead_in=None,                      # defaults to scroll_time
 )
 ```
 
-### Key methods
-- `tap(lane, when=None)` — score a tap. `when` is the key's capture epoch time
-  (`watcher.last_pop_time`); defaults to `time.time()`. Thread-safe.
-- `done()` — True once the last arrow has scrolled off + 0.5 s tail.
-- `reset()` — re-anchor and clear all state; the animation is replayable.
-- `results() -> Dict[str, int]` — tally of judgement words + `'SCORE'`.
-- `results_text() -> str` — human-readable summary for the results marquee;
-  ends with `SCORE n` so the marquee ends on the headline number.
-- `__eq__` is identity — `Program.update()` never resets a live game.
+Key methods: `tap(lane, when=None)`, `done()`, `reset()`, `results()`,
+`results_text()`.
 
-### Scoring and judgement
+### Scoring
 
 | Bracket | Default window | Points |
 |---|---|---|
@@ -143,51 +113,39 @@ TapRevolutionAnimation(
 | GOOD | ≤ 90 ms | 70 |
 | OK | ≤ 140 ms | 40 |
 | MISS | auto (past ok + grace) | 0 |
-| BAD | ghost tap (nothing in window) | −5, combo reset |
+| BAD | ghost tap, nothing in window | −5, combo reset |
 
-- **Real hits are never gated** by the bad-tap cooldown — only ghost/BAD taps lock
-  a lane. `cooldown=0` disables the lockout (every ghost tap is BAD).
-- **`bad_enabled=False`** makes ghost taps a complete no-op; `BAD` is also omitted
-  from `results()` and `results_text()`.
-- Scoring uses `when` (the **capture timestamp**), not poll time, so accuracy is
-  independent of the ~20 ms scheduler poll cadence.
+**Cooldown is bad-taps-only**: real hits are never gated; only ghost/BAD taps
+lock a lane. `cooldown=0` disables; `bad_enabled=False` makes ghost taps a no-op
+and hides BAD from results.
 
 ### Glyphs
 ```python
 LANE_GLYPH = {'L': '<', 'R': '>', 'U': '^', 'D': '{0x0140}'}
 ```
-`{0x0140}` is a `\ /` chevron (down arrow) mirroring `^` (`/ \`). Simultaneous
-notes on the same tube are OR'd into one combined bitmap so chords are visible.
+`{0x0140}` = `\ /` chevron (mirrors `^` = `/ \`). Chords on the same tube are
+OR'd into one combined bitmap.
 
 ---
 
 ## Configuration (`tap_revolution_config.py`)
 
-### `TapRevolutionConfig(defaults_path=None, persistent_path=None)`
-
 Merge order: **code constants ← defaults file ← persistent file**.
-
-On first run, if the persistent file is missing it is seeded from the defaults file.
-With no paths, falls back to code constants with no persistence.
 
 ```python
 cfg = TapRevolutionConfig(
     'config/tap_revolution.defaults.yaml',
-    'config/tap_revolution.yaml',        # runtime; gitignored
+    'config/tap_revolution.yaml',
 )
 ```
 
-**Key methods:**
-- `animation_kwargs() -> dict` — pass directly to `TapRevolutionAnimation(level, size, **cfg.animation_kwargs())`.
-- `key_lane_map() -> Dict[str, str]` — maps incoming key tokens to lanes; pass to
-  the levels item so play routing goes through the config. Tokens are the Navigator
-  strings (`'LEFT'`, `'RIGHT'`, `'UP'`, `'DOWN'`) or a literal character (`'a'`).
-- `summary_lines() -> List[str]` — printable, nixie-safe lines for the Settings view.
-- `results_secs() -> int` — freeze duration for the results marquee.
-- `save()` — persist current settings (for future in-game edits).
-- `reset()` — restore defaults into the persistent file and active settings.
+Key methods: `animation_kwargs()`, `key_lane_map()`, `results_secs()`,
+`summary_lines()`, `save()`, `reset()`, `validate_buckets(buckets)` (static).
 
-### Settings schema (`tap_revolution.defaults.yaml`)
+`key_lane_map()` returns `{token: lane}` where tokens are `'LEFT'`/`'RIGHT'`/
+`'UP'`/`'DOWN'` for arrow keys or a literal char (`'a'`).
+
+Settings schema:
 ```yaml
 keys:          {left: left, right: right, up: up, down: down}
 score_buckets:
@@ -197,114 +155,100 @@ score_buckets:
 bad_tap:       {enabled: true, cooldown: 0.15, penalty: 5}
 grace: 0.12
 flash_secs: 0.6
-score_width: 4
+score_width: 4      ## read-only in settings UI
 judge_flash: true
-hit_flash:     {frames: [x, +, x], frame_secs: 0.05}
+hit_flash:     {frames: [x, +, x], frame_secs: 0.05}   ## read-only in settings UI
 results_secs: 6
 ```
 
-**`keys`:** values are arrow names (`left`/`right`/`up`/`down`) or a single
-character (`a`, `d`, etc.) for a custom key layout.  
-**`bad_tap.enabled: false`** — ghost taps become a no-op; `BAD` is hidden from results.  
-**`bad_tap.cooldown: 0`** — disables the lane lockout (every ghost tap is BAD).
+`run_display.make_tap_config(cfg)` falls back to the project-relative
+`config/tap_revolution.defaults.yaml` and `config/tap_revolution.yaml` when the
+master config omits `tap_revolution:` paths, so settings persist without `--config`.
 
 ---
 
-## Menu structure (`menu_library.py`)
+## Menu structure (`tap_revolution_menu.py`)
 
 ```
 TapRevolutionMenu (Menu)
-├── TapRevolutionLevelsItem "Play"   (ListItem)
-├── TapRevolutionSettingsItem        (ListItem, read-only)
-└── ResetSettingsItem                (MenuItem, y/n confirm)
+├── TapRevolutionLevelsItem  "Play"          (ListItem)
+├── TapRevolutionSettingsItem "Settings"     (MenuItem, full state machine)
+└── ResetSettingsItem         "Reset Settings" (MenuItem, y/n → flashes DONE)
 ```
 
-**`TapRevolutionMenu(config, levels_path, *, watcher, size)`** — the top-level
-entry in the Nixie Menu. `watcher` is the `KeyWatcher`/`TerminalKeyWatcher`; its
-`last_pop_time` is passed into `tap()` for capture-accurate scoring.
+### `TapRevolutionLevelsItem`
+Lists `.trl` files (by `name:` header) + `BUILTIN_LEVELS`. `key_enter()` launches
+a game built from `config.animation_kwargs()` and caches `config.key_lane_map()`.
+Arrow keys and `key_char` route through the key map during play; ESC aborts to
+results marquee.
 
-**`TapRevolutionLevelsItem`:**
-- `activate()` — scans `levels_path` for `.trl` files, titles them by `name:` header
-  (falling back to filename stem), disambiguates duplicates with `<N>`, and prepends
-  `BUILTIN_LEVELS`.
-- `key_enter()` — loads the selected level, builds `TapRevolutionAnimation` from
-  `config.animation_kwargs()`, caches `config.key_lane_map()`.
-- During play, `key_up/down/left/right` and `key_char(c)` all route through
-  `_play_key(token)`, which looks up the lane in the cached key map. List navigation
-  resumes when not playing.
-- ESC/Backspace while playing → results marquee; while viewing results → back to list.
+### `TapRevolutionSettingsItem` — state machine
 
-**`TapRevolutionSettingsItem`:** `activate()` refreshes lines from `config.summary_lines()`.
+States: `browse` → `edit` / `key_capture` / `sub_browse` / `bucket` / `bucket_edit`
+→ `save_confirm`.
 
-**`ResetSettingsItem`:** shows `Reset Y/N`; `y` → `config.reset()` → `Settings reset`; `n` or Enter on done → exits. Reset takes effect on the next `key_enter` (next level launch).
+All edits go to a `_draft` copy. ESC from `browse`:
+- no changes → `set_done()` immediately (no prompt)
+- dirty → `save_confirm` ("SAVE Y/N")
+  - `y` → save + flash "SAVED" (1 s) → auto-dismiss
+  - `n` → flash "CANCELED" (1 s) → auto-dismiss
+  - ESC → cancel the confirm, back to browse
+
+Sub-menus (entered via `sub_browse` state):
+- **KEY MAPPINGS** — Left / Right / Up / Down key bindings. `key_enter` opens
+  `key_capture` ("PRESS KEY"); the next char or arrow key auto-commits.
+  Arrow values display as e.g. `"left key"`.
+- **SCORE RANGES** — BEST / GOOD / OK buckets. Entering one opens `bucket`
+  (thresh/points sub-list). ESC validates all buckets on exit — thresholds must
+  strictly increase, points strictly decrease; on failure the edited bucket is
+  reverted and "INVALID" flashes.
+- **BAD/GHOST HIT** — bad_tap.enabled (bool), penalty (int), cooldown (ms,
+  hidden when disabled).
+
+Edit mode display format: `"{title} | {value_or_buffer}"`.
+- Numeric: blinking `" !"` cursor; backspace deletes digits; bad penalty always
+  shows `-` prefix (display-only, can't be backspaced).
+- Bool: title shown, value word blinks with underline (e.g. `"JUDGE | O!N!"`).
+- Buffer pre-filled with current value on entry.
+- `score_width` and `hit_flash` are read-only (visible, Enter does nothing).
+
+### `ResetSettingsItem`
+"Reset Y/N" → `y` calls `config.reset()` then flashes "DONE" for 1 s → auto-dismiss.
+Enter or any key during the flash dismisses early.
 
 ---
 
 ## Key capture timestamps
 
-Both `KeyWatcher` (evdev) and `TerminalKeyWatcher` expose `last_pop_time` (epoch
-seconds) after each `pop()`. The levels item reads this before calling `tap()`:
+Both `KeyWatcher` and `TerminalKeyWatcher` expose `last_pop_time` (epoch seconds)
+after each `pop()`. The levels item passes it to `tap()` so accuracy is independent
+of the ~20 ms scheduler poll cadence.
 
-```python
-when = self.watcher.last_pop_time if self.watcher is not None else None
-self.animation.tap(lane, when)
-```
-
-`evdev` events carry a hardware timestamp; `TerminalKeyWatcher` uses `time.time()`
-at enqueue. Both are epoch seconds matching `TapRevolutionAnimation.start_time`.
-
----
-
-## Master config and polling
-
-**`pyxielib/config.py`** handles the master YAML (`--config`).
-Precedence: **CLI > config file > hardcoded default** (`config.resolve`).
-
-Tap Revolution paths live under `tap_revolution:` in the master config:
-```yaml
-tap_revolution:
-  defaults_file: config/tap_revolution.defaults.yaml
-  persistent_file: config/tap_revolution.yaml
-```
-
-Polling periods (in `polling:`) are clamped to safe bounds:
-| Key | Default | Clamp |
-|---|---|---|
-| `assembler_poll_interval` | 0.001 s | [0.0005, 0.05] |
-| `scheduler_period` | 0.1 s | [0.01, 5.0] |
-| `scheduler_active_period` | 0.02 s | [0.005, period] |
-
-`scheduler_active_period` is the poll cadence while the user menu is open (keeps
-key→feedback latency ~20 ms during gameplay). It is capped at `scheduler_period`.
+`UserMenuProgram.makeAnimation()` checks `navigator.node.is_done()` after
+`for_display()`, so timed auto-dismiss (flash expiry → `set_done()`) fires without
+needing a keypress.
 
 ---
 
 ## Testing
 
 ```bash
-# Full autoplay (all notes hit perfectly)
 python scripts/test_tap_revolution.py -a levels/demo.trl --autoplay --no-clear
-
-# Test timing brackets: +0.07s -> GOOD, +0.12s -> OK, +0.30s -> all MISS
 python scripts/test_tap_revolution.py -a levels/demo.trl --autoplay --jitter 0.07 --no-clear
-
-# Play a builtin level
 python scripts/test_tap_revolution.py -a "Demo <builtin>" --autoplay --no-clear
-
-# Record a new chart by ear (outputs a time-mode .trl to stdout)
 python scripts/test_tap_revolution.py --record --name "My Song"
 ```
 
-Expected autoplay result (perfect game): `BEST 12  GOOD 0  OK 0  MISS 0  BAD 0  SCORE 1200`
+Expected perfect-game result: `BEST 12  GOOD 0  OK 0  MISS 0  BAD 0  SCORE 1200`
 
 ---
 
 ## What's still future
 
-- **In-game settings editing** — Settings submenu is read-only display + Reset for
-  now. `TapRevolutionConfig.save()` exists for when editing is added.
-- **CronScheduler schedule configurable** — currently hardcoded in `run_display`.
-  The config loader returns a plain dict so a future `schedule:` key is localized.
-- **Audio sync** — `Level.audio` and the `.trl` `audio:` key are reserved. Notes
-  are already on an absolute-seconds timeline; `start_time` is the single anchor
-  that audio playback would also use.
+- **CronScheduler schedule** — hardcoded in `run_display`; the config loader
+  returns a plain dict so a `schedule:` key is a localized add when ready.
+- **Audio sync** — `Level.audio` and `.trl` `audio:` are reserved. Notes are on
+  the same absolute-seconds timeline audio would use; `start_time` is the single
+  anchor.
+- **In-game settings value editing for new settings** — future settings should be
+  assumed read-only in the UI unless explicitly made editable.
