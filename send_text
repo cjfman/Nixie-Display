@@ -21,7 +21,7 @@ while [[ $# -gt 0 ]]; do
             debug=true
             shift
             ;;
-        -c|--controller|-s|--serial)
+        -c|--controller|-s|--serial|--keyboard-event-file)
             opts+=("$1" "$2")
             pyprint_args+=("$1" "$2")
             shift 2
@@ -57,9 +57,9 @@ if $debug; then
         rm -f "$nixie_errfile"
         if [[ -n "$err_msg" ]]; then
             "$PYPRINT" -n "${opts[@]}" "debug mode"
-			sleep 1
-            "$PYPRINT" -n "${opts[@]}" "$err_msg"
-            sleep 3
+            sleep 1
+            mapfile -t err_lines <<< "$err_msg"
+            "$PYPRINT" -n -i "${opts[@]}" "${err_lines[@]}"
         fi
         "$PYPRINT" -n "${pyprint_args[@]}"
     else
