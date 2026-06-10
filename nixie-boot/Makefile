@@ -1,7 +1,7 @@
 CC     = gcc
 CFLAGS = -Wall -O2 -I../nixie-control-board
-TARGET = nixie_boot
-SRCS   = nixie_boot.c ../nixie-control-board/decoder.c
+TARGET = nixie_cat
+SRCS   = nixie_cat.c ../nixie-control-board/decoder.c
 
 CROSS_IMAGE      = nixie-cross
 CROSS_CC         = arm-linux-gnueabihf-gcc
