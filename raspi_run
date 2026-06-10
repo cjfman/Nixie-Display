@@ -2,8 +2,12 @@
 NIXIE_DIR=$HOME/Nixie-Display
 
 nixie_print() {
-    "$NIXIE_DIR/nixie-cat/nixie-cat" "$1" || \
+    "$NIXIE_DIR/nixie-cat/nixie-cat" "$1"
+	if [[ $? -ne 0 ]]; then
+        "$NIXIE_DIR/send_text" -n -c raspi "PyPrint Backup"
+		sleep 1
         "$NIXIE_DIR/send_text" -n -c raspi "$1"
+	fi
 }
 
 cd $NIXIE_DIR
