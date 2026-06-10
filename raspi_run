@@ -1,6 +1,6 @@
 #!/bin/bash
 NIXIE_DIR=$HOME/Nixie-Display
-nixie_print() { "$NIXIE_DIR/send_text" --debug "$@"; }
+nixie_print() { "$NIXIE_DIR/send_text" --debug -c raspi "$@"; }
 
 cd "$NIXIE_DIR"
 #nixie_print "$(ip route get 8.8.8.8 | head -1 | cut -d' ' -f7)" && sleep 10
