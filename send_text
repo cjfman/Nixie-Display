@@ -1,45 +1,35 @@
-#! /usr/bin/python3
-##pylint: disable=wrong-import-position
+#!/bin/bash
+# Wrapper: try nixie-cat first (fast C path), fall back to pyprint on failure.
+# pyprint optional flags are parsed and stripped; remaining positionals go to nixie-cat.
+# On failure, all original arguments are forwarded to pyprint unchanged.
 
-import argparse
-import sys
+all_args=("$@")
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+NIXIE_CAT="$SCRIPT_DIR/nixie-cat/nixie-cat"
+PYPRINT="$SCRIPT_DIR/pyprint"
 
-import pyxielib.animation_library as animationlib
-from pyxielib import controller
+positionals=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -c|--controller|-s|--serial)
+            shift 2
+            ;;
+        -p|--print-code|-v|--verbose|-n|--no-clean)
+            shift
+            ;;
+        --)
+            shift
+            positionals+=("$@")
+            break
+            ;;
+        -*)
+            shift
+            ;;
+        *)
+            positionals+=("$1")
+            shift
+            ;;
+    esac
+done
 
-parser = argparse.ArgumentParser(description='Nixie tube controller')
-parser.add_argument('-c', '--controller', help="The type of controller <terminal,raspi,serial>")
-parser.add_argument('-p', '--print-code', action='store_true', help="Print the code to the output")
-parser.add_argument('-s', '--serial', help="The serial device path. Overrides --controller")
-parser.add_argument('-v', '--verbose', action='store_true', help="Be verbose in output")
-parser.add_argument('-n', '--no-clean', action='store_true', help="Dont' cleanup the GPIO")
-parser.add_argument('message')
-args = parser.parse_args()
-
-
-## Fix controler argument
-if args.serial is not None:
-    args.controller = 'serial'
-else:
-    args.controller = args.controller.lower()
-
-
-## Create controller
-ctrl = None
-if args.controller == 'terminal':
-    ctrl = controller.TerminalController(clear_screen=False, print_code=args.print_code)
-elif args.controller == 'raspi':
-    print("Using the RaspberryPi outputs directly")
-    ctrl = controller.RaspberryPiController(speed=10**6, debug=args.verbose, print_code=args.print_code, cleanup=(not args.no_clean))
-elif args.controller == 'serial':
-    print("Opening connection to Nixie Control Board")
-    ctrl = controller.SerialController(args.serial, debug=args.verbose)
-    print("Connection established")
-else:
-    print(f"Unsupported controller type: {args.controller}")
-    sys.exit(1)
-
-
-ani = animationlib.makeTextAnimation(args.message)
-ani.updateFrameSet()
-ctrl.send(ani.getCode())
+"$NIXIE_CAT" "${positionals[@]}" || "$PYPRINT" "${all_args[@]}"

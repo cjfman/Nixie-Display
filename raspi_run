@@ -1,16 +1,8 @@
 #!/bin/bash
 NIXIE_DIR=$HOME/Nixie-Display
+nixie_print() { "$NIXIE_DIR/send_text" "$@"; }
 
-nixie_print() {
-    "$NIXIE_DIR/nixie-cat/nixie-cat" "$1"
-	if [[ $? -ne 0 ]]; then
-        "$NIXIE_DIR/send_text" -n -c raspi "PyPrint Backup"
-		sleep 1
-        "$NIXIE_DIR/send_text" -n -c raspi "$1"
-	fi
-}
-
-cd $NIXIE_DIR
+cd "$NIXIE_DIR"
 #nixie_print "$(ip route get 8.8.8.8 | head -1 | cut -d' ' -f7)" && sleep 10
 nixie_print "Pulling from Git"
 git checkout nixie-live
@@ -21,11 +13,11 @@ AFTER_HASH=$(git rev-parse HEAD)
 PIP_FLAG=/tmp/nixie_pip_done
 if [[ ! -f $PIP_FLAG ]] || [[ "$BEFORE_HASH" != "$AFTER_HASH" ]]; then
     nixie_print "Checking pip"
-    pip install -q --break-system-packages -r $HOME/Nixie-Display/requirements.txt || \
-        pip install -q -r $HOME/Nixie-Display/requirements.txt
+    pip install -q --break-system-packages -r "$HOME/Nixie-Display/requirements.txt" || \
+        pip install -q -r "$HOME/Nixie-Display/requirements.txt"
     touch $PIP_FLAG
 fi
-cd $HOME
+cd "$HOME"
 nixie_print "Starting..."
 "$NIXIE_DIR/run_display" -c raspi --keyboard-event-file /dev/input/event0 --extended-hours --git-check 5 --logfile logs/nixie.log --loglevel debug 2>logs/nixie.stderr
 if [[ $? -ne 0 ]]; then
