@@ -1,7 +1,14 @@
 #!/bin/bash
-cd $HOME/Nixie-Display
-#/home/nixie/Nixie-Display/send_text -n -c raspi "$(ip route get 8.8.8.8 | head -1 | cut -d' ' -f7)" && sleep 10
-/home/nixie/Nixie-Display/send_text -n -c raspi "Pulling from Git"
+NIXIE_DIR=$HOME/Nixie-Display
+
+nixie_print() {
+    $NIXIE_DIR/nixie-boot/nixie_cat "$1" || \
+        $NIXIE_DIR/send_text -n -c raspi "$1"
+}
+
+cd $NIXIE_DIR
+#nixie_print "$(ip route get 8.8.8.8 | head -1 | cut -d' ' -f7)" && sleep 10
+nixie_print "Pulling from Git"
 git checkout nixie-live
 BEFORE_HASH=$(git rev-parse HEAD)
 git pull -f || echo "Failed to pull latest code from git"
@@ -14,11 +21,11 @@ if [[ ! -f $PIP_FLAG ]] || [[ "$BEFORE_HASH" != "$AFTER_HASH" ]]; then
     touch $PIP_FLAG
 fi
 cd $HOME
-/home/nixie/Nixie-Display/send_text -n -c raspi "Starting..."
-/home/nixie/Nixie-Display/run_display -c raspi --keyboard-event-file /dev/input/event0 --extended-hours --git-check 5 --logfile logs/nixie.log --loglevel debug 2>logs/nixie.stderr
+nixie_print "Starting..."
+$NIXIE_DIR/run_display -c raspi --keyboard-event-file /dev/input/event0 --extended-hours --git-check 5 --logfile logs/nixie.log --loglevel debug 2>logs/nixie.stderr
 if [[ $? -ne 0 ]]; then
-    /home/nixie/Nixie-Display/send_text -n -c raspi "Crashed"
+    nixie_print "Crashed"
 else
-    /home/nixie/Nixie-Display/send_text -n -c raspi "Waiting..."
+    nixie_print "Waiting..."
 fi
 exit 1
