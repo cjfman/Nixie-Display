@@ -1,8 +1,11 @@
 /*
  * nixie_cat.c - Send text to the nixie display over SPI.
  *
- * Intended as a fast boot-time display initializer that avoids Python
- * startup overhead. Reuses decoder.c from the nixie-control-board firmware.
+ * Intended as a fast boot-time display utility that avoids Python startup
+ * overhead. Reuses decoder.c from the nixie-control-board firmware.
+ *
+ * GPIO access uses /dev/gpiomem (direct register mmap), accessible by the
+ * gpio group without root — the same mechanism RPi.GPIO uses.
  *
  * GPIO pin numbers are BCM (not physical/BOARD):
  *   OE_PIN     5  (physical 29) - output enable, active HIGH
@@ -22,6 +25,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <linux/spi/spidev.h>
 
 #include "../nixie-control-board/decoder.h"
@@ -34,49 +38,45 @@
 #define HV_PIN     27
 #define STROBE_PIN 22
 
-#define GPIO_ROOT "/sys/class/gpio"
+/* BCM2835 GPIO register offsets (word-indexed from /dev/gpiomem base) */
+#define GPIO_GPSET0 7
+#define GPIO_GPCLR0 10
 
-/* ---- GPIO via sysfs ---------------------------------------------------- */
+static volatile uint32_t *gpio = NULL;
 
-static int gpio_write(const char *path, const char *val) {
-    int fd = open(path, O_WRONLY);
-    if (fd < 0) { perror(path); return -1; }
-    int n = strlen(val);
-    int ret = (write(fd, val, n) == n) ? 0 : -1;
-    if (ret < 0) perror(path);
+/* ---- GPIO via /dev/gpiomem --------------------------------------------- */
+
+static int gpio_init(void) {
+    int fd = open("/dev/gpiomem", O_RDWR | O_SYNC);
+    if (fd < 0) { perror("/dev/gpiomem"); return -1; }
+    void *map = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     close(fd);
-    return ret;
+    if (map == MAP_FAILED) { perror("mmap /dev/gpiomem"); return -1; }
+    gpio = (volatile uint32_t *)map;
+    return 0;
 }
 
-static int gpio_export(int pin) {
-    char path[64], val[8];
-    snprintf(path, sizeof(path), GPIO_ROOT "/gpio%d", pin);
-    if (access(path, F_OK) == 0) return 0;
-    snprintf(val, sizeof(val), "%d", pin);
-    return gpio_write(GPIO_ROOT "/export", val);
+static void gpio_set_output(int pin) {
+    int reg   = pin / 10;
+    int shift = (pin % 10) * 3;
+    gpio[reg] = (gpio[reg] & ~(7u << shift)) | (1u << shift); /* 001 = output */
 }
 
-static int gpio_direction(int pin, const char *dir) {
-    char path[64];
-    snprintf(path, sizeof(path), GPIO_ROOT "/gpio%d/direction", pin);
-    return gpio_write(path, dir);
-}
-
-static int gpio_set(int pin, int value) {
-    char path[64];
-    snprintf(path, sizeof(path), GPIO_ROOT "/gpio%d/value", pin);
-    return gpio_write(path, value ? "1" : "0");
+static void gpio_write(int pin, int value) {
+    if (value)
+        gpio[GPIO_GPSET0] = (1u << pin);
+    else
+        gpio[GPIO_GPCLR0] = (1u << pin);
 }
 
 static int setup_gpio(void) {
-    int pins[] = {OE_PIN, HV_PIN, STROBE_PIN};
-    for (int i = 0; i < 3; i++) {
-        if (gpio_export(pins[i])           < 0) return -1;
-        if (gpio_direction(pins[i], "out") < 0) return -1;
-    }
-    if (gpio_set(OE_PIN,     0) < 0) return -1;
-    if (gpio_set(HV_PIN,     1) < 0) return -1;
-    if (gpio_set(STROBE_PIN, 1) < 0) return -1;
+    if (gpio_init() < 0) return -1;
+    gpio_set_output(OE_PIN);
+    gpio_set_output(HV_PIN);
+    gpio_set_output(STROBE_PIN);
+    gpio_write(OE_PIN,     0);
+    gpio_write(HV_PIN,     1);
+    gpio_write(STROBE_PIN, 1);
     return 0;
 }
 
@@ -121,19 +121,14 @@ static int display_string(const char *s, int len) {
         data[i * 2 + 1] = bm & 0xFF;
     }
 
-    if (gpio_set(OE_PIN, 0) < 0) {
-        fprintf(stderr, "nixie-cat: cannot disable OE\n");
-        return -1;
-    }
+    gpio_write(OE_PIN, 0);
     int ret = spi_send_raw(data, sizeof(data));
     if (ret < 0) {
         fprintf(stderr, "nixie-cat: SPI transfer failed\n");
         return -1;
     }
-    int r = gpio_set(OE_PIN, 1);
-    if (r < 0)
-        fprintf(stderr, "nixie-cat: cannot re-enable OE\n");
-    return r;
+    gpio_write(OE_PIN, 1);
+    return 0;
 }
 
 /* ---- Input modes ------------------------------------------------------- */
