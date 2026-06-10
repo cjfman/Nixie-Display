@@ -1,5 +1,5 @@
 /*
- * nixie_boot.c - Send a short text message to the nixie display over SPI.
+ * nixie_boot.c - Send text to the nixie display over SPI.
  *
  * Intended as a fast boot-time display initializer that avoids Python
  * startup overhead. Reuses decoder.c from the nixie-control-board firmware.
@@ -9,13 +9,16 @@
  *   HV_PIN    27  (physical 13) - high voltage enable, active HIGH
  *   STROBE_PIN 22  (physical 15) - shift register strobe, kept HIGH (inactive)
  *
- * Usage: nixie_boot [message]
- *   Defaults to "Booting..." if no argument is given.
+ * Usage:
+ *   nixie_boot word1 word2 ...   display args joined by spaces (like echo)
+ *   echo "text" | nixie_boot     stream stdin to display as chars arrive
+ *   nixie_boot                   clear the display
  */
 
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
@@ -45,8 +48,8 @@ static void gpio_write(const char *path, const char *val) {
 static void gpio_export(int pin) {
     char path[64], val[8];
     snprintf(path, sizeof(path), GPIO_ROOT "/gpio%d", pin);
-    if (access(path, F_OK) == 0) return;  /* already exported */
-    snprintf(val,  sizeof(val),  "%d", pin);
+    if (access(path, F_OK) == 0) return;
+    snprintf(val, sizeof(val), "%d", pin);
     gpio_write(GPIO_ROOT "/export", val);
 }
 
@@ -68,11 +71,13 @@ static void setup_gpio(void) {
         gpio_export(pins[i]);
         gpio_direction(pins[i], "out");
     }
+    gpio_set(HV_PIN,     1);
+    gpio_set(STROBE_PIN, 1);
 }
 
 /* ---- SPI --------------------------------------------------------------- */
 
-static int spi_send(uint8_t *data, int len) {
+static int spi_send_raw(uint8_t *data, int len) {
     int fd = open(SPI_DEVICE, O_RDWR);
     if (fd < 0) { perror("open " SPI_DEVICE); return -1; }
 
@@ -93,20 +98,16 @@ static int spi_send(uint8_t *data, int len) {
     return (ret < 0) ? -1 : 0;
 }
 
-/* ---- Main -------------------------------------------------------------- */
+/* ---- Display ----------------------------------------------------------- */
 
-int main(int argc, char *argv[]) {
-    const char *msg = (argc > 1) ? argv[1] : "Booting...";
-
-    /* Encode each character to a 14-segment bitmap */
+static void display_string(const char *s, int len) {
     uint16_t bitmaps[NUM_TUBES] = {0};
-    int len = (int)strlen(msg);
-    for (int i = 0; i < NUM_TUBES && i < len; i++) {
-        uint16_t bm = decodeChar(msg[i]);
-        bitmaps[i]  = (bm == NOCODE) ? 0 : bm;
+    int start = (len > NUM_TUBES) ? len - NUM_TUBES : 0;
+    for (int i = start, j = 0; i < len && j < NUM_TUBES; i++, j++) {
+        uint16_t bm = decodeChar(s[i]);
+        bitmaps[j] = (bm == NOCODE) ? 0 : bm;
     }
 
-    /* Pack into SPI bytes: tube 15 first, each tube as MSB then LSB */
     uint8_t data[NUM_TUBES * 2];
     for (int i = 0; i < NUM_TUBES; i++) {
         uint16_t bm    = bitmaps[NUM_TUBES - 1 - i];
@@ -114,16 +115,73 @@ int main(int argc, char *argv[]) {
         data[i * 2 + 1] = bm & 0xFF;
     }
 
-    setup_gpio();
-    gpio_set(HV_PIN,     1);  /* enable high voltage */
-    gpio_set(STROBE_PIN, 1);  /* strobe inactive */
-    gpio_set(OE_PIN,     0);  /* disable output while loading data */
-
-    if (spi_send(data, sizeof(data)) < 0) {
+    gpio_set(OE_PIN, 0);
+    if (spi_send_raw(data, sizeof(data)) < 0)
         fprintf(stderr, "SPI send failed\n");
-        return 1;
+    gpio_set(OE_PIN, 1);
+}
+
+/* ---- Input modes ------------------------------------------------------- */
+
+static void display_from_args(int argc, char *argv[]) {
+    int total = 0;
+    for (int i = 1; i < argc; i++) {
+        total += strlen(argv[i]);
+        if (i < argc - 1) total++;  /* space between args */
     }
 
-    gpio_set(OE_PIN, 1);      /* enable output, tubes now show message */
+    char *buf = malloc(total + 1);
+    if (!buf) return;
+    buf[0] = '\0';
+    for (int i = 1; i < argc; i++) {
+        strcat(buf, argv[i]);
+        if (i < argc - 1) strcat(buf, " ");
+    }
+
+    display_string(buf, total);
+    free(buf);
+}
+
+static void display_from_stdin(void) {
+    char buf[4096];
+    int len = 0;
+    int pending_newline = 0;
+    int got_any = 0;
+    char c;
+
+    while (read(STDIN_FILENO, &c, 1) == 1) {
+        if (c == '\n' || c == '\r') {
+            pending_newline = 1;
+            continue;
+        }
+        if (pending_newline) {
+            /* First char of a new line: clear the accumulated buffer */
+            len = 0;
+            pending_newline = 0;
+        }
+        if (len < (int)sizeof(buf) - 1)
+            buf[len++] = c;
+        buf[len] = '\0';
+        display_string(buf, len);
+        got_any = 1;
+    }
+
+    if (!got_any)
+        display_string("", 0);
+    /* On EOF, leave the display showing the last sent content */
+}
+
+/* ---- Main -------------------------------------------------------------- */
+
+int main(int argc, char *argv[]) {
+    setup_gpio();
+
+    if (argc > 1)
+        display_from_args(argc, argv);
+    else if (!isatty(STDIN_FILENO))
+        display_from_stdin();
+    else
+        display_string("", 0);
+
     return 0;
 }
