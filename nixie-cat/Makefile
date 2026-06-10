@@ -6,7 +6,7 @@ SRCS   = nixie_cat.c ../nixie-control-board/decoder.c
 CROSS_IMAGE      = nixie-cross
 CROSS_CC         = arm-linux-gnueabihf-gcc
 # Pi Zero W is ARMv6; standard Debian armhf defaults to ARMv7
-CROSS_ARCH_FLAGS = -march=armv6 -marm -mfpu=vfp -mfloat-abi=hard
+CROSS_ARCH_FLAGS = -march=armv6 -marm -mfpu=vfp -mfloat-abi=hard -static
 
 $(TARGET): $(SRCS) ../nixie-control-board/decoder.h
 	$(CC) $(CFLAGS) -o $(TARGET) $(SRCS)
