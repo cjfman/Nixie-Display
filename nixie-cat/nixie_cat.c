@@ -121,10 +121,19 @@ static int display_string(const char *s, int len) {
         data[i * 2 + 1] = bm & 0xFF;
     }
 
-    if (gpio_set(OE_PIN, 0) < 0) return -1;
+    if (gpio_set(OE_PIN, 0) < 0) {
+        fprintf(stderr, "nixie-cat: cannot disable OE\n");
+        return -1;
+    }
     int ret = spi_send_raw(data, sizeof(data));
-    if (ret < 0) return -1;
-    return gpio_set(OE_PIN, 1);
+    if (ret < 0) {
+        fprintf(stderr, "nixie-cat: SPI transfer failed\n");
+        return -1;
+    }
+    int r = gpio_set(OE_PIN, 1);
+    if (r < 0)
+        fprintf(stderr, "nixie-cat: cannot re-enable OE\n");
+    return r;
 }
 
 /* ---- Input modes ------------------------------------------------------- */
@@ -183,8 +192,10 @@ static int display_from_stdin(void) {
 /* ---- Main -------------------------------------------------------------- */
 
 int main(int argc, char *argv[]) {
-    if (setup_gpio() < 0)
+    if (setup_gpio() < 0) {
+        fprintf(stderr, "nixie-cat: GPIO setup failed\n");
         return 1;
+    }
 
     int ret;
     if (argc > 1)
@@ -194,5 +205,7 @@ int main(int argc, char *argv[]) {
     else
         ret = display_string("", 0);
 
+    if (ret < 0)
+        fprintf(stderr, "nixie-cat: display failed\n");
     return (ret < 0) ? 1 : 0;
 }

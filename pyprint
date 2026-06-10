@@ -2,10 +2,65 @@
 ##pylint: disable=wrong-import-position
 
 import argparse
+import signal
 import sys
+import time
 
 import pyxielib.animation_library as animationlib
 from pyxielib import controller
+from pyxielib.key_watcher import KeyWatcher, TerminalKeyWatcher
+
+NUM_TUBES = 16
+
+
+def run_interactive(ctrl, lines, watcher):
+    current_line  = 0
+    scroll_offset = 0
+    done          = False
+
+    def stop(*_):
+        nonlocal done
+        done = True
+
+    signal.signal(signal.SIGINT, stop)
+
+    try:
+        while not done:
+            while watcher.can_pop():
+                key  = watcher.pop()
+                text = lines[current_line]
+                if key == 'ESC':
+                    done = True
+                    break
+                elif key == 'LEFT' and scroll_offset > 0:
+                    scroll_offset -= 1
+                elif key == 'RIGHT' and scroll_offset + NUM_TUBES < len(text):
+                    scroll_offset += 1
+                elif key in ('DOWN', 'ENTER') and current_line < len(lines) - 1:
+                    current_line  += 1
+                    scroll_offset  = 0
+                elif key == 'UP' and current_line > 0:
+                    current_line  -= 1
+                    scroll_offset  = 0
+
+            if done:
+                break
+
+            text    = lines[current_line]
+            visible = list(text[scroll_offset : scroll_offset + NUM_TUBES])
+            visible += [' '] * (NUM_TUBES - len(visible))
+
+            flash_on = (time.time() % 1.0) < 0.5
+            if scroll_offset > 0 and flash_on:
+                visible[0] = '<'
+            if scroll_offset + NUM_TUBES < len(text) and flash_on:
+                visible[-1] = '>'
+
+            ctrl.send(''.join(visible))
+            time.sleep(0.05)
+    finally:
+        watcher.stop()
+
 
 parser = argparse.ArgumentParser(description='Nixie tube controller')
 parser.add_argument('-c', '--controller', help="The type of controller <terminal,raspi,serial>")
@@ -13,11 +68,15 @@ parser.add_argument('-p', '--print-code', action='store_true', help="Print the c
 parser.add_argument('-s', '--serial', help="The serial device path. Overrides --controller")
 parser.add_argument('-v', '--verbose', action='store_true', help="Be verbose in output")
 parser.add_argument('-n', '--no-clean', action='store_true', help="Dont' cleanup the GPIO")
-parser.add_argument('message')
+parser.add_argument('-i', '--interactive', action='store_true',
+                    help="Stay running; scroll long lines with arrows, ESC or Ctrl+C to exit")
+parser.add_argument('--keyboard-event-file', metavar='PATH',
+                    help="evdev device for key input in interactive mode (omit to use terminal)")
+parser.add_argument('message', nargs='+')
 args = parser.parse_args()
 
 
-## Fix controler argument
+## Fix controller argument
 if args.serial is not None:
     args.controller = 'serial'
 else:
@@ -40,6 +99,14 @@ else:
     sys.exit(1)
 
 
-ani = animationlib.makeTextAnimation(args.message)
-ani.updateFrameSet()
-ctrl.send(ani.getCode())
+if args.interactive:
+    if args.keyboard_event_file:
+        watcher = KeyWatcher(args.keyboard_event_file)
+    else:
+        watcher = TerminalKeyWatcher()
+    watcher.active = True
+    run_interactive(ctrl, args.message, watcher)
+else:
+    ani = animationlib.makeTextAnimation(' '.join(args.message))
+    ani.updateFrameSet()
+    ctrl.send(ani.getCode())

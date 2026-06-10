@@ -1,20 +1,24 @@
 #!/bin/bash
 # Wrapper: try nixie-cat first (fast C path), fall back to pyprint on failure.
 # pyprint optional flags are parsed and stripped; remaining positionals go to nixie-cat.
-# On failure, all original arguments are forwarded to pyprint unchanged.
+# On nixie-cat failure, any stderr is displayed via pyprint, then pyprint handles
+# the original message.
 
 all_args=("$@")
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NIXIE_CAT="$SCRIPT_DIR/nixie-cat/nixie-cat"
 PYPRINT="$SCRIPT_DIR/pyprint"
 
+opts=()
 positionals=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -c|--controller|-s|--serial)
+            opts+=("$1" "$2")
             shift 2
             ;;
         -p|--print-code|-v|--verbose|-n|--no-clean)
+            opts+=("$1")
             shift
             ;;
         --)
@@ -32,4 +36,16 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-"$NIXIE_CAT" "${positionals[@]}" || "$PYPRINT" "${all_args[@]}"
+nixie_errfile=$(mktemp)
+"$NIXIE_CAT" "${positionals[@]}" 2>"$nixie_errfile"
+if [[ $? -ne 0 ]]; then
+    err_msg=$(cat "$nixie_errfile")
+    rm -f "$nixie_errfile"
+    if [[ -n "$err_msg" ]]; then
+        "$PYPRINT" "${opts[@]}" "$err_msg"
+        sleep 3
+    fi
+    "$PYPRINT" "${all_args[@]}"
+else
+    rm -f "$nixie_errfile"
+fi
