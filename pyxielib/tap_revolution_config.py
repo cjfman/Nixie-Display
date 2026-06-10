@@ -44,7 +44,14 @@ CODE_DEFAULTS: Dict[str, Any] = {
     'judge_flash': True,
     'hit_flash': {'frames': list(tr.HIT_FLASH_FRAMES), 'frame_secs': tr.HIT_FLASH_FRAME_SECS},
     'results_secs': 6,
+    'difficulties': [
+        {'name': 'hard',   'display_name': 'Hard',   'gap': 0},
+        {'name': 'medium', 'display_name': 'Medium',  'gap': 200},
+        {'name': 'easy',   'display_name': 'Easy',    'gap': 400},
+    ],
+    'difficulty': 'hard',
 }
+
 
 
 def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
@@ -160,6 +167,14 @@ class TapRevolutionConfig:
             return key
 
         return ''
+
+    def difficulty_settings(self) -> float:
+        """Return the minimum note gap in seconds for the active difficulty level."""
+        name = str(self.settings.get('difficulty', '')).lower()
+        for diff in self.settings.get('difficulties', []):
+            if str(diff.get('name', '')).lower() == name:
+                return max(0, int(diff.get('gap', 0))) / 1000.0
+        return 0.0
 
     def summary_lines(self) -> List[str]:
         """Printable, scrollable lines describing the settings for the menu view."""

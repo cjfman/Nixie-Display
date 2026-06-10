@@ -29,7 +29,10 @@ logger = logging.getLogger(__name__)
 ## Named tuple for one row in the settings list.
 ## prefix is the short title shown before ' | ' in edit mode.
 ## set is None for readonly and submenu entries.
-_SettingEntry = collections.namedtuple('_SettingEntry', ['tag', 'type', 'label', 'prefix', 'get', 'set'])
+_SettingEntry = collections.namedtuple(
+    '_SettingEntry', ['tag', 'type', 'label', 'prefix', 'get', 'set', 'options'],
+    defaults=[None],
+)
 
 ## Seconds the cursor is ON within each 0.5 s blink period.
 _CURSOR_ON_SECS = 0.25
@@ -39,8 +42,17 @@ _SETTINGS_FLASH_SECS = 1.0
 _ARROW_NAMES = {'left', 'right', 'up', 'down'}
 
 
-def _s_entry(tag, kind, label_fn, prefix, get_fn, set_fn=None):
-    return _SettingEntry(tag, kind, label_fn, prefix, get_fn, set_fn)
+def _s_entry(tag, kind, label_fn, prefix, get_fn, set_fn=None, options=None):
+    return _SettingEntry(tag, kind, label_fn, prefix, get_fn, set_fn, options)
+
+
+def _difficulty_display(draft) -> str:
+    """Return the display_name for the active difficulty, falling back to the name."""
+    current = str(draft.get('difficulty', ''))
+    for diff in draft.get('difficulties', []):
+        if str(diff.get('name', '')) == current:
+            return str(diff.get('display_name', current))
+    return current
 
 
 def _underline_str(s):
@@ -66,6 +78,12 @@ def _build_score_items(draft):
 def _build_items(draft):
     """Main browse list. Key bindings, score ranges, and bad-tap settings live in sub-menus."""
     return [
+        _s_entry('difficulty', 'select',
+                 lambda d: "DIFFICULTY", None,
+                 lambda d: d.get('difficulty', ''),
+                 lambda d, v: d.__setitem__('difficulty', v),
+                 options=lambda d: [(str(x['name']), str(x.get('display_name', x['name'])))
+                                    for x in d.get('difficulties', [])]),
         _s_entry('key_mappings',  'submenu', lambda d: "KEY MAPPINGS",  None, None),
         _s_entry('score_ranges',  'submenu', lambda d: "SCORE RANGES",  None, None),
         _s_entry('bad_submenu',   'submenu', lambda d: "BAD/GHOST HIT", None, None),
@@ -247,6 +265,9 @@ class TapRevolutionLevelsItem(ListItem):
             return
         level = self._load_level(self.current_value())
         if level is not None:
+            gap_secs = self.config.difficulty_settings()
+            if gap_secs > 0:
+                level = level.thinned(gap_secs)
             self.key_lane = self.config.key_lane_map()
             self.animation = taplib.TapRevolutionAnimation(level, size=self.size, **self.config.animation_kwargs())
 
@@ -332,6 +353,8 @@ class TapRevolutionSettingsItem(MenuItem):
         self._return_state  = 'browse'
         self._edit_buffer   = ''
         self._edit_bool     = False
+        self._select_options: List = []
+        self._select_idx    = 0
         self._bucket_idx    = 0
         self._bucket_sub    = 0
         self._bucket_orig   = None
@@ -391,6 +414,15 @@ class TapRevolutionSettingsItem(MenuItem):
             if time.time() % 0.5 < _CURSOR_ON_SECS:
                 return f"{entry.prefix} | {_underline_str(val)}"
             return f"{entry.prefix} | {val}"
+        if entry.type == 'select':
+            display = self._select_options[self._select_idx][1] if self._select_options else '?'
+            if entry.prefix is None:
+                if time.time() % 0.5 < _CURSOR_ON_SECS:
+                    return _underline_str(display)
+                return display
+            if time.time() % 0.5 < _CURSOR_ON_SECS:
+                return f"{entry.prefix} | {_underline_str(display)}"
+            return f"{entry.prefix} | {display}"
         buf = self._edit_buffer
         val_str = f"-{buf}" if entry.tag == 'bad_penalty' else buf
         return self._cursor(f"{entry.prefix} | {val_str}")
@@ -454,6 +486,11 @@ class TapRevolutionSettingsItem(MenuItem):
         else:
             self.key_esc()
 
+    def _select_cycle(self, delta):
+        n = len(self._select_options)
+        if n:
+            self._select_idx = (self._select_idx + delta) % n
+
     def key_up(self):
         if self.state == 'browse':
             self._idx = max(0, self._idx - 1)
@@ -462,6 +499,8 @@ class TapRevolutionSettingsItem(MenuItem):
         elif self.state == 'edit':
             if self._edit_entry and self._edit_entry.type == 'bool':
                 self._edit_bool = not self._edit_bool
+            elif self._edit_entry and self._edit_entry.type == 'select':
+                self._select_cycle(-1)
         elif self.state == 'key_capture':
             self._key_capture_commit('up')
         elif self.state == 'bucket':
@@ -475,20 +514,28 @@ class TapRevolutionSettingsItem(MenuItem):
         elif self.state == 'edit':
             if self._edit_entry and self._edit_entry.type == 'bool':
                 self._edit_bool = not self._edit_bool
+            elif self._edit_entry and self._edit_entry.type == 'select':
+                self._select_cycle(1)
         elif self.state == 'key_capture':
             self._key_capture_commit('down')
         elif self.state == 'bucket':
             self._bucket_sub = min(1, self._bucket_sub + 1)
 
     def key_left(self):
-        if self.state == 'edit' and self._edit_entry and self._edit_entry.type == 'bool':
-            self._edit_bool = not self._edit_bool
+        if self.state == 'edit' and self._edit_entry:
+            if self._edit_entry.type == 'bool':
+                self._edit_bool = not self._edit_bool
+            elif self._edit_entry.type == 'select':
+                self._select_cycle(-1)
         elif self.state == 'key_capture':
             self._key_capture_commit('left')
 
     def key_right(self):
-        if self.state == 'edit' and self._edit_entry and self._edit_entry.type == 'bool':
-            self._edit_bool = not self._edit_bool
+        if self.state == 'edit' and self._edit_entry:
+            if self._edit_entry.type == 'bool':
+                self._edit_bool = not self._edit_bool
+            elif self._edit_entry.type == 'select':
+                self._select_cycle(1)
         elif self.state == 'key_capture':
             self._key_capture_commit('right')
 
@@ -561,6 +608,13 @@ class TapRevolutionSettingsItem(MenuItem):
         if entry.type == 'bool':
             self._edit_bool   = bool(entry.get(self._draft))
             self._edit_buffer = ''
+        elif entry.type == 'select':
+            self._select_options = entry.options(self._draft) if entry.options else []
+            current = entry.get(self._draft)
+            self._select_idx = next(
+                (i for i, (v, _) in enumerate(self._select_options) if v == current), 0
+            )
+            self._edit_buffer = ''
         elif entry.type == 'ms':
             self._edit_buffer = str(round(float(entry.get(self._draft)) * 1000))
         elif entry.type == 'int':
@@ -583,6 +637,9 @@ class TapRevolutionSettingsItem(MenuItem):
             if self._return_state == 'sub_browse' and self._sub_tag == 'bad_submenu':
                 self._sub_items = _build_bad_items(self._draft)
                 self._sub_idx = max(0, min(self._sub_idx, len(self._sub_items) - 1))
+        elif entry.type == 'select':
+            if self._select_options:
+                entry.set(self._draft, self._select_options[self._select_idx][0])
         elif entry.type in ('ms', 'int') and self._edit_buffer:
             raw = int(self._edit_buffer)
             entry.set(self._draft, raw / 1000.0 if entry.type == 'ms' else raw)

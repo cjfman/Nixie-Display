@@ -12,6 +12,7 @@ and scoring only ever use the absolute time. This keeps the door open for audio
 sync later: the chart is already on the same wall-clock timeline audio would use.
 """
 
+import dataclasses
 import logging
 import os
 import threading
@@ -152,6 +153,17 @@ class Level:
         notes = _parse_notes(note_lines, mode, bpm, offset)
         return cls(header.get('name', name), notes, bpm=bpm, offset=offset,
                    scroll_time=scroll_time, audio=header.get('audio') or None)
+
+
+    def thinned(self, min_gap_secs) -> 'Level':
+        """Return a copy with notes filtered so no two are within min_gap_secs."""
+        kept: List[Note] = []
+        last_time = -min_gap_secs
+        for n in self.notes:
+            if n.time - last_time >= min_gap_secs:
+                kept.append(n)
+                last_time = n.time
+        return dataclasses.replace(self, notes=kept)
 
 
 def _split_chart(text) -> Tuple[Dict[str, str], List[Tuple[float, str]]]:

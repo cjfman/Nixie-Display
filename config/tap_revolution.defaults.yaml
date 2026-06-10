@@ -16,15 +16,31 @@ keys:
 # Score buckets, easiest-to-hardest by time threshold (seconds of timing error).
 # A tap within the widest threshold scores; wider is a miss.
 score_buckets:
-  - {name: BEST, threshold: 0.045, points: 100}
-  - {name: GOOD, threshold: 0.090, points: 70}
-  - {name: OK,   threshold: 0.140, points: 40}
+  - {name: BEST, threshold: 0.045, points: 10}
+  - {name: GOOD, threshold: 0.090, points: 5}
+  - {name: OK,   threshold: 0.140, points: 1}
 
 # Tapping a lane with nothing in the hit box is a BAD tap.
 bad_tap:
   enabled: true    # false -> ghost taps are a no-op and BAD is hidden from results
   cooldown: 0.15   # seconds the lane ignores further BAD taps (0 disables)
   penalty: 5       # points subtracted per BAD tap (score never goes below 0)
+
+# Difficulty levels (arbitrary list; name must be a single word with no spaces).
+# gap is the minimum milliseconds between notes — 0 means show the full chart.
+difficulties:
+  - name: hard
+    display_name: Hard
+    gap: 0
+  - name: medium
+    display_name: Medium
+    gap: 200
+  - name: easy
+    display_name: Easy
+    gap: 400
+
+# Active difficulty — references the name field of an entry in difficulties above.
+difficulty: hard
 
 grace: 0.12        # seconds past the widest window before a note auto-misses
 flash_secs: 0.6    # how long the score section flashes a judgement word
