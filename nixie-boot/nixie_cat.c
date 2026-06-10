@@ -1,5 +1,5 @@
 /*
- * nixie_boot.c - Send text to the nixie display over SPI.
+ * nixie_cat.c - Send text to the nixie display over SPI.
  *
  * Intended as a fast boot-time display initializer that avoids Python
  * startup overhead. Reuses decoder.c from the nixie-control-board firmware.
