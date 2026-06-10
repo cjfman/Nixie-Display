@@ -56,15 +56,15 @@ if $debug; then
         err_msg=$(cat "$nixie_errfile")
         rm -f "$nixie_errfile"
         if [[ -n "$err_msg" ]]; then
-            "$PYPRINT" "${opts[@]}" "debug mode"
+            "$PYPRINT" -n "${opts[@]}" "debug mode"
 			sleep 1
-            "$PYPRINT" "${opts[@]}" "$err_msg"
+            "$PYPRINT" -n "${opts[@]}" "$err_msg"
             sleep 3
         fi
-        "$PYPRINT" "${pyprint_args[@]}"
+        "$PYPRINT" -n "${pyprint_args[@]}"
     else
         rm -f "$nixie_errfile"
     fi
 else
-    "$NIXIE_CAT" "${positionals[@]}" || "$PYPRINT" "${pyprint_args[@]}"
+    "$NIXIE_CAT" "${positionals[@]}" || "$PYPRINT" -n "${pyprint_args[@]}"
 fi
