@@ -64,58 +64,56 @@ dot = decodeUtf16(0x2022)
 def bitmapToLines(bitmap):
     lines = []
 
-    ## Line 0
-    line = " " * 5
+    ## Line 0 - top segment
+    line = "     "
     if bitmap & 0x0001:
         line = " ___ "
     lines.append(line)
 
-    ## Line 1
+    ## Line 1 - upper half: [f outer][g diag][h center][i diag][b outer]
     line = [" "] * 5
     if bitmap & 0x0020:
-        line[0] = '|'
+        line[0] = '│'
     if bitmap & 0x0040:
-        line[1] = '\\'
+        line[1] = '╲'
     if bitmap & 0x0080:
-        line[2] = '|'
+        line[2] = '│'
     if bitmap & 0x0100:
-        line[3] = '/'
+        line[3] = '╱'
     if bitmap & 0x0002:
-        line[4] = '|'
+        line[4] = '│'
     lines.append(''.join(line))
 
-    ## Line 2
+    ## Line 2 - middle segments: inset from outer verticals (pos 0 and 4)
     line = [" "] * 5
     if bitmap & 0x2000:
-        line[0] = '-'
-        line[1] = '-'
+        line[1] = line[2] = '─'
     if bitmap & 0x0200:
-        line[3] = '-'
-        line[4] = '-'
+        line[2] = line[3] = '─'
     lines.append(''.join(line))
 
-    ## Line 3
+    ## Line 3 - lower half: [e outer][j diag][k center][l diag][c outer]
     line = [" "] * 5
     if bitmap & 0x0010:
-        line[0] = '|'
+        line[0] = '│'
     if bitmap & 0x1000:
-        line[1] = '/'
+        line[1] = '╱'
     if bitmap & 0x0800:
-        line[2] = '|'
+        line[2] = '│'
     if bitmap & 0x0400:
-        line[3]= '\\'
+        line[3] = '╲'
     if bitmap & 0x0004:
-        line[4] = '|'
+        line[4] = '│'
     lines.append(''.join(line))
 
-    ## Line 4
-    line = " " * 5
+    ## Line 4 - bottom segment (overline renders at cell top, tight against line 3)
+    line = "     "
     if bitmap & 0x0008:
         line = " " + upperline*3 + " "
     lines.append(line)
 
-    ## Line 5
-    line = " " * 5
+    ## Line 5 - underline
+    line = "     "
     if bitmap & 0x4000:
         line = "_" * 5
     lines.append(line)
