@@ -38,41 +38,45 @@
 
 /* ---- GPIO via sysfs ---------------------------------------------------- */
 
-static void gpio_write(const char *path, const char *val) {
+static int gpio_write(const char *path, const char *val) {
     int fd = open(path, O_WRONLY);
-    if (fd < 0) { perror(path); return; }
-    write(fd, val, strlen(val));
+    if (fd < 0) { perror(path); return -1; }
+    int n = strlen(val);
+    int ret = (write(fd, val, n) == n) ? 0 : -1;
+    if (ret < 0) perror(path);
     close(fd);
+    return ret;
 }
 
-static void gpio_export(int pin) {
+static int gpio_export(int pin) {
     char path[64], val[8];
     snprintf(path, sizeof(path), GPIO_ROOT "/gpio%d", pin);
-    if (access(path, F_OK) == 0) return;
+    if (access(path, F_OK) == 0) return 0;
     snprintf(val, sizeof(val), "%d", pin);
-    gpio_write(GPIO_ROOT "/export", val);
+    return gpio_write(GPIO_ROOT "/export", val);
 }
 
-static void gpio_direction(int pin, const char *dir) {
+static int gpio_direction(int pin, const char *dir) {
     char path[64];
     snprintf(path, sizeof(path), GPIO_ROOT "/gpio%d/direction", pin);
-    gpio_write(path, dir);
+    return gpio_write(path, dir);
 }
 
-static void gpio_set(int pin, int value) {
+static int gpio_set(int pin, int value) {
     char path[64];
     snprintf(path, sizeof(path), GPIO_ROOT "/gpio%d/value", pin);
-    gpio_write(path, value ? "1" : "0");
+    return gpio_write(path, value ? "1" : "0");
 }
 
-static void setup_gpio(void) {
+static int setup_gpio(void) {
     int pins[] = {OE_PIN, HV_PIN, STROBE_PIN};
     for (int i = 0; i < 3; i++) {
-        gpio_export(pins[i]);
-        gpio_direction(pins[i], "out");
+        if (gpio_export(pins[i])           < 0) return -1;
+        if (gpio_direction(pins[i], "out") < 0) return -1;
     }
-    gpio_set(HV_PIN,     1);
-    gpio_set(STROBE_PIN, 1);
+    if (gpio_set(HV_PIN,     1) < 0) return -1;
+    if (gpio_set(STROBE_PIN, 1) < 0) return -1;
+    return 0;
 }
 
 /* ---- SPI --------------------------------------------------------------- */
@@ -83,8 +87,8 @@ static int spi_send_raw(uint8_t *data, int len) {
 
     uint8_t  mode  = SPI_MODE_2;
     uint32_t speed = SPI_SPEED_HZ;
-    ioctl(fd, SPI_IOC_WR_MODE,         &mode);
-    ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
+    if (ioctl(fd, SPI_IOC_WR_MODE,         &mode)  < 0) { perror("SPI_IOC_WR_MODE");         close(fd); return -1; }
+    if (ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed) < 0) { perror("SPI_IOC_WR_MAX_SPEED_HZ"); close(fd); return -1; }
 
     struct spi_ioc_transfer xfer = {
         .tx_buf        = (unsigned long)data,
@@ -94,13 +98,14 @@ static int spi_send_raw(uint8_t *data, int len) {
     };
 
     int ret = ioctl(fd, SPI_IOC_MESSAGE(1), &xfer);
+    if (ret < 0) perror("SPI_IOC_MESSAGE");
     close(fd);
     return (ret < 0) ? -1 : 0;
 }
 
 /* ---- Display ----------------------------------------------------------- */
 
-static void display_string(const char *s, int len) {
+static int display_string(const char *s, int len) {
     uint16_t bitmaps[NUM_TUBES] = {0};
     int start = (len > NUM_TUBES) ? len - NUM_TUBES : 0;
     for (int i = start, j = 0; i < len && j < NUM_TUBES; i++, j++) {
@@ -116,14 +121,14 @@ static void display_string(const char *s, int len) {
     }
 
     gpio_set(OE_PIN, 0);
-    if (spi_send_raw(data, sizeof(data)) < 0)
-        fprintf(stderr, "SPI send failed\n");
+    int ret = spi_send_raw(data, sizeof(data));
     gpio_set(OE_PIN, 1);
+    return ret;
 }
 
 /* ---- Input modes ------------------------------------------------------- */
 
-static void display_from_args(int argc, char *argv[]) {
+static int display_from_args(int argc, char *argv[]) {
     int total = 0;
     for (int i = 1; i < argc; i++) {
         total += strlen(argv[i]);
@@ -131,57 +136,62 @@ static void display_from_args(int argc, char *argv[]) {
     }
 
     char *buf = malloc(total + 1);
-    if (!buf) return;
+    if (!buf) { perror("malloc"); return -1; }
     buf[0] = '\0';
     for (int i = 1; i < argc; i++) {
         strcat(buf, argv[i]);
         if (i < argc - 1) strcat(buf, " ");
     }
 
-    display_string(buf, total);
+    int ret = display_string(buf, total);
     free(buf);
+    return ret;
 }
 
-static void display_from_stdin(void) {
+static int display_from_stdin(void) {
     char buf[4096];
     int len = 0;
     int pending_newline = 0;
     int got_any = 0;
     char c;
+    int n;
 
-    while (read(STDIN_FILENO, &c, 1) == 1) {
+    while ((n = read(STDIN_FILENO, &c, 1)) == 1) {
         if (c == '\n' || c == '\r') {
             pending_newline = 1;
             continue;
         }
         if (pending_newline) {
-            /* First char of a new line: clear the accumulated buffer */
             len = 0;
             pending_newline = 0;
         }
         if (len < (int)sizeof(buf) - 1)
             buf[len++] = c;
         buf[len] = '\0';
-        display_string(buf, len);
+        if (display_string(buf, len) < 0)
+            return -1;
         got_any = 1;
     }
+    if (n < 0) { perror("read"); return -1; }
 
     if (!got_any)
-        display_string("", 0);
-    /* On EOF, leave the display showing the last sent content */
+        return display_string("", 0);
+    return 0;
 }
 
 /* ---- Main -------------------------------------------------------------- */
 
 int main(int argc, char *argv[]) {
-    setup_gpio();
+    if (setup_gpio() < 0)
+        return 1;
 
+    int ret;
     if (argc > 1)
-        display_from_args(argc, argv);
+        ret = display_from_args(argc, argv);
     else if (!isatty(STDIN_FILENO))
-        display_from_stdin();
+        ret = display_from_stdin();
     else
-        display_string("", 0);
+        ret = display_string("", 0);
 
-    return 0;
+    return (ret < 0) ? 1 : 0;
 }
