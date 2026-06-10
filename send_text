@@ -1,51 +1,68 @@
 #!/bin/bash
 # Wrapper: try nixie-cat first (fast C path), fall back to pyprint on failure.
 # pyprint optional flags are parsed and stripped; remaining positionals go to nixie-cat.
-# On nixie-cat failure, any stderr is displayed via pyprint, then pyprint handles
-# the original message.
+# On failure, all original arguments (minus --debug) are forwarded to pyprint unchanged.
+#
+# --debug: capture nixie-cat stderr and display it via pyprint before falling back.
 
 all_args=("$@")
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NIXIE_CAT="$SCRIPT_DIR/nixie-cat/nixie-cat"
 PYPRINT="$SCRIPT_DIR/pyprint"
 
+debug=false
 opts=()
 positionals=()
+pyprint_args=()
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --debug)
+            debug=true
+            shift
+            ;;
         -c|--controller|-s|--serial)
             opts+=("$1" "$2")
+            pyprint_args+=("$1" "$2")
             shift 2
             ;;
         -p|--print-code|-v|--verbose|-n|--no-clean)
             opts+=("$1")
+            pyprint_args+=("$1")
             shift
             ;;
         --)
             shift
             positionals+=("$@")
+            pyprint_args+=("$@")
             break
             ;;
         -*)
+            pyprint_args+=("$1")
             shift
             ;;
         *)
             positionals+=("$1")
+            pyprint_args+=("$1")
             shift
             ;;
     esac
 done
 
-nixie_errfile=$(mktemp)
-"$NIXIE_CAT" "${positionals[@]}" 2>"$nixie_errfile"
-if [[ $? -ne 0 ]]; then
-    err_msg=$(cat "$nixie_errfile")
-    rm -f "$nixie_errfile"
-    if [[ -n "$err_msg" ]]; then
-        "$PYPRINT" "${opts[@]}" "$err_msg"
-        sleep 3
+if $debug; then
+    nixie_errfile=$(mktemp)
+    "$NIXIE_CAT" "${positionals[@]}" 2>"$nixie_errfile"
+    if [[ $? -ne 0 ]]; then
+        err_msg=$(cat "$nixie_errfile")
+        rm -f "$nixie_errfile"
+        if [[ -n "$err_msg" ]]; then
+            "$PYPRINT" "${opts[@]}" "$err_msg"
+            sleep 3
+        fi
+        "$PYPRINT" "${pyprint_args[@]}"
+    else
+        rm -f "$nixie_errfile"
     fi
-    "$PYPRINT" "${all_args[@]}"
 else
-    rm -f "$nixie_errfile"
+    "$NIXIE_CAT" "${positionals[@]}" || "$PYPRINT" "${pyprint_args[@]}"
 fi
