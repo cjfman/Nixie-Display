@@ -100,12 +100,24 @@ else:
 
 
 if args.interactive:
-    if args.keyboard_event_file:
-        watcher = KeyWatcher(args.keyboard_event_file)
-    else:
-        watcher = TerminalKeyWatcher()
-    watcher.active = True
-    run_interactive(ctrl, args.message, watcher)
+    try:
+        if args.keyboard_event_file:
+            watcher = KeyWatcher(args.keyboard_event_file)
+        else:
+            watcher = TerminalKeyWatcher()
+        watcher.active = True
+        run_interactive(ctrl, args.message, watcher)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        err_text = f'{type(e).__name__}: {e}'
+        try:
+            ani = animationlib.makeTextAnimation(err_text)
+            ani.updateFrameSet()
+            ctrl.send(ani.getCode())
+            time.sleep(10)
+        except Exception:
+            pass
 else:
     ani = animationlib.makeTextAnimation(' '.join(args.message))
     ani.updateFrameSet()
