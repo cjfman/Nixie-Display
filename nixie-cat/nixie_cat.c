@@ -10,9 +10,9 @@
  *   STROBE_PIN 22  (physical 15) - shift register strobe, kept HIGH (inactive)
  *
  * Usage:
- *   nixie_boot word1 word2 ...   display args joined by spaces (like echo)
- *   echo "text" | nixie_boot     stream stdin to display as chars arrive
- *   nixie_boot                   clear the display
+ *   nixie_cat word1 word2 ...   display args joined by spaces (like echo)
+ *   echo "text" | nixie_cat     stream stdin to display as chars arrive
+ *   nixie_cat                   clear the display
  */
 
 #include <fcntl.h>
@@ -74,6 +74,7 @@ static int setup_gpio(void) {
         if (gpio_export(pins[i])           < 0) return -1;
         if (gpio_direction(pins[i], "out") < 0) return -1;
     }
+    if (gpio_set(OE_PIN,     0) < 0) return -1;
     if (gpio_set(HV_PIN,     1) < 0) return -1;
     if (gpio_set(STROBE_PIN, 1) < 0) return -1;
     return 0;
@@ -120,10 +121,10 @@ static int display_string(const char *s, int len) {
         data[i * 2 + 1] = bm & 0xFF;
     }
 
-    gpio_set(OE_PIN, 0);
+    if (gpio_set(OE_PIN, 0) < 0) return -1;
     int ret = spi_send_raw(data, sizeof(data));
-    gpio_set(OE_PIN, 1);
-    return ret;
+    if (ret < 0) return -1;
+    return gpio_set(OE_PIN, 1);
 }
 
 /* ---- Input modes ------------------------------------------------------- */

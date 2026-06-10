@@ -2,8 +2,8 @@
 NIXIE_DIR=$HOME/Nixie-Display
 
 nixie_print() {
-    $NIXIE_DIR/nixie-boot/nixie_cat "$1" || \
-        $NIXIE_DIR/send_text -n -c raspi "$1"
+    "$NIXIE_DIR/nixie-cat/nixie-cat" "$1" || \
+        "$NIXIE_DIR/send_text" -n -c raspi "$1"
 }
 
 cd $NIXIE_DIR
@@ -23,7 +23,7 @@ if [[ ! -f $PIP_FLAG ]] || [[ "$BEFORE_HASH" != "$AFTER_HASH" ]]; then
 fi
 cd $HOME
 nixie_print "Starting..."
-$NIXIE_DIR/run_display -c raspi --keyboard-event-file /dev/input/event0 --extended-hours --git-check 5 --logfile logs/nixie.log --loglevel debug 2>logs/nixie.stderr
+"$NIXIE_DIR/run_display" -c raspi --keyboard-event-file /dev/input/event0 --extended-hours --git-check 5 --logfile logs/nixie.log --loglevel debug 2>logs/nixie.stderr
 if [[ $? -ne 0 ]]; then
     nixie_print "Crashed"
 else
