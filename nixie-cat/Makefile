@@ -1,6 +1,6 @@
 CC     = gcc
 CFLAGS = -Wall -O2 -I../nixie-control-board
-TARGET = nixie_cat
+TARGET = nixie-cat
 SRCS   = nixie_cat.c ../nixie-control-board/decoder.c
 
 CROSS_IMAGE      = nixie-cross
@@ -15,7 +15,7 @@ cross:
 	docker build -q -f Dockerfile.cross -t $(CROSS_IMAGE) .
 	docker run --rm \
 	    -v "$(abspath ..):/src" \
-	    -w /src/nixie-boot \
+	    -w /src/nixie-cat \
 	    $(CROSS_IMAGE) \
 	    $(CROSS_CC) $(CFLAGS) $(CROSS_ARCH_FLAGS) -o $(TARGET) $(SRCS)
 
