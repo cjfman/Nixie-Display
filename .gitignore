@@ -22,3 +22,4 @@ __pycache__/
 
 ## Tap Revolution runtime settings (defaults/example are tracked; persistent isn't)
 config/tap_revolution.yaml
+itl_online_charts/*

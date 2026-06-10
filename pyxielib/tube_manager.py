@@ -17,16 +17,12 @@ def cmdDecodePrint(cmd) -> List[int]:
     state = 'start'
     for c in cmd:
         if state == 'start':
-            ## First character must be printable or token start
             if c == '{':
                 state = 'token_start'
                 continue
 
-            if not decoder.isPrintable(c):
-                raise DecodeError("First character must be pritable or start a token")
-
-            ## Decode and set char
-            out.append(decoder.decodeChar(c))
+            bm = decoder.decodeChar(c)
+            out.append(0 if bm == decoder.NOCODE else bm)
             state = 'idle'
         elif state == 'idle':
             if c == '{':
@@ -38,8 +34,8 @@ def cmdDecodePrint(cmd) -> List[int]:
                 out[-1] = decoder.colonCode(out[-1])
                 state = 'idle'
             else:
-                ## Decode and set char
-                out.append(decoder.decodeChar(c))
+                bm = decoder.decodeChar(c)
+                out.append(0 if bm == decoder.NOCODE else bm)
                 state = 'idle'
         elif state == 'token_start':
             if c == '!':

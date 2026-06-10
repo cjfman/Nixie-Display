@@ -38,10 +38,6 @@ class TapRevolutionError(PyxieError):
 ## agnostic and a trailing '!' still underlines the token in the hit zone.
 LANE_GLYPH = {'L': '<', 'R': '>', 'U': '^', 'D': '{0x0140}'}
 
-## The raw segment bitmap behind each glyph, so simultaneous notes (a chord) that
-## land on the same tube can be OR'd into one combined symbol instead of one note
-## hiding the other. Derived from LANE_GLYPH so the two never drift apart.
-LANE_BITMAP = {lane: cmdDecodePrint(glyph)[0] for lane, glyph in LANE_GLYPH.items()}
 
 ## Accepted spellings for a lane in files and programmatic charts.
 LANE_NAMES = {
@@ -366,31 +362,17 @@ class TapRevolutionAnimation(Animation):
         return self.hit_flash_frames[int(elapsed / self.hit_flash_frame_secs)]
 
     def _render_track(self, elapsed) -> List[str]:
-        """Place unjudged notes on the shared lockstep grid, merging chords per tube."""
-        lanes_at: List[List[str]] = [[] for _ in range(self.track_width)]
-        steps = round(elapsed / self.sec_per_tube)  ## one global scroll offset
+        """Place unjudged notes on the lockstep grid; earlier arrival wins per tube."""
+        lanes_at: List[Optional[str]] = [None] * self.track_width
+        steps = round(elapsed / self.sec_per_tube)
         for ns in self.note_states:
             if ns.judged is not None:
                 continue
             tube = round(ns.target / self.sec_per_tube) - steps
-            if 0 <= tube < self.track_width:
-                lanes_at[tube].append(ns.lane)
+            if 0 <= tube < self.track_width and lanes_at[tube] is None:
+                lanes_at[tube] = ns.lane
 
-        return [self._tube_glyph(lanes) for lanes in lanes_at]
-
-    @staticmethod
-    def _tube_glyph(lanes: Sequence[str]) -> str:
-        """One tube's glyph: blank, a single arrow, or chord notes OR'd together."""
-        if not lanes:
-            return ' '
-        if len(lanes) == 1:
-            return LANE_GLYPH[lanes[0]]
-
-        bitmap = 0
-        for lane in lanes:
-            bitmap |= LANE_BITMAP[lane]
-
-        return '{' + hex(bitmap) + '}'
+        return [LANE_GLYPH[lane] if lane is not None else ' ' for lane in lanes_at]
 
     def _render_score(self, now) -> str:
         """The score section: the judgement word while flashing, else the score."""

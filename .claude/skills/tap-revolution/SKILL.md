@@ -252,3 +252,12 @@ Expected perfect-game result: `BEST 12  GOOD 0  OK 0  MISS 0  BAD 0  SCORE 1200`
   anchor.
 - **In-game settings value editing for new settings** — future settings should be
   assumed read-only in the UI unless explicitly made editable.
+- **Hold notes** — SSC types `2` (hold head) and `4` (roll head) are currently
+  converted to plain taps by `scripts/ssc_to_trl.py`; tails (`3`) are dropped.
+  True hold support would require the animation to sustain a lane highlight and
+  score a "held" judgement over the duration.
+- **Mines** — SSC type `M` (avoid hitting) is currently dropped by the converter.
+  Mine support would penalise a tap that lands on a mine's tube within its window.
+- **Native SSC playback** — skipping the `.trl` conversion step and loading SSC
+  files directly; would require `.trl` format extensions or a new `Level`
+  constructor.
