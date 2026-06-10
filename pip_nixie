@@ -1,0 +1,260 @@
+#!/usr/bin/python3
+
+import argparse
+import re
+import select
+import subprocess
+import sys
+import time
+
+from pyxielib import controller as ctrl_module
+
+NUM_TUBES = 16
+PKG_MAX   = 10   # package name can occupy at most 10 tubes (right 6 are reserved)
+PCT_TUBES = 4    # rightmost tubes for percentage display
+BAR_END   = NUM_TUBES - PCT_TUBES   # tube index 12
+
+PROGRESS_GROUPS = [0x0030, 0x0880, 0x0006]
+SPINNER_SEGS    = [0x0020, 0x0040, 0x0100, 0x0200, 0x0400, 0x0800, 0x1000, 0x2000, 0x0080]
+
+ANSI_RE     = re.compile(r'\x1b\[[0-9;]*[mGKHFJA-Za-z]')
+PROGRESS_RE = re.compile(r'([\d.]+)\s*/\s*([\d.]+)\s*(kB|MB|GB|B)\b', re.IGNORECASE)
+PERCENT_RE  = re.compile(r'\b(\d+)%')
+
+ACTION_PATTERNS = [
+    (re.compile(r'^Collecting (\S+)'),                       'collecting'),
+    (re.compile(r'^Downloading (\S+)'),                      'downloading'),
+    (re.compile(r'^Building wheel for (\S+)'),               'building'),
+    (re.compile(r'^Running setup\.py \S+ for (\S+)'),        'building'),
+    (re.compile(r'^Preparing metadata.*\((\S+)\)'),          'preparing'),
+    (re.compile(r'^Installing collected packages:\s*(.+)'),  'installing'),
+    (re.compile(r'^Successfully installed (.+)'),            'installed'),
+    (re.compile(r'^Running command git clone'),              'cloning'),
+    (re.compile(r'^Cloning\b'),                              'cloning'),
+    (re.compile(r'^Updating (\S+)'),                         'updating'),
+    (re.compile(r'^ERROR'),                                  'error'),
+]
+
+SKIP_RES = [
+    re.compile(r'^Requirement already satisfied'),
+    re.compile(r'^Using cached'),
+    re.compile(r'^WARNING'),
+    re.compile(r'^DEPRECATION'),
+    re.compile(r'^Looking in'),
+    re.compile(r'^Obtaining'),
+    re.compile(r'^\s'),
+    re.compile(r'^━'),
+    re.compile(r'^\['),
+]
+
+
+def strip_version(pkg):
+    if '/' in pkg:
+        pkg = pkg.rsplit('/', 1)[-1]
+    pkg = re.sub(r'\.(whl|tar\.gz|zip|tar\.bz2|egg)$', '', pkg, flags=re.IGNORECASE)
+    parts = pkg.split('-')
+    name_parts = []
+    for p in parts:
+        base = re.split(r'[=!<>;~\[:]', p)[0]
+        if base and base[0].isdigit():
+            break
+        name_parts.append(base)
+    return ('-'.join(name_parts) if name_parts else pkg).rstrip(',.:')
+
+
+def extract_pkg_list(pkgs_str):
+    tokens = re.split(r'[\s,]+', pkgs_str.strip())
+    return [strip_version(t) for t in tokens if t]
+
+
+def apply_action(action, m, state):
+    if action == 'downloading':
+        pkg = strip_version(m.group(1))[:PKG_MAX] if m.lastindex else ''
+        state['mode'] = 'download'
+        state['pkg']  = pkg
+        state['pct']  = None
+        if pkg:
+            state['last_pkg'] = pkg
+    elif action in ('installing', 'installed'):
+        pkgs = extract_pkg_list(m.group(1)) if m.lastindex else []
+        state['mode'] = 'action'
+        state['text'] = (action + ' ' + ' '.join(pkgs))[:NUM_TUBES]
+    elif action == 'error':
+        state['mode'] = 'action'
+        state['text'] = m.string[:NUM_TUBES]
+    elif action == 'cloning':
+        state['mode'] = 'action'
+        state['text'] = 'cloning'
+    else:
+        pkg = strip_version(m.group(1)).rstrip(',:') if m.lastindex else state.get('last_pkg', '')
+        if pkg:
+            state['last_pkg'] = pkg
+        state['mode'] = 'action'
+        state['text'] = (action + ' ' + pkg)[:NUM_TUBES]
+
+
+def update_progress(line, state):
+    m = PROGRESS_RE.search(line)
+    if m:
+        current = float(m.group(1))
+        total   = float(m.group(2))
+        if total > 0:
+            state['pct'] = min(100.0, current / total * 100.0)
+        return
+    m = PERCENT_RE.search(line)
+    if m:
+        state['pct'] = float(m.group(1))
+
+
+def parse_line(line, state):
+    line = ANSI_RE.sub('', line).rstrip()
+    if not line:
+        return
+    for skip_re in SKIP_RES:
+        if skip_re.match(line):
+            if state['mode'] == 'download':
+                update_progress(line, state)
+            return
+    for pat, action in ACTION_PATTERNS:
+        m = pat.match(line)
+        if m:
+            apply_action(action, m, state)
+            return
+    if state['mode'] == 'download':
+        update_progress(line, state)
+
+
+def build_bar_bitmaps(n_bar, pct):
+    total_segs = n_bar * 3
+    filled     = round(pct / 100.0 * total_segs)
+    bitmaps    = []
+    for i in range(n_bar):
+        bm = 0
+        for s, mask in enumerate(PROGRESS_GROUPS):
+            if i * 3 + s < filled:
+                bm |= mask
+        bitmaps.append(bm)
+    return bitmaps
+
+
+def build_download_code(pkg, pct, spinner_step):
+    pkg_len = len(pkg)
+    bar_len = BAR_END - pkg_len
+
+    if pct is not None and bar_len >= 4:
+        bar  = build_bar_bitmaps(bar_len, pct)
+        code = pkg
+        code += ''.join(f'{{{hex(bm)}}}' for bm in bar)
+        code += f'{int(pct):3d}%'
+        return code
+
+    bm = 0
+    for i in range(min(spinner_step + 1, len(SPINNER_SEGS))):
+        bm |= SPINNER_SEGS[i]
+    blank_after = BAR_END - pkg_len - 1
+    return pkg + f'{{{hex(bm)}}}' + ' ' * max(0, blank_after) + ' ' * PCT_TUBES
+
+
+def build_code(state, spinner_step):
+    if state['mode'] == 'download':
+        return build_download_code(state['pkg'], state['pct'], spinner_step)
+    return state['text']
+
+
+def run_pip(ctrl, pip_cmd):
+    ctrl.send("Checking Pip")
+    proc = subprocess.Popen(
+        pip_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
+
+    state        = {'mode': 'action', 'text': 'Checking Pip', 'pkg': '', 'pct': None, 'last_pkg': ''}
+    spinner_step = 0
+    spinner_ts   = time.time()
+    prev_code    = None
+
+    try:
+        while True:
+            ready, _, _ = select.select([proc.stdout], [], [], 0.05)
+            if ready:
+                line = proc.stdout.readline()
+                if not line:
+                    if proc.poll() is not None:
+                        break
+                    continue
+                mode_pkg_before = (state['mode'], state['pkg'])
+                parse_line(line, state)
+                if state['mode'] == 'download' and (state['mode'], state['pkg']) != mode_pkg_before:
+                    spinner_step = 0
+                    spinner_ts   = time.time()
+
+            now = time.time()
+            if state['mode'] == 'download' and state['pct'] is None and now - spinner_ts >= 0.1:
+                spinner_step = (spinner_step + 1) % len(SPINNER_SEGS)
+                spinner_ts   = now
+
+            code = build_code(state, spinner_step)
+            if code != prev_code:
+                ctrl.send(code)
+                prev_code = code
+
+    except Exception:
+        if proc.poll() is None:
+            try:
+                ctrl.send("checking pip")
+            except Exception:
+                pass
+            proc.wait()
+        raise
+
+    rc = proc.wait()
+    ctrl.send("done" if rc == 0 else "pip failed")
+    return rc
+
+
+def make_parser():
+    parser = argparse.ArgumentParser(description='Run pip with nixie display feedback')
+    parser.add_argument('-c', '--controller', help='Controller type: terminal, raspi, serial')
+    parser.add_argument('-s', '--serial', help='Serial device path (overrides --controller)')
+    parser.add_argument('--keyboard-event-file', metavar='PATH')
+    parser.add_argument('pip_cmd', nargs=argparse.REMAINDER)
+    return parser
+
+
+def make_controller(args):
+    if args.serial is not None:
+        controller_type = 'serial'
+    elif args.controller is None:
+        print("Error: --controller is required", file=sys.stderr)
+        sys.exit(1)
+    else:
+        controller_type = args.controller.lower()
+
+    if controller_type == 'terminal':
+        return ctrl_module.TerminalController(clear_screen=False)
+    if controller_type == 'raspi':
+        return ctrl_module.RaspberryPiController(speed=10**6, cleanup=False)
+    if controller_type == 'serial':
+        return ctrl_module.SerialController(args.serial)
+    print(f"Unsupported controller: {controller_type}", file=sys.stderr)
+    sys.exit(1)
+
+
+def get_pip_cmd(args):
+    cmd = list(args.pip_cmd)
+    if cmd and cmd[0] == '--':
+        cmd = cmd[1:]
+    if not cmd:
+        print("Error: no pip command given (use: pip_nixie -c ... -- pip install ...)", file=sys.stderr)
+        sys.exit(1)
+    return cmd
+
+
+def main():
+    args    = make_parser().parse_args()
+    ctrl    = make_controller(args)
+    pip_cmd = get_pip_cmd(args)
+    rc      = run_pip(ctrl, pip_cmd)
+    sys.exit(rc)
+
+
+main()

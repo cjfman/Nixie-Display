@@ -12,8 +12,9 @@ AFTER_HASH=$(git rev-parse HEAD)
 
 PIP_FLAG=/tmp/nixie_pip_done
 if [[ ! -f $PIP_FLAG ]] || [[ "$BEFORE_HASH" != "$AFTER_HASH" ]]; then
-    nixie_print "Checking pip"
-    pip install -q --break-system-packages -r "$HOME/Nixie-Display/requirements.txt" || \
+    "$NIXIE_DIR/pip_nixie" -c raspi --keyboard-event-file /dev/input/event0 -- \
+        pip install -q --break-system-packages -r "$HOME/Nixie-Display/requirements.txt" || \
+    "$NIXIE_DIR/pip_nixie" -c raspi --keyboard-event-file /dev/input/event0 -- \
         pip install -q -r "$HOME/Nixie-Display/requirements.txt"
     touch $PIP_FLAG
 fi
