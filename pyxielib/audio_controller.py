@@ -50,6 +50,9 @@ class BluetoothDevice:
     trusted: bool = False
 
 
+_MUTE_CACHE_TTL = 0.5  ## seconds
+
+
 class AudioController:
     def __init__(self):
         self._scan_proc = None
@@ -60,6 +63,8 @@ class AudioController:
         self._test_proc = None
         self._test_thread: Optional[threading.Thread] = None
         self._test_result: Optional[bool] = None
+        self._mute_cache: Optional[bool] = None
+        self._mute_cache_time: float = 0.0
 
     # --- PulseAudio / PipeWire ---
 
@@ -142,6 +147,9 @@ class AudioController:
         return result.returncode == 0
 
     def is_muted(self) -> bool:
+        now = time.time()
+        if self._mute_cache is not None and now - self._mute_cache_time < _MUTE_CACHE_TTL:
+            return self._mute_cache
         try:
             result = subprocess.run(
                 ['pactl', 'get-sink-mute', '@DEFAULT_SINK@'],
@@ -149,7 +157,10 @@ class AudioController:
             )
         except Exception:
             return False
-        return 'yes' in result.stdout.decode('utf-8', errors='replace').lower()
+        muted = 'yes' in result.stdout.decode('utf-8', errors='replace').lower()
+        self._mute_cache = muted
+        self._mute_cache_time = now
+        return muted
 
     def set_mute(self, muted) -> bool:
         try:
@@ -159,6 +170,9 @@ class AudioController:
             )
         except Exception:
             return False
+        if result.returncode == 0:
+            self._mute_cache = muted
+            self._mute_cache_time = time.time()
         return result.returncode == 0
 
     # --- Test sound ---
