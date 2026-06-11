@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
 import argparse
+import os
+import pty
 import re
 import select
 import subprocess
@@ -15,7 +17,7 @@ PCT_TUBES = 4    # rightmost tubes for percentage display
 BAR_END   = NUM_TUBES - PCT_TUBES   # tube index 12
 
 PROGRESS_GROUPS = [0x0030, 0x0880, 0x0006]
-SPINNER_SEGS    = [0x0040, 0x0080, 0x0100, 0x0200, 0x0400, 0x0800, 0x1000, 0x2000, 0x0080]
+SPINNER_SEGS    = [0x0080, 0x0080, 0x0100, 0x0200, 0x0400, 0x0800, 0x1000, 0x2000, 0x0040]
 
 ANSI_RE     = re.compile(r'\x1b\[[0-9;]*[mGKHFJA-Za-z]')
 PROGRESS_RE = re.compile(r'([\d.]+)\s*/\s*([\d.]+)\s*(kB|MB|GB|B)\b', re.IGNORECASE)
@@ -155,6 +157,27 @@ def build_download_code(pkg, pct, spinner_step):
     return pkg + f' {{{hex(bm)}}}' + ' ' * max(0, blank_after) + ' ' * PCT_TUBES
 
 
+def read_pty_lines(fd, buf):
+    try:
+        data = os.read(fd, 4096)
+        if not data:
+            return None, buf  # EOF
+        buf += data.decode('utf-8', errors='replace')
+    except OSError:
+        return None, buf  # EIO: subprocess exited and closed the PTY
+    lines = []
+    while buf:
+        for sep in ('\r\n', '\n', '\r'):
+            idx = buf.find(sep)
+            if idx >= 0:
+                lines.append(buf[:idx])
+                buf = buf[idx + len(sep):]
+                break
+        else:
+            break
+    return lines, buf
+
+
 def build_code(state, spinner_step):
     if state['mode'] == 'download':
         return build_download_code(state['pkg'], state['pct'], spinner_step)
@@ -163,9 +186,49 @@ def build_code(state, spinner_step):
 
 def run_pip(ctrl, pip_cmd):
     ctrl.send("Checking Pip")
-    proc = subprocess.Popen(
-        pip_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-    )
+
+    try:
+        master_fd, slave_fd = pty.openpty()
+        proc = subprocess.Popen(
+            pip_cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            close_fds=True,
+        )
+        os.close(slave_fd)
+        buf = ['']
+
+        def poll():
+            try:
+                ready, _, _ = select.select([master_fd], [], [], 0.05)
+            except (ValueError, OSError):
+                return None
+            if ready:
+                lines, buf[0] = read_pty_lines(master_fd, buf[0])
+                return lines  # None = EIO/EOF = done; [] = no complete lines yet
+            return None if proc.poll() is not None else []
+
+        def cleanup():
+            try:
+                os.close(master_fd)
+            except OSError:
+                pass
+
+    except OSError:
+        proc = subprocess.Popen(
+            pip_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        )
+
+        def poll():
+            ready, _, _ = select.select([proc.stdout], [], [], 0.05)
+            if ready:
+                line = proc.stdout.readline()
+                return None if not line else [line.rstrip('\n')]
+            return None if proc.poll() is not None else []
+
+        def cleanup():
+            pass
 
     state        = {'mode': 'action', 'text': 'Checking Pip', 'pkg': '', 'pct': None, 'last_pkg': ''}
     spinner_step = 0
@@ -174,13 +237,10 @@ def run_pip(ctrl, pip_cmd):
 
     try:
         while True:
-            ready, _, _ = select.select([proc.stdout], [], [], 0.05)
-            if ready:
-                line = proc.stdout.readline()
-                if not line:
-                    if proc.poll() is not None:
-                        break
-                    continue
+            lines = poll()
+            if lines is None:
+                break
+            for line in lines:
                 mode_pkg_before = (state['mode'], state['pkg'])
                 parse_line(line, state)
                 if state['mode'] == 'download' and (state['mode'], state['pkg']) != mode_pkg_before:
@@ -205,6 +265,8 @@ def run_pip(ctrl, pip_cmd):
                 pass
             proc.wait()
         raise
+    finally:
+        cleanup()
 
     rc = proc.wait()
     ctrl.send("done" if rc == 0 else "pip failed")
