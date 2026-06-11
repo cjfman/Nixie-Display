@@ -325,7 +325,25 @@ class TextBodyItem(MenuItem):
 
 
 class LogViewerItem(TextBodyItem):
-    """Browse a log file in the menu, most-recent line first."""
+    """Browse a log file in the menu, most-recent line first.
+
+    Each line's ``$DATE $LEVEL $MODULE: `` preamble is stripped and replaced
+    with a four-character contraction of the log level, so the message itself
+    fits on the display instead of being pushed off by the timestamp.
+    """
+    ## Matches the logging format: '%(asctime)s %(levelname)-8s %(name)s: %(message)s'
+    _PREAMBLE = re.compile(
+        r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} (\w+)\s+\S+: (.*)$')
+    _LEVELS = {
+        'INFO':    'INFO',
+        'WARN':    'WARN',
+        'WARNING': 'WARN',
+        'ERROR':   'ERRR',
+        'DEBUG':   'DBUG',
+        'VERBOSE': 'VBOS',
+        'TRACE':   'TRCE',
+    }
+
     def __init__(self, path, *, tail=200, **kwargs):
         super().__init__("Logs", **kwargs)
         self.path = path
@@ -334,10 +352,21 @@ class LogViewerItem(TextBodyItem):
     def activate(self):
         self.set_lines(self._read())
 
+    @classmethod
+    def _strip_preamble(cls, line):
+        """Replace the date/level/module preamble with a contracted level."""
+        match = cls._PREAMBLE.match(line)
+        if match is None:
+            return line   ## continuation lines (e.g. tracebacks) pass through
+        level, message = match.group(1), match.group(2)
+        abbr = cls._LEVELS.get(level.upper(), level.upper()[:4])
+        return f"{abbr} {message}"
+
     def _read(self) -> List[str]:
         try:
             with open(os.path.expanduser(self.path)) as f:
-                lines = [line.rstrip('\n') for line in deque(f, maxlen=self.tail)]
+                lines = [self._strip_preamble(line.rstrip('\n'))
+                         for line in deque(f, maxlen=self.tail)]
         except OSError:
             return ["No log file"]
         if not lines:
