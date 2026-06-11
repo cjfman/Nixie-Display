@@ -10,6 +10,7 @@ TapRevolutionSettingsItem (editable settings), and ResetSettingsItem.
 
 import collections
 import copy
+import dataclasses
 import logging
 import os
 import time
@@ -265,11 +266,15 @@ class TapRevolutionLevelsItem(ListItem):
             return
         level = self._load_level(self.current_value())
         if level is not None:
-            gap_secs = self.config.difficulty_settings()
-            if gap_secs > 0:
-                level = level.thinned(gap_secs)
+            diff = self.config.difficulty_settings()
+            if diff.gap > 0:
+                level = level.thinned(diff.gap)
+            if diff.scroll_time is not None:
+                level = dataclasses.replace(level, scroll_time=diff.scroll_time)
             self.key_lane = self.config.key_lane_map()
-            self.animation = taplib.TapRevolutionAnimation(level, size=self.size, **self.config.animation_kwargs())
+            self.animation = taplib.TapRevolutionAnimation(
+                level, size=self.size,
+                **self.config.animation_kwargs(window_scale=diff.window_scale))
 
     def key_up(self):
         if not self._play_key('UP'):

@@ -14,10 +14,11 @@ Settings schema (see config/tap_revolution.defaults.yaml):
     hit_flash:     {frames, frame_secs}
 """
 
+import collections
 import copy
 import logging
 import os
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -28,6 +29,9 @@ logger = logging.getLogger(__name__)
 
 ARROW_TOKENS = {'left': 'LEFT', 'right': 'RIGHT', 'up': 'UP', 'down': 'DOWN'}
 LANE_LABEL = {'left': 'L', 'right': 'R', 'up': 'U', 'down': 'D'}
+
+## Resolved difficulty levers. ``scroll_time`` is None to keep the chart's own.
+Difficulty = collections.namedtuple('Difficulty', ['gap', 'scroll_time', 'window_scale'])
 
 ## The ultimate fallback when no files are present, derived from the code constants
 ## so the shipped defaults file and these never drift.
@@ -45,9 +49,9 @@ CODE_DEFAULTS: Dict[str, Any] = {
     'hit_flash': {'frames': list(tr.HIT_FLASH_FRAMES), 'frame_secs': tr.HIT_FLASH_FRAME_SECS},
     'results_secs': 6,
     'difficulties': [
-        {'name': 'hard',   'display_name': 'Hard',   'gap': 0},
-        {'name': 'medium', 'display_name': 'Medium',  'gap': 200},
-        {'name': 'easy',   'display_name': 'Easy',    'gap': 400},
+        {'name': 'hard',   'display_name': 'Hard',   'gap': 0,   'scroll_time': None, 'window_scale': 1.0},
+        {'name': 'medium', 'display_name': 'Medium', 'gap': 200, 'scroll_time': 2.5,  'window_scale': 1.4},
+        {'name': 'easy',   'display_name': 'Easy',   'gap': 400, 'scroll_time': 3.0,  'window_scale': 1.8},
     ],
     'difficulty': 'hard',
 }
@@ -130,11 +134,17 @@ class TapRevolutionConfig:
     def results_secs(self) -> int:
         return int(self.settings['results_secs'])
 
-    def animation_kwargs(self) -> Dict[str, Any]:
-        """Keyword args for ``TapRevolutionAnimation`` from the active settings."""
+    def animation_kwargs(self, window_scale=1.0) -> Dict[str, Any]:
+        """Keyword args for ``TapRevolutionAnimation`` from the active settings.
+
+        ``window_scale`` widens every hit-window threshold (a difficulty lever).
+        """
         s = self.settings
+        windows = self._hit_windows()
+        if window_scale != 1.0:
+            windows = tuple((name, w * window_scale, points) for name, w, points in windows)
         return {
-            'hit_windows':          self._hit_windows(),
+            'hit_windows':          windows,
             'grace':                float(s['grace']),
             'cooldown':             float(s['bad_tap']['cooldown']),
             'bad_penalty':          int(s['bad_tap']['penalty']),
@@ -168,13 +178,21 @@ class TapRevolutionConfig:
 
         return ''
 
-    def difficulty_settings(self) -> float:
-        """Return the minimum note gap in seconds for the active difficulty level."""
+    def difficulty_settings(self) -> Difficulty:
+        """Resolve the active difficulty into (gap_secs, scroll_time, window_scale)."""
         name = str(self.settings.get('difficulty', '')).lower()
         for diff in self.settings.get('difficulties', []):
             if str(diff.get('name', '')).lower() == name:
-                return max(0, int(diff.get('gap', 0))) / 1000.0
-        return 0.0
+                return self._difficulty(diff)
+        return Difficulty(0.0, None, 1.0)
+
+    @staticmethod
+    def _difficulty(diff) -> Difficulty:
+        """One difficulties entry as a Difficulty (gap in seconds; scroll_time None = keep chart's)."""
+        gap = max(0, int(diff.get('gap', 0))) / 1000.0
+        scroll = diff.get('scroll_time')
+        scroll_time: Optional[float] = float(scroll) if scroll is not None else None
+        return Difficulty(gap, scroll_time, float(diff.get('window_scale', 1.0)))
 
     def summary_lines(self) -> List[str]:
         """Printable, scrollable lines describing the settings for the menu view."""

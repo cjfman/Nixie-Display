@@ -139,8 +139,9 @@ cfg = TapRevolutionConfig(
 )
 ```
 
-Key methods: `animation_kwargs()`, `key_lane_map()`, `results_secs()`,
-`summary_lines()`, `save()`, `reset()`, `validate_buckets(buckets)` (static).
+Key methods: `animation_kwargs(window_scale=1.0)`, `difficulty_settings()`,
+`key_lane_map()`, `results_secs()`, `summary_lines()`, `save()`, `reset()`,
+`validate_buckets(buckets)` (static).
 
 `key_lane_map()` returns `{token: lane}` where tokens are `'LEFT'`/`'RIGHT'`/
 `'UP'`/`'DOWN'` for arrow keys or a literal char (`'a'`).
@@ -153,6 +154,11 @@ score_buckets:
   - {name: GOOD, threshold: 0.090, points: 70}
   - {name: OK,   threshold: 0.140, points: 40}
 bad_tap:       {enabled: true, cooldown: 0.15, penalty: 5}
+difficulties:        ## arbitrary list; name is a single word, no spaces
+  - {name: hard,   display_name: Hard,   gap: 0,   scroll_time: null, window_scale: 1.0}
+  - {name: medium, display_name: Medium, gap: 200, scroll_time: 2.5,  window_scale: 1.4}
+  - {name: easy,   display_name: Easy,   gap: 400, scroll_time: 3.0,  window_scale: 1.8}
+difficulty: hard     ## active level — references a name above (in-game select)
 grace: 0.12
 flash_secs: 0.6
 score_width: 4      ## read-only in settings UI
@@ -160,6 +166,14 @@ judge_flash: true
 hit_flash:     {frames: [x, +, x], frame_secs: 0.05}   ## read-only in settings UI
 results_secs: 6
 ```
+
+Difficulty levers (applied in `TapRevolutionLevelsItem.key_enter` via
+`config.difficulty_settings()` → a `Difficulty(gap, scroll_time, window_scale)`):
+- `gap` (ms) → `Level.thinned(gap/1000)` drops notes closer than the gap.
+- `scroll_time` → overrides the chart's value; `null` keeps the chart's own.
+  Keep ≤ ~3.0 s (≈0.27 s/tube): slower steps too coarsely to read as motion.
+- `window_scale` → `animation_kwargs(window_scale=...)` multiplies every
+  hit-window threshold (larger = more forgiving timing).
 
 `run_display.make_tap_config(cfg)` falls back to the project-relative
 `config/tap_revolution.defaults.yaml` and `config/tap_revolution.yaml` when the
@@ -178,7 +192,9 @@ TapRevolutionMenu (Menu)
 
 ### `TapRevolutionLevelsItem`
 Lists `.trl` files (by `name:` header) + `BUILTIN_LEVELS`. `key_enter()` launches
-a game built from `config.animation_kwargs()` and caches `config.key_lane_map()`.
+a game built from `config.animation_kwargs()`, applies the active difficulty
+(`difficulty_settings()` → thinning + `scroll_time` override + `window_scale`),
+and caches `config.key_lane_map()`.
 Arrow keys and `key_char` route through the key map during play; ESC aborts to
 results marquee.
 
@@ -249,7 +265,14 @@ Expected perfect-game result: `BEST 12  GOOD 0  OK 0  MISS 0  BAD 0  SCORE 1200`
   returns a plain dict so a `schedule:` key is a localized add when ready.
 - **Audio sync** — `Level.audio` and `.trl` `audio:` are reserved. Notes are on
   the same absolute-seconds timeline audio would use; `start_time` is the single
-  anchor.
+  anchor. **When wiring up playback, start the audio `lead_in` seconds after
+  `start_time`** (not at `start_time`). A note's scored target is
+  `n.time + lead_in` and `lead_in` defaults to `scroll_time`, so anchoring audio
+  to `lead_in` makes music-time 0 line up with chart-time 0 and keeps taps on the
+  beat. This is also why the per-difficulty `scroll_time` lever is safe: it only
+  shifts `lead_in` (a constant added to every note) plus the visual reaction
+  window — it never scales `n.time`, so inter-note spacing and tap-vs-music
+  alignment are unchanged.
 - **In-game settings value editing for new settings** — future settings should be
   assumed read-only in the UI unless explicitly made editable.
 - **Hold notes** — SSC types `2` (hold head) and `4` (roll head) are currently

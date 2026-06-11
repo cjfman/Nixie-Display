@@ -27,17 +27,29 @@ bad_tap:
   penalty: 5       # points subtracted per BAD tap (score never goes below 0)
 
 # Difficulty levels (arbitrary list; name must be a single word with no spaces).
-# gap is the minimum milliseconds between notes — 0 means show the full chart.
+#   gap          — minimum milliseconds between notes; 0 shows the full chart.
+#   scroll_time  — seconds an arrow takes to cross the track; null keeps the
+#                  chart's own value. Keep this <= ~3.0 (≈0.27s/tube on 16 tubes):
+#                  slower than that and the arrows step too coarsely to read as
+#                  motion (a frozen "slideshow") and timing feels off.
+#   window_scale — multiplies every score_buckets threshold, so a larger value
+#                  is more forgiving timing.
 difficulties:
   - name: hard
     display_name: Hard
     gap: 0
+    scroll_time: null
+    window_scale: 1.0
   - name: medium
     display_name: Medium
     gap: 200
+    scroll_time: 2.5
+    window_scale: 1.4
   - name: easy
     display_name: Easy
     gap: 400
+    scroll_time: 3.0
+    window_scale: 1.8
 
 # Active difficulty — references the name field of an entry in difficulties above.
 difficulty: hard
