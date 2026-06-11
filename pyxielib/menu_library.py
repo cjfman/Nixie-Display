@@ -761,7 +761,7 @@ class BTAddItem(ListItem):
         if self.state == 'scanning':
             result = self.audio.scan_poll()
             if result is not None:
-                new_devs = [d for d in result if d.mac not in self._paired_macs]
+                new_devs = [d for d in result if d.mac not in self._paired_macs and d.named]
                 self._devices = new_devs
                 if new_devs:
                     self.set_values([d.name[:16] for d in new_devs])

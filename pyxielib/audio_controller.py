@@ -41,6 +41,12 @@ class AudioSink:
     bt_mac: Optional[str] = None
 
 
+def _looks_like_mac(text) -> bool:
+    """True if text is just a MAC address. BlueZ uses the MAC as the device
+    name (with ':' or '-' separators) when a device has no friendly name."""
+    return re.fullmatch(r'[0-9A-Fa-f]{2}([:_-][0-9A-Fa-f]{2}){5}', text.strip()) is not None
+
+
 @dataclass
 class BluetoothDevice:
     mac: str
@@ -48,6 +54,11 @@ class BluetoothDevice:
     connected: bool = False
     paired: bool = False
     trusted: bool = False
+
+    @property
+    def named(self) -> bool:
+        """True if the device advertised a real name (not just its MAC)."""
+        return bool(self.name) and not _looks_like_mac(self.name)
 
 
 _MUTE_CACHE_TTL = 0.5  ## seconds
@@ -306,26 +317,84 @@ class AudioController:
         )
         self._pair_thread.start()
 
+    ## (command, seconds to wait afterwards). Pairing and connection complete
+    ## asynchronously, so each step is given time before the next is issued.
+    _PAIR_STEPS = (
+        ('power on', 0.5),
+        ('agent on', 0.5),
+        ('default-agent', 0.5),
+        ('scan on', 3.0),       ## keep the adapter discovering so the device is connectable
+        ('pair {mac}', 8.0),    ## pairing + PIN/auth exchange can take several seconds
+        ('trust {mac}', 1.0),
+        ('connect {mac}', 6.0),
+        ('scan off', 0.5),
+    )
+
     def _pair_worker(self, mac) -> None:
         try:
-            r = subprocess.run(
-                ['bluetoothctl', 'pair', mac],
-                capture_output=True, check=False, timeout=30,
-            )
-            if r.returncode != 0:
-                self._pair_result = False
-                return
-            subprocess.run(
-                ['bluetoothctl', 'trust', mac],
+            output = self._pair_session(mac)
+            logger.info("bluetoothctl pair session for %s:\n%s", mac, output.strip())
+            self._pair_result = self._is_connected(mac)
+            if not self._pair_result:
+                logger.warning("Pairing/connecting to %s did not succeed", mac)
+        except Exception as e:
+            logger.warning("Bluetooth pairing error for %s: %s", mac, e)
+            self._pair_result = False
+
+    def _pair_session(self, mac) -> str:
+        """Drive one interactive bluetoothctl session through the full
+        power/agent/pair/trust/connect sequence; return its combined output.
+
+        A single session is required because the pairing agent is registered
+        per bluetoothctl process — 'agent on'/'default-agent' must run in the
+        same session as 'pair', which the previous one-shot-per-command
+        approach could not do, so pairing always failed for lack of an agent.
+        A reader thread drains stdout while commands are written so a chatty
+        session can't deadlock on a full pipe."""
+        proc = subprocess.Popen(
+            ['bluetoothctl'],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, text=True,
+        )
+        chunks: List[str] = []
+        reader = threading.Thread(target=lambda: chunks.append(proc.stdout.read()), daemon=True)
+        reader.start()
+        try:
+            for cmd, wait in self._PAIR_STEPS:
+                proc.stdin.write(cmd.format(mac=mac) + '\n')
+                proc.stdin.flush()
+                time.sleep(wait)
+            proc.stdin.write('quit\n')
+            proc.stdin.flush()
+        except Exception:
+            pass
+        finally:
+            try:
+                proc.stdin.close()
+            except Exception:
+                pass
+        try:
+            proc.wait(timeout=10)
+        except Exception:
+            proc.kill()
+        reader.join(timeout=2)
+        return ''.join(c for c in chunks if c)
+
+    def _is_connected(self, mac) -> bool:
+        """Source of truth for pairing success: query the device and check it
+        reports paired/connected, rather than trusting bluetoothctl exit codes
+        (which are unreliable)."""
+        try:
+            result = subprocess.run(
+                ['bluetoothctl', 'info', mac],
                 capture_output=True, check=False, timeout=10,
             )
-            r = subprocess.run(
-                ['bluetoothctl', 'connect', mac],
-                capture_output=True, check=False, timeout=30,
-            )
-            self._pair_result = (r.returncode == 0)
         except Exception:
-            self._pair_result = False
+            return False
+        out = result.stdout.decode('utf-8', errors='replace')
+        paired = re.search(r'Paired:\s*yes', out, re.IGNORECASE) is not None
+        connected = re.search(r'Connected:\s*yes', out, re.IGNORECASE) is not None
+        return paired or connected
 
     def poll_pair(self) -> Optional[bool]:
         if self._pair_thread is None:
