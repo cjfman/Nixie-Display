@@ -186,9 +186,10 @@ class TapRevolutionLevelsItem(ListItem):
         self.dir_stack   = []
         self.subdirs     = {}
         self.level_files = {}
-        self.animation   = None
-        self.results     = None
-        self.key_lane    = {}
+        self.animation     = None
+        self.results       = None
+        self.key_lane      = {}
+        self._quit_confirm = False
 
     def activate(self):
         self.cur_path  = self.levels_path
@@ -242,9 +243,10 @@ class TapRevolutionLevelsItem(ListItem):
         self.dir_stack   = []
         self.subdirs     = {}
         self.level_files = {}
-        self.animation   = None
-        self.results     = None
-        self.key_lane    = {}
+        self.animation     = None
+        self.results       = None
+        self.key_lane      = {}
+        self._quit_confirm = False
 
     def _playing(self) -> bool:
         return self.animation is not None and self.results is None
@@ -260,6 +262,12 @@ class TapRevolutionLevelsItem(ListItem):
                 return self._browse_display()
             return self.results
         if self.animation is not None:
+            if self._quit_confirm:
+                if self.animation.done():
+                    self._quit_confirm = False
+                    self.results = self._make_results()
+                    return self.results
+                return "QUIT Y/N"
             if self.animation.done():
                 self.results = self._make_results()
                 return self.results
@@ -268,7 +276,7 @@ class TapRevolutionLevelsItem(ListItem):
         return self._browse_display()
 
     def _browse_display(self) -> str:
-        """The current list entry; directories get a blinking '>' on the last tube."""
+        """The current list entry; directories get a blinking '>' on the next tube."""
         name = self.current_value()
         if name in self.subdirs:
             return self._dir_label(name)
@@ -278,8 +286,8 @@ class TapRevolutionLevelsItem(ListItem):
         """A directory entry: the name with a blinking '>' pinned to the last tube."""
         arrow = '>' if time.time() % 0.5 < _DIR_BLINK_ON_SECS else ' '
         if cmdLen(name) >= self.size - 1:
-            return f"{name} {arrow}"
-        return name.ljust(self.size - 1) + arrow
+            return f"{name[:self.size-1]} {arrow}"
+        return f"{name}{arrow}"
 
     def _descend(self, path):
         """Enter a subdirectory, remembering the parent for ascent."""
@@ -316,7 +324,7 @@ class TapRevolutionLevelsItem(ListItem):
 
     def _play_key(self, token):
         """Route a key press to the lane it's bound to (no-op if unbound)."""
-        if not self._playing():
+        if not self._playing() or self._quit_confirm:
             return False
         lane = self.key_lane.get(token)
         if lane is None:
@@ -360,19 +368,31 @@ class TapRevolutionLevelsItem(ListItem):
         self._play_key('RIGHT')
 
     def key_char(self, c):
-        self._play_key(c)
+        if self._quit_confirm:
+            if c.lower() == 'y':
+                self.animation     = None
+                self._quit_confirm = False
+            elif c.lower() == 'n':
+                self._quit_confirm = False
+        else:
+            self._play_key(c)
 
     def key_esc(self):
-        if self._playing():
-            self.results = self._make_results()
+        if self._quit_confirm:
+            self._quit_confirm = False
+        elif self._playing():
+            self._quit_confirm = True
         elif self.results is not None:
             self.animation = None
-            self.results = None
+            self.results   = None
         else:
             self._go_back()
 
     def key_backspace(self):
-        self.key_esc()
+        if self._quit_confirm:
+            self._quit_confirm = False
+        else:
+            self.key_esc()
 
 
 class TapRevolutionSettingsItem(MenuItem):
