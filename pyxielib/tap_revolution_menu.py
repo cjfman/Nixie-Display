@@ -20,6 +20,7 @@ from pyxielib import tap_revolution as taplib
 from pyxielib.animation import Animation, MarqueeAnimation
 from pyxielib.navigator import ListItem, Menu, MenuItem
 from pyxielib.tap_revolution_config import TapRevolutionConfig
+from pyxielib.tube_manager import cmdLen
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,8 @@ _SettingEntry = collections.namedtuple(
 
 ## Seconds the cursor is ON within each 0.5 s blink period.
 _CURSOR_ON_SECS = 0.25
+## Seconds the directory '>' marker is ON within each 0.5 s blink period.
+_DIR_BLINK_ON_SECS = 0.3
 ## Duration to show validation-failure flash messages.
 _SETTINGS_FLASH_SECS = 1.0
 
@@ -164,11 +167,14 @@ class TapRevolutionLevelsItem(ListItem):
 
     Lists levels (``.trl`` files in ``levels_path`` plus the built-in
     programmatic charts); selecting one launches a ``TapRevolutionAnimation`` built
-    from the shared config. While playing, the configured action keys are taps
-    routed into the animation — timestamped by the key watcher so hit timing is
-    accurate regardless of poll latency — and list navigation is suspended. When
-    the chart finishes (or the player backs out early) a results marquee plays
-    before returning to the level list.
+    from the shared config. Subdirectories of ``levels_path`` appear as their own
+    entries (a blinking ``>`` pinned to the last tube) and act like nested menus:
+    Enter descends into one, Left/Backspace/Esc ascends to the parent, and the
+    same keys exit the item only at the root. While playing, the configured action
+    keys are taps routed into the animation — timestamped by the key watcher so hit
+    timing is accurate regardless of poll latency — and list navigation is
+    suspended. When the chart finishes (or the player backs out early) a results
+    marquee plays before returning to the level list.
     """
     def __init__(self, config, levels_path, *, watcher=None, size=16, **kwargs):
         super().__init__("Play", **kwargs)
@@ -176,33 +182,55 @@ class TapRevolutionLevelsItem(ListItem):
         self.levels_path = levels_path
         self.watcher     = watcher
         self.size        = size
+        self.cur_path    = levels_path
+        self.dir_stack   = []
+        self.subdirs     = {}
         self.level_files = {}
         self.animation   = None
         self.results     = None
         self.key_lane    = {}
 
     def activate(self):
-        self.level_files = self._scan_levels()
-        self.set_values(sorted(taplib.BUILTIN_LEVELS) + sorted(self.level_files))
+        self.cur_path  = self.levels_path
+        self.dir_stack = []
+        self.idx       = 0
+        self._refresh()
 
-    def _scan_levels(self):
-        """Map each .trl file's 'name:' title to its path; built-ins added separately."""
+    def _refresh(self):
+        """Rescan the current directory and rebuild the visible list."""
+        self.subdirs, self.level_files = self._scan(self.cur_path)
+        names = sorted(self.subdirs)
+        if self.cur_path == self.levels_path:
+            names += sorted(taplib.BUILTIN_LEVELS)
+        names += sorted(self.level_files)
+        self.set_values(names)
+
+    def _scan(self, path):
+        """One directory as (subdirs, files) dicts mapping display name -> path.
+
+        Subdirectories are keyed by basename; ``.trl`` files by their 'name:' title.
+        Built-in programmatic charts are added by ``_refresh`` (root only).
+        """
         try:
-            files = sorted(x for x in os.listdir(self.levels_path) if x.endswith('.trl'))
+            entries = sorted(os.listdir(path))
         except OSError:
-            return {}
+            return {}, {}
 
-        levels = {}
-        counts = {}
-        for f in files:
-            path = os.path.join(self.levels_path, f)
-            levels[self._unique_name(taplib.Level.read_title(path), counts)] = path
+        counts, subdirs, files = {}, {}, {}
+        for entry in entries:
+            full = os.path.join(path, entry)
+            if entry.startswith('.'):
+                continue
+            if os.path.isdir(full):
+                subdirs[self._unique_name(entry, counts)] = full
+            elif entry.endswith('.trl'):
+                files[self._unique_name(taplib.Level.read_title(full), counts)] = full
 
-        return levels
+        return subdirs, files
 
     @staticmethod
     def _unique_name(title, counts) -> str:
-        """Disambiguate a repeated title by appending '<N>' (first keeps the bare title)."""
+        """Disambiguate a repeated name by appending '<N>' (first keeps the bare name)."""
         seen = counts.get(title, 0)
         counts[title] = seen + 1
         return title if seen == 0 else f"{title}<{seen + 1}>"
@@ -210,6 +238,9 @@ class TapRevolutionLevelsItem(ListItem):
     def reset(self):
         super().reset()
         self.set_values(None)
+        self.cur_path    = self.levels_path
+        self.dir_stack   = []
+        self.subdirs     = {}
         self.level_files = {}
         self.animation   = None
         self.results     = None
@@ -218,12 +249,15 @@ class TapRevolutionLevelsItem(ListItem):
     def _playing(self) -> bool:
         return self.animation is not None and self.results is None
 
+    def _browsing(self) -> bool:
+        return self.animation is None and self.results is None
+
     def for_display(self):
         if self.results is not None:
             if self.results.done():
                 self.animation = None
                 self.results = None
-                return super().for_display()
+                return self._browse_display()
             return self.results
         if self.animation is not None:
             if self.animation.done():
@@ -231,7 +265,37 @@ class TapRevolutionLevelsItem(ListItem):
                 return self.results
             return self.animation
 
-        return super().for_display()
+        return self._browse_display()
+
+    def _browse_display(self) -> str:
+        """The current list entry; directories get a blinking '>' on the last tube."""
+        name = self.current_value()
+        if name in self.subdirs:
+            return self._dir_label(name)
+        return name
+
+    def _dir_label(self, name) -> str:
+        """A directory entry: the name with a blinking '>' pinned to the last tube."""
+        arrow = '>' if time.time() % 0.5 < _DIR_BLINK_ON_SECS else ' '
+        if cmdLen(name) >= self.size - 1:
+            return f"{name} {arrow}"
+        return name.ljust(self.size - 1) + arrow
+
+    def _descend(self, path):
+        """Enter a subdirectory, remembering the parent for ascent."""
+        self.dir_stack.append(self.cur_path)
+        self.cur_path = path
+        self.idx = 0
+        self._refresh()
+
+    def _go_back(self):
+        """Ascend to the parent directory, or exit the item when already at the root."""
+        if self.dir_stack:
+            self.cur_path = self.dir_stack.pop()
+            self.idx = 0
+            self._refresh()
+        else:
+            self.set_done()
 
     def _make_results(self) -> Animation:
         return MarqueeAnimation.fromText(self.animation.results_text(), self.size,
@@ -264,7 +328,11 @@ class TapRevolutionLevelsItem(ListItem):
     def key_enter(self):
         if self.animation is not None or self.results is not None:
             return
-        level = self._load_level(self.current_value())
+        name = self.current_value()
+        if name in self.subdirs:
+            self._descend(self.subdirs[name])
+            return
+        level = self._load_level(name)
         if level is not None:
             diff = self.config.difficulty_settings()
             if diff.gap > 0:
@@ -285,7 +353,8 @@ class TapRevolutionLevelsItem(ListItem):
             super().key_down()
 
     def key_left(self):
-        self._play_key('LEFT')
+        if not self._play_key('LEFT') and self._browsing():
+            self._go_back()
 
     def key_right(self):
         self._play_key('RIGHT')
@@ -300,7 +369,7 @@ class TapRevolutionLevelsItem(ListItem):
             self.animation = None
             self.results = None
         else:
-            self.set_done()
+            self._go_back()
 
     def key_backspace(self):
         self.key_esc()

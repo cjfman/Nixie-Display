@@ -17,7 +17,7 @@ as each arrow arrives.
 | `pyxielib/tap_revolution_config.py` | `TapRevolutionConfig` — loads/merges YAML settings, adapts them for the animation. |
 | `pyxielib/tap_revolution_menu.py` | All four menu classes (see Menu structure below). |
 | `pyxielib/key_watcher.py` | `last_pop_time` on both watchers — key capture timestamp for accurate scoring. |
-| `levels/` | `.trl` level files (beat-mode or time-mode). |
+| `levels/` | `.trl` level files (beat-mode or time-mode); subdirectories become nested sub-menus in the Play list. |
 | `config/tap_revolution.defaults.yaml` | Version-controlled default settings. |
 | `config/tap_revolution.yaml` | Runtime persistent settings (gitignored — seeded from defaults on first run). |
 | `scripts/test_tap_revolution.py` | Terminal preview (`--autoplay`, `--jitter`) and `--record` authoring mode. |
@@ -197,6 +197,19 @@ a game built from `config.animation_kwargs()`, applies the active difficulty
 and caches `config.key_lane_map()`.
 Arrow keys and `key_char` route through the key map during play; ESC aborts to
 results marquee.
+
+**Subdirectory browsing.** This single `ListItem` implements its own nested-menu
+navigation rather than living in the `Navigator` stack (it must stay a leaf to own
+play/results state). It tracks `cur_path` plus a `dir_stack` of parents. `_scan(path)`
+splits one directory into `(subdirs, files)` and `_refresh()` rebuilds the visible
+list as `sorted(subdirs)` + `BUILTIN_LEVELS` (root only) + `sorted(files)`. A
+subdirectory entry renders via `_dir_label` — the basename with a `>` blinking on the
+last tube (`_DIR_BLINK_ON_SECS`; falls back to a trailing scrolling `>` if the name
+fills the display). Navigation mirrors a nested `Menu`: Enter `_descend`s into a
+directory (or plays a level); Left / Backspace / Esc `_go_back`s to the parent, and
+exits the item only when `dir_stack` is empty (at the root). `_browsing()` gates these
+so they never fire mid-play or during the results marquee. `reset()`/`activate()`
+re-seed `cur_path` to the root so re-entry always starts at the top.
 
 ### `TapRevolutionSettingsItem` — state machine
 
