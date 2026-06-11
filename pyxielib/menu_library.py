@@ -4,12 +4,14 @@ import os
 import subprocess
 import threading
 import time
+from collections import deque
 from typing import List, Optional
 
 from pyxielib.audio_controller import AudioController, BluetoothDevice
 from pyxielib.navigator import CycleItem, DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
-from pyxielib.animation import Animation, MarqueeAnimation
+from pyxielib.animation import Animation, FullFrame, HexFrame, LoopedFullFrameAnimation, MarqueeAnimation, TextFrame
+from pyxielib.decoder import isPrintable
 from pyxielib.animation_file import FileAnimation
 from pyxielib.animation_library import ProgressSpinner
 
@@ -200,6 +202,148 @@ class SystemInfoItem(ListItem):
             return f"{int(raw) / 1000:.1f}C"
         except OSError:
             return "N/A"
+
+
+class TextBodyItem(MenuItem):
+    """Reusable scrollable viewer for a multi-line body of text.
+
+    Up/Down step between lines; Left/Right pan a long line horizontally. A
+    flashing '<'/'>' edge indicator shows there is more text to the side (as in
+    pyprint's ``run_interactive``), and a flashing up/down indicator shows there
+    are more lines above/below. Both blink together at 1 Hz.
+
+    ``for_display`` returns an ``Animation`` (not a str): the indicators use raw
+    bitmaps, which ``MarqueeAnimation.fromText`` would mangle. The animation is
+    cached and the *same* object is returned every poll so the blink loop keeps
+    playing; a key that changes the view clears the cache so the next poll
+    rebuilds (and thus restarts) it.
+    """
+    ## 14-segment bitmaps for the up/down chevrons (see decoder.py / Tap Revolution).
+    _UP_GLYPH   = 0x1400   ## '^'
+    _DOWN_GLYPH = 0x0140   ## '\ /'
+    _UNDERLINE  = 0x4000   ## plain underline, shown for unprintable characters
+
+    def __init__(self, name, lines=None, *, size=16, **kwargs):
+        super().__init__(name, **kwargs)
+        self.size       = size
+        self.lines      = list(lines) if lines else [""]
+        self.line       = 0
+        self.offset     = 0
+        self._animation = None
+
+    def set_lines(self, lines):
+        """Load a new body of text and return to the top."""
+        self.lines      = list(lines) if lines else [""]
+        self.line       = 0
+        self.offset     = 0
+        self._animation = None
+
+    def reset(self):
+        super().reset()
+        self.line       = 0
+        self.offset     = 0
+        self._animation = None
+
+    def _current(self) -> str:
+        return self.lines[self.line]
+
+    def key_left(self):
+        if self.offset > 0:
+            self.offset    -= 1
+            self._animation = None
+
+    def key_right(self):
+        if self.offset + self.size < len(self._current()):
+            self.offset    += 1
+            self._animation = None
+
+    def key_up(self):
+        if self.line > 0:
+            self.line      -= 1
+            self.offset     = 0
+            self._animation = None
+
+    def key_down(self):
+        if self.line + 1 < len(self.lines):
+            self.line      += 1
+            self.offset     = 0
+            self._animation = None
+
+    def key_enter(self):
+        """Page to the next line (pyprint parity). ESC/BACKSPACE exit."""
+        self.key_down()
+
+    def for_display(self) -> Animation:
+        if self._animation is None:
+            self._animation = self._build()
+        return self._animation
+
+    @classmethod
+    def _char_frame(cls, c):
+        """Frame for one character: the glyph if printable, else a plain underline."""
+        if isPrintable(c):
+            return TextFrame(c)
+        return HexFrame(cls._UNDERLINE)
+
+    @classmethod
+    def _ud_glyph(cls, has_up, has_down) -> Optional[int]:
+        """Combined up/down indicator bitmap, or None when neither applies."""
+        if has_up and has_down:
+            return cls._UP_GLYPH | cls._DOWN_GLYPH
+        if has_up:
+            return cls._UP_GLYPH
+        if has_down:
+            return cls._DOWN_GLYPH
+        return None
+
+    def _build(self) -> Animation:
+        """Build the two-frame (indicators on/off) blink animation."""
+        text   = self._current()
+        window = list(text[self.offset:self.offset + self.size])
+        window += [' '] * (self.size - len(window))
+
+        ## One frame per char (not textToFrames) so ':'/'!' render literally
+        ## instead of being interpreted as colon/underline commands; unprintable
+        ## characters become a plain underline rather than a blank NOCODE tube.
+        off_frames = [self._char_frame(c) for c in window]
+        on_frames  = [self._char_frame(c) for c in window]
+
+        has_left  = self.offset > 0
+        has_right = self.offset + self.size < len(text)
+        if has_left:
+            on_frames[0] = TextFrame('<')
+        if has_right:
+            on_frames[-1] = TextFrame('>')
+
+        ud = self._ud_glyph(self.line > 0, self.line + 1 < len(self.lines))
+        if ud is not None:
+            ## Sit just left of the '>' when it is shown, else take the last tube.
+            on_frames[-2 if has_right else -1] = HexFrame(ud)
+
+        frames = [FullFrame(on_frames), FullFrame(off_frames)]
+        return LoopedFullFrameAnimation.makeTimed(frames, delay=0.5)
+
+
+class LogViewerItem(TextBodyItem):
+    """Browse a log file in the menu, most-recent line first."""
+    def __init__(self, path, *, tail=200, **kwargs):
+        super().__init__("Logs", **kwargs)
+        self.path = path
+        self.tail = tail
+
+    def activate(self):
+        self.set_lines(self._read())
+
+    def _read(self) -> List[str]:
+        try:
+            with open(os.path.expanduser(self.path)) as f:
+                lines = [line.rstrip('\n') for line in deque(f, maxlen=self.tail)]
+        except OSError:
+            return ["No log file"]
+        if not lines:
+            return ["(empty log)"]
+        lines.reverse()   ## most-recent entry first
+        return lines
 
 
 class RebootItem(DelayedCommandItem):

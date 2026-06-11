@@ -1,4 +1,5 @@
 import logging
+import os
 
 import pyxielib.animation_library as animationlib
 from pyxielib import menu_library as menulib
@@ -16,8 +17,10 @@ logger = logging.getLogger(__name__)
 class UserMenuProgram(Program):
     def __init__(self, event_path=None, *, program_map=None, ani_path='animations',
                  levels_path='levels', tap_config=None, controller=None,
-                 test_sound='audio-test-signal', **kwargs):
+                 test_sound='audio-test-signal', logfile=None, log_tail=200, **kwargs):
         super().__init__("User Control", **kwargs)
+        logfile     = logfile or os.path.expanduser('~/logs/nixie.log')
+        stderr_path = os.path.splitext(logfile)[0] + '.stderr'
         self.event_path       = event_path
         self.program_map      = program_map or {}
         self.controller       = controller
@@ -52,6 +55,10 @@ class UserMenuProgram(Program):
             menulib.MirrorItem("Mirror Mode"),
             menulib.AudioMenu(test_sound=test_sound),
             menulib.GitStatusItem(size=self.size),
+            Menu("Logs", [
+                menulib.LogViewerItem(logfile, tail=log_tail, size=self.size, display_name="stdout"),
+                menulib.LogViewerItem(stderr_path, tail=log_tail, size=self.size, display_name="stderr"),
+            ]),
             menulib.SleepItem(self.controller),
             menulib.ExitItem("Exit Program"),
             menulib.SystemInfoItem(),

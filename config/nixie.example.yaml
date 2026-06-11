@@ -13,6 +13,7 @@ extended_hours: false           # pre/after-market stock data
 # git_check: 15                 # minutes between update checks (omit to disable)
 git_origin: "@{u}"
 # logfile: ~/logs/nixie.log
+# log_tail: 200                 # lines tailed by the Logs menu viewer
 loglevel: info
 
 # --- thread polling cadences (seconds). Values are clamped to safe bounds. ---
