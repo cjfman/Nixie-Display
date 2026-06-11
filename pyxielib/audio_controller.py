@@ -157,6 +157,29 @@ class AudioController:
             return False
         return result.returncode == 0
 
+    def sink_for_mac(self, mac) -> Optional[AudioSink]:
+        """Return the audio sink belonging to a Bluetooth device, if present."""
+        for sink in self.list_sinks():
+            if sink.bt_mac and sink.bt_mac.upper() == mac.upper():
+                return sink
+        return None
+
+    def select_sink_for_mac(self, mac, *, wait=6.0) -> bool:
+        """Make a just-connected BT device the default output.
+
+        The bluez_output sink can take a few seconds to register after the
+        device connects (and only appears at all if the system has Bluetooth
+        audio routing — e.g. PipeWire/PulseAudio bluez modules), so poll for it
+        briefly before giving up."""
+        deadline = time.time() + wait
+        while time.time() < deadline:
+            sink = self.sink_for_mac(mac)
+            if sink is not None:
+                return self.set_default_sink(sink.name)
+            time.sleep(0.5)
+        logger.info("No audio sink appeared for %s; not switching output", mac)
+        return False
+
     def is_muted(self) -> bool:
         now = time.time()
         if self._mute_cache is not None and now - self._mute_cache_time < _MUTE_CACHE_TTL:
@@ -335,7 +358,10 @@ class AudioController:
             output = self._pair_session(mac)
             logger.info("bluetoothctl pair session for %s:\n%s", mac, output.strip())
             self._pair_result = self._is_connected(mac)
-            if not self._pair_result:
+            if self._pair_result:
+                ## Route audio to the speaker the user just paired.
+                self.select_sink_for_mac(mac)
+            else:
                 logger.warning("Pairing/connecting to %s did not succeed", mac)
         except Exception as e:
             logger.warning("Bluetooth pairing error for %s: %s", mac, e)

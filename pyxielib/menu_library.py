@@ -713,6 +713,9 @@ class AudioSelectItem(ListItem):
 
 
 class BTAddItem(ListItem):
+    ## Seconds the paired/failed result screen lingers before auto-dismissing.
+    _RESULT_SECS = 5.0
+
     def __init__(self, audio: AudioController, **kwargs):
         super().__init__("BT Add", **kwargs)
         self.audio = audio
@@ -721,12 +724,14 @@ class BTAddItem(ListItem):
         self._paired_macs = set()
         self._scan_spinner = None
         self._pair_spinner = None
+        self._result_until = 0.0
 
     def activate(self):
         self._paired_macs = {d.mac for d in self.audio.list_paired_devices()}
         self.audio.scan_start(timeout=10)
         self._scan_spinner = None
         self._pair_spinner = None
+        self._result_until = 0.0
         self.state = 'scanning'
 
     def _spinner(self, attr, label) -> ProgressSpinner:
@@ -751,10 +756,10 @@ class BTAddItem(ListItem):
             return "Pair [y/n]?"
         if self.state == 'pairing':
             return self._spinner('_pair_spinner', "Pairing")
-        if self.state == 'paired':
-            return "Paired"
-        if self.state == 'failed':
-            return "Failed"
+        if self.state in ('paired', 'failed'):
+            if self._result_until and time.time() >= self._result_until:
+                self.set_done()
+            return "Paired" if self.state == 'paired' else "Failed"
         return f"Error: {self.state}"
 
     def poll(self):
@@ -772,8 +777,10 @@ class BTAddItem(ListItem):
             result = self.audio.poll_pair()
             if result is True:
                 self.state = 'paired'
+                self._result_until = time.time() + self._RESULT_SECS
             elif result is False:
                 self.state = 'failed'
+                self._result_until = time.time() + self._RESULT_SECS
 
     def key_enter(self):
         if self.state == 'select':
@@ -804,6 +811,7 @@ class BTAddItem(ListItem):
         self._paired_macs = set()
         self._scan_spinner = None
         self._pair_spinner = None
+        self._result_until = 0.0
         self.state = None
         self.set_values(None)
 
