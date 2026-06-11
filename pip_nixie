@@ -22,16 +22,16 @@ PROGRESS_RE = re.compile(r'([\d.]+)\s*/\s*([\d.]+)\s*(kB|MB|GB|B)\b', re.IGNOREC
 PERCENT_RE  = re.compile(r'\b(\d+)%')
 
 ACTION_PATTERNS = [
-    (re.compile(r'^Collecting (\S+)'),                       'collect'),
-    (re.compile(r'^Downloading (\S+)'),                      'load'),
-    (re.compile(r'^Building wheel for (\S+)'),               'build'),
-    (re.compile(r'^Running setup\.py \S+ for (\S+)'),        'build'),
-    (re.compile(r'^Preparing metadata.*\((\S+)\)'),          'prep'),
-    (re.compile(r'^Installing collected packages:\s*(.+)'),  'install'),
+    (re.compile(r'^Collecting (\S+)'),                       'collecting'),
+    (re.compile(r'^Downloading (\S+)'),                      'downloading'),
+    (re.compile(r'^Building wheel for (\S+)'),               'building'),
+    (re.compile(r'^Running setup\.py \S+ for (\S+)'),        'building'),
+    (re.compile(r'^Preparing metadata.*\((\S+)\)'),          'preparing'),
+    (re.compile(r'^Installing collected packages:\s*(.+)'),  'installing'),
     (re.compile(r'^Successfully installed (.+)'),            'installed'),
-    (re.compile(r'^Running command git clone'),              'clone'),
-    (re.compile(r'^Cloning\b'),                              'clone'),
-    (re.compile(r'^Updating (\S+)'),                         'update'),
+    (re.compile(r'^Running command git clone'),              'cloning'),
+    (re.compile(r'^Cloning\b'),                              'cloning'),
+    (re.compile(r'^Updating (\S+)'),                         'updating'),
     (re.compile(r'^ERROR'),                                  'error'),
 ]
 
@@ -68,21 +68,21 @@ def extract_pkg_list(pkgs_str):
 
 
 def apply_action(action, m, state):
-    if action == 'load':
+    if action == 'downloading':
         pkg = strip_version(m.group(1))[:PKG_MAX] if m.lastindex else ''
         state['mode'] = 'download'
         state['pkg']  = pkg
         state['pct']  = None
         if pkg:
             state['last_pkg'] = pkg
-    elif action in ('install', 'installed'):
+    elif action in ('installing', 'installed'):
         pkgs = extract_pkg_list(m.group(1)) if m.lastindex else []
         state['mode'] = 'action'
         state['text'] = (action + ' ' + ' '.join(pkgs))[:NUM_TUBES]
     elif action == 'error':
         state['mode'] = 'action'
         state['text'] = m.string[:NUM_TUBES]
-    elif action == 'clone':
+    elif action == 'cloning':
         state['mode'] = 'action'
         state['text'] = 'cloning'
     else:
