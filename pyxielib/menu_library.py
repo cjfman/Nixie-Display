@@ -5,10 +5,12 @@ import subprocess
 import threading
 from typing import List, Optional
 
+from pyxielib.audio_controller import AudioController, BluetoothDevice
 from pyxielib.navigator import DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
 from pyxielib.animation import Animation, MarqueeAnimation
 from pyxielib.animation_file import FileAnimation
+from pyxielib.animation_library import ProgressSpinner
 
 logger = logging.getLogger(__name__)
 
@@ -653,3 +655,209 @@ class ProgramListItem(ListItem):
 
 
 ## Tap Revolution menu classes live in tap_revolution_menu.py.
+
+
+class AudioSelectItem(ListItem):
+    def __init__(self, audio: AudioController, **kwargs):
+        super().__init__("Audio Select", **kwargs)
+        self.audio = audio
+        self.state = 'select'
+        self._sinks = []
+
+    def activate(self):
+        self._sinks = self.audio.list_sinks()
+        if self._sinks:
+            self.set_values([s.description[:16] for s in self._sinks])
+        else:
+            self.set_values(["No outputs"])
+
+    def for_display(self) -> str:
+        if self.state == 'select':
+            return super().for_display()
+        if self.state == 'confirm':
+            return "Set output [y/n]?"
+        if self.state == 'done':
+            return "Output set"
+        if self.state == 'failed':
+            return "Set failed"
+        return f"Error: {self.state}"
+
+    def key_enter(self):
+        if self.state == 'select':
+            if self._sinks:
+                self.state = 'confirm'
+            else:
+                self.reset()
+                self.set_done()
+        elif self.state in ('done', 'failed'):
+            self.reset()
+            self.set_done()
+
+    def key_char(self, c):
+        if self.state != 'confirm':
+            return
+        c = c.lower()
+        if c == 'y':
+            sink = self._sinks[self.idx]
+            success = self.audio.set_default_sink(sink.name)
+            self.state = 'done' if success else 'failed'
+        elif c == 'n':
+            self.state = 'select'
+
+    def reset(self):
+        super().reset()
+        self._sinks = []
+        self.state = 'select'
+        self.set_values(None)
+
+
+class BTAddItem(ListItem):
+    def __init__(self, audio: AudioController, **kwargs):
+        super().__init__("BT Add", **kwargs)
+        self.audio = audio
+        self.state = None
+        self._devices = []
+        self._paired_macs = set()
+        self._scan_spinner = None
+        self._pair_spinner = None
+
+    def activate(self):
+        self._paired_macs = {d.mac for d in self.audio.list_paired_devices()}
+        self.audio.scan_start(timeout=10)
+        self._scan_spinner = ProgressSpinner("Scanning BT")
+        self._pair_spinner = ProgressSpinner("Pairing")
+        self.state = 'scanning'
+
+    def for_display(self):
+        self.poll()
+        if self.state == 'scanning':
+            return self._scan_spinner
+        if self.state == 'select':
+            return super().for_display()
+        if self.state == 'confirm':
+            return "Pair [y/n]?"
+        if self.state == 'pairing':
+            return self._pair_spinner
+        if self.state == 'paired':
+            return "Paired"
+        if self.state == 'failed':
+            return "Failed"
+        return f"Error: {self.state}"
+
+    def poll(self):
+        if self.state == 'scanning':
+            result = self.audio.scan_poll()
+            if result is not None:
+                new_devs = [d for d in result if d.mac not in self._paired_macs]
+                self._devices = new_devs
+                if new_devs:
+                    self.set_values([d.name[:16] for d in new_devs])
+                else:
+                    self.set_values(["No new devices"])
+                self.state = 'select'
+        elif self.state == 'pairing':
+            result = self.audio.poll_pair()
+            if result is True:
+                self.state = 'paired'
+            elif result is False:
+                self.state = 'failed'
+
+    def key_enter(self):
+        if self.state == 'select':
+            if self._devices and self.idx < len(self._devices):
+                self.state = 'confirm'
+            else:
+                self.reset()
+                self.set_done()
+        elif self.state in ('paired', 'failed'):
+            self.reset()
+            self.set_done()
+
+    def key_char(self, c):
+        if self.state != 'confirm':
+            return
+        c = c.lower()
+        if c == 'y':
+            mac = self._devices[self.idx].mac
+            self.audio.pair_and_connect_async(mac)
+            self.state = 'pairing'
+        elif c == 'n':
+            self.state = 'select'
+
+    def reset(self):
+        super().reset()
+        self.audio.scan_cancel()
+        self._devices = []
+        self._paired_macs = set()
+        self._scan_spinner = None
+        self._pair_spinner = None
+        self.state = None
+        self.set_values(None)
+
+
+class BTRemoveItem(ListItem):
+    def __init__(self, audio: AudioController, **kwargs):
+        super().__init__("BT Remove", **kwargs)
+        self.audio = audio
+        self.state = 'select'
+        self._devices = []
+
+    def activate(self):
+        self._devices = self.audio.list_paired_devices()
+        if self._devices:
+            self.set_values([d.name[:16] for d in self._devices])
+        else:
+            self.set_values(["No paired devices"])
+
+    def for_display(self) -> str:
+        if self.state == 'select':
+            return super().for_display()
+        if self.state == 'confirm':
+            return "Remove? [y/n]"
+        if self.state == 'removing':
+            return "Removing..."
+        if self.state == 'removed':
+            return "Removed"
+        if self.state == 'failed':
+            return "Failed"
+        return f"Error: {self.state}"
+
+    def key_enter(self):
+        if self.state == 'select':
+            if self._devices and self.idx < len(self._devices):
+                self.state = 'confirm'
+            else:
+                self.reset()
+                self.set_done()
+        elif self.state in ('removed', 'failed'):
+            self.reset()
+            self.set_done()
+
+    def key_char(self, c):
+        if self.state != 'confirm':
+            return
+        c = c.lower()
+        if c == 'y':
+            device = self._devices[self.idx]
+            self.state = 'removing'
+            success = self.audio.remove_device(device.mac)
+            self.state = 'removed' if success else 'failed'
+        elif c == 'n':
+            self.state = 'select'
+
+    def reset(self):
+        super().reset()
+        self._devices = []
+        self.state = 'select'
+        self.set_values(None)
+
+
+class AudioMenu(Menu):
+    def __init__(self):
+        super().__init__("Audio Settings")
+        self.audio = AudioController()
+        current = lambda: self.audio.get_default_sink_description() or "Unknown"
+        self.add_submenu(MsgItem("View Current", current))
+        self.add_submenu(AudioSelectItem(self.audio, display_name="Select Output"))
+        self.add_submenu(BTAddItem(self.audio, display_name="Add Bluetooth"))
+        self.add_submenu(BTRemoveItem(self.audio, display_name="Remove Bluetooth"))

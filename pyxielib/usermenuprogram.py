@@ -52,6 +52,7 @@ class UserMenuProgram(Program):
             menulib.SystemInfoItem(),
             menulib.GitStatusItem(size=self.size),
             menulib.WiFiMenu(),
+            menulib.AudioMenu(),
             menulib.SleepItem(self.controller),
             menulib.ExitItem("Exit Program"),
             menulib.RebootItem() if not terminal_mode else DisabledItem("Reboot"),

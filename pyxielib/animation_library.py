@@ -62,6 +62,26 @@ def makeDoubleSpinSequence(rate, *, offset=0, reverse=False) -> TubeSequence:
     return TubeSequence.makeTimed(frames, rate)
 
 
+class ProgressSpinner(LoopedFullFrameAnimation):
+    """Looping animation: label text with a single rotating-segment spinner on the next tube."""
+    _SEGS = [0x1 << x for x in range(7, 14)] + [0x1 << 6]
+
+    def __init__(self, label="", rate=0.1, num_tubes=16):
+        time_frames = [(rate, f) for f in self._make_frames(label, num_tubes)]
+        super().__init__(time_frames, delay=0)
+
+    @classmethod
+    def _make_frames(cls, label, num_tubes) -> List[FullFrame]:
+        label_frames = textToFrames(label)
+        blank = HexFrame(0)
+        n_tail = max(0, num_tubes - 1 - len(label_frames))
+        tail = [blank] * n_tail
+        return [
+            FullFrame(label_frames + [HexFrame(seg)] + tail)
+            for seg in cls._SEGS
+        ]
+
+
 def makeLoopSequence(rate, *, length=1, offset=0, reverse=False) -> TubeSequence:
     """Create a loop sequence"""
     length = max(1, min(5, length))
