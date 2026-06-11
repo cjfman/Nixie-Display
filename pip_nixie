@@ -15,7 +15,7 @@ PCT_TUBES = 4    # rightmost tubes for percentage display
 BAR_END   = NUM_TUBES - PCT_TUBES   # tube index 12
 
 PROGRESS_GROUPS = [0x0030, 0x0880, 0x0006]
-SPINNER_SEGS    = [0x0020, 0x0040, 0x0100, 0x0200, 0x0400, 0x0800, 0x1000, 0x2000, 0x0080]
+SPINNER_SEGS    = [0x0040, 0x0080, 0x0100, 0x0200, 0x0400, 0x0800, 0x1000, 0x2000, 0x0080]
 
 ANSI_RE     = re.compile(r'\x1b\[[0-9;]*[mGKHFJA-Za-z]')
 PROGRESS_RE = re.compile(r'([\d.]+)\s*/\s*([\d.]+)\s*(kB|MB|GB|B)\b', re.IGNORECASE)
@@ -151,8 +151,8 @@ def build_download_code(pkg, pct, spinner_step):
     bm = 0
     for i in range(min(spinner_step + 1, len(SPINNER_SEGS))):
         bm |= SPINNER_SEGS[i]
-    blank_after = BAR_END - pkg_len - 1
-    return pkg + f'{{{hex(bm)}}}' + ' ' * max(0, blank_after) + ' ' * PCT_TUBES
+    blank_after = BAR_END - pkg_len - 2
+    return pkg + f' {{{hex(bm)}}}' + ' ' * max(0, blank_after) + ' ' * PCT_TUBES
 
 
 def build_code(state, spinner_step):
