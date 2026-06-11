@@ -169,6 +169,7 @@ class TapRevolutionMenu(Menu):
             options_fn,
             get_fn=lambda: config.settings.get('difficulty', ''),
             set_fn=lambda v: _set_difficulty(config, v),
+            size=size,
         )
         super().__init__("Tap Revolution", [
             TapRevolutionLevelsItem(config, levels_path, watcher=watcher, size=size),

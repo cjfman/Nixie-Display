@@ -4,6 +4,7 @@ import time
 from typing import List, Sequence, Tuple
 
 from pyxielib.pyxieutil import PyxieError
+from pyxielib.tube_manager import cmdLen
 
 logger = logging.getLogger(__name__)
 
@@ -249,19 +250,24 @@ class CycleItem(MenuItem):
     ESC/Backspace cancels without changing anything.
 
     ``name`` is the title shown both in the parent menu (suffixed with the live
-    value via the ``display_name`` property) and as the edit-mode prefix.
+    value via the ``display_name`` property) and as the edit-mode prefix. In edit
+    mode the "{name} | " prefix is dropped (leaving just the blinking value) when
+    *any* option's "{name} | {label}" would overflow ``size`` tubes — so the name
+    shows only when every option still fits, and never flickers mid-cycle.
 
     ``options`` may be a list of (value, label) pairs **or** a zero-argument
     callable that returns such a list; the callable form is re-evaluated on
     every ``activate()`` so the list stays fresh after config resets.
     """
-    def __init__(self, name, options, get_fn, set_fn, **kwargs):
+    def __init__(self, name, options, get_fn, set_fn, *, size=16, **kwargs):
         super().__init__(name, **kwargs)
         self._options_src = options
         self._options = []
         self._get = get_fn
         self._set = set_fn
+        self._size = size
         self._edit_idx = 0
+        self._show_name = True
 
     @property
     def display_name(self) -> str:
@@ -281,6 +287,13 @@ class CycleItem(MenuItem):
         ## Enter edit mode immediately, like the difficulty settings editor.
         self._options = self._resolve_options()
         self._edit_idx = self._current_idx()
+        self._show_name = self._name_fits()
+
+    def _name_fits(self) -> bool:
+        """True only if "{name} | {label}" fits ``size`` for *every* option, so
+        the name shows just when it always fits and never flickers mid-cycle."""
+        prefix = f"{self.name} | "
+        return all(cmdLen(prefix + label) <= self._size for _, label in self._options)
 
     def reset(self):
         super().reset()
@@ -309,7 +322,9 @@ class CycleItem(MenuItem):
         _, label = self._options[self._edit_idx]
         if time.time() % _BLINK_PERIOD < _BLINK_ON:
             label = _cycle_underline(label)
-        return f"{self.name} | {label}"
+        if self._show_name:
+            return f"{self.name} | {label}"
+        return label
 
     def _cycle(self, delta):
         if self._options:
