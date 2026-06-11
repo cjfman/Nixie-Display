@@ -725,20 +725,32 @@ class BTAddItem(ListItem):
     def activate(self):
         self._paired_macs = {d.mac for d in self.audio.list_paired_devices()}
         self.audio.scan_start(timeout=10)
-        self._scan_spinner = ProgressSpinner("Scanning BT")
-        self._pair_spinner = ProgressSpinner("Pairing")
+        self._scan_spinner = None
+        self._pair_spinner = None
         self.state = 'scanning'
+
+    def _spinner(self, attr, label) -> ProgressSpinner:
+        """Return the cached spinner, rebuilding it once it finishes a fill cycle.
+
+        ProgressSpinner is a one-shot animation, so recreating it on done()
+        both loops it visually and lets the scheduler re-poll us each cycle
+        (see ProgressSpinner / poll())."""
+        spinner = getattr(self, attr)
+        if spinner is None or spinner.done():
+            spinner = ProgressSpinner(label)
+            setattr(self, attr, spinner)
+        return spinner
 
     def for_display(self):
         self.poll()
         if self.state == 'scanning':
-            return self._scan_spinner
+            return self._spinner('_scan_spinner', "Scanning BT")
         if self.state == 'select':
             return super().for_display()
         if self.state == 'confirm':
             return "Pair [y/n]?"
         if self.state == 'pairing':
-            return self._pair_spinner
+            return self._spinner('_pair_spinner', "Pairing")
         if self.state == 'paired':
             return "Paired"
         if self.state == 'failed':

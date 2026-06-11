@@ -62,24 +62,47 @@ def makeDoubleSpinSequence(rate, *, offset=0, reverse=False) -> TubeSequence:
     return TubeSequence.makeTimed(frames, rate)
 
 
-class ProgressSpinner(LoopedFullFrameAnimation):
-    """Looping animation: label text with a single rotating-segment spinner on the next tube."""
-    _SEGS = [0x1 << x for x in range(7, 14)] + [0x1 << 6]
+class ProgressSpinner(FullFrameAnimation):
+    """One fill-cycle spinner: ``label`` text followed by a single tube whose
+    ring segments accumulate (OR together) one per frame, filling up over the
+    cycle — mirroring the pip_nixie download spinner.
+
+    It is deliberately a *one-shot* animation (extends FullFrameAnimation, not
+    the Looped variant) so that ``done()`` reports True after a single fill.
+    A polling owner (e.g. BTAddItem) relies on that: the scheduler only re-polls
+    the user menu when the active animation reports done, so a never-done loop
+    would freeze the menu's state machine. Recreate the spinner each cycle to
+    loop it — which also drives one poll per cycle.
+
+    Equality is by identity so each freshly built spinner counts as a *new*
+    animation (Program.update compares by ``==``); otherwise two same-label
+    spinners would be equal and the replacement would be deduplicated, leaving
+    the finished spinner frozen on its last frame instead of restarting.
+    """
+    ## Outer-ring segments in draw order, cumulatively OR'd one per frame.
+    ## Mirrors pip_nixie's SPINNER_SEGS (the leading 0x0080 repeat gives the
+    ## first segment a double beat before the ring starts filling).
+    _SEGS = [0x0080, 0x0080, 0x0100, 0x0200, 0x0400, 0x0800, 0x1000, 0x2000, 0x0040]
 
     def __init__(self, label="", rate=0.1, num_tubes=16):
-        time_frames = [(rate, f) for f in self._make_frames(label, num_tubes)]
-        super().__init__(time_frames, delay=0)
+        super().__init__([(rate, f) for f in self._make_frames(label, num_tubes)])
 
     @classmethod
     def _make_frames(cls, label, num_tubes) -> List[FullFrame]:
         label_frames = textToFrames(label)
-        blank = HexFrame(0)
-        n_tail = max(0, num_tubes - 1 - len(label_frames))
-        tail = [blank] * n_tail
-        return [
-            FullFrame(label_frames + [HexFrame(seg)] + tail)
-            for seg in cls._SEGS
-        ]
+        tail = [HexFrame(0)] * max(0, num_tubes - 1 - len(label_frames))
+        frames = []
+        bitmap = 0
+        for seg in cls._SEGS:
+            bitmap |= seg
+            frames.append(FullFrame(label_frames + [HexFrame(bitmap)] + tail))
+        return frames
+
+    def __eq__(self, other):
+        return self is other
+
+    def __hash__(self):
+        return id(self)
 
 
 def makeLoopSequence(rate, *, length=1, offset=0, reverse=False) -> TubeSequence:
