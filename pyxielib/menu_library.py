@@ -7,7 +7,7 @@ import time
 from typing import List, Optional
 
 from pyxielib.audio_controller import AudioController, BluetoothDevice
-from pyxielib.navigator import DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
+from pyxielib.navigator import CycleItem, DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
 from pyxielib.animation import Animation, MarqueeAnimation
 from pyxielib.animation_file import FileAnimation
@@ -853,32 +853,6 @@ class BTRemoveItem(ListItem):
         self.set_values(None)
 
 
-class MuteToggleItem(MenuItem):
-    """Direct mute toggle — Enter immediately flips mute state and pops back.
-
-    ``display_name`` is a property so the AudioMenu list always shows the live
-    state ("Mute ON" / "Mute OFF") without any submenu.
-    """
-    def __init__(self, audio: AudioController, **kwargs):
-        super().__init__("Mute", **kwargs)
-        self.audio = audio
-
-    @property
-    def display_name(self):
-        return "Mute " + ("ON" if self.audio.is_muted() else "OFF")
-
-    @display_name.setter
-    def display_name(self, v):
-        pass  ## dynamic; parent __init__ assignment is intentionally ignored
-
-    def activate(self):
-        self.audio.set_mute(not self.audio.is_muted())
-        self.set_done()
-
-    def for_display(self) -> str:
-        return self.display_name
-
-
 class AudioTestItem(MenuItem):
     """Plays a test sound when entered; shows 'Testing' until playback finishes,
     then pops back so Enter on the same item re-runs the test.
@@ -938,7 +912,12 @@ class AudioMenu(Menu):
         current = lambda: self.audio.get_default_sink_description() or "Unknown"
         self.add_submenu(MsgItem("View Current", current))
         self.add_submenu(AudioSelectItem(self.audio, display_name="Select Output"))
-        self.add_submenu(MuteToggleItem(self.audio))
+        self.add_submenu(CycleItem(
+            "Mute",
+            [(False, 'OFF'), (True, 'ON')],
+            get_fn=self.audio.is_muted,
+            set_fn=self.audio.set_mute,
+        ))
         self.add_submenu(BTAddItem(self.audio, display_name="Add Bluetooth"))
         self.add_submenu(BTRemoveItem(self.audio, display_name="Remove Bluetooth"))
         self.add_submenu(AudioTestItem(self.audio, test_sound=test_sound, display_name="Test Audio"))

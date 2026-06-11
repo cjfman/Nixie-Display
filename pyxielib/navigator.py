@@ -239,15 +239,17 @@ def _cycle_underline(s):
 
 
 class CycleItem(MenuItem):
-    """A setting that cycles through a fixed list of options via inline edit mode.
+    """A setting that cycles through a fixed list of options, edited inline.
 
-    Browse:  shows  "{display_name} {option_label}"
-    Edit:    shows  "{display_name} | {option_label!}" (blinking underline)
+    Mirrors the Tap Revolution "difficulty" settings editor so the two can share
+    one implementation. The parent menu shows the item's name plus its current
+    value (e.g. "Difficulty Hard", "Mute OFF"); pressing Enter drops *straight*
+    into edit mode — the value blinks with an underline and the arrow keys cycle
+    through the options. Enter commits the highlighted option and pops back;
+    ESC/Backspace cancels without changing anything.
 
-    Arrows (up/down/left/right) cycle options in edit mode.
-    Enter in browse → edit.  Enter in edit → commit + set_done().
-    ESC/Backspace in edit → cancel (back to browse).
-    ESC/Backspace in browse → set_done().
+    ``name`` is the title shown both in the parent menu (suffixed with the live
+    value via the ``display_name`` property) and as the edit-mode prefix.
 
     ``options`` may be a list of (value, label) pairs **or** a zero-argument
     callable that returns such a list; the callable form is re-evaluated on
@@ -260,16 +262,28 @@ class CycleItem(MenuItem):
         self._get = get_fn
         self._set = set_fn
         self._edit_idx = 0
-        self._editing = False
+
+    @property
+    def display_name(self) -> str:
+        """Parent-menu label: the item name plus its current value (live)."""
+        return f"{self.name} {self._current_label()}"
+
+    @display_name.setter
+    def display_name(self, value):
+        ## Computed from name + current value; the base __init__ assignment
+        ## (display_name or name) is intentionally ignored.
+        pass
+
+    def _resolve_options(self):
+        return list(self._options_src() if callable(self._options_src) else self._options_src)
 
     def activate(self):
-        self._options = list(self._options_src() if callable(self._options_src) else self._options_src)
+        ## Enter edit mode immediately, like the difficulty settings editor.
+        self._options = self._resolve_options()
         self._edit_idx = self._current_idx()
-        self._editing = False
 
     def reset(self):
         super().reset()
-        self._editing = False
         self._edit_idx = 0
 
     def _current_idx(self):
@@ -279,37 +293,38 @@ class CycleItem(MenuItem):
                 return i
         return 0
 
+    def _current_label(self) -> str:
+        ## Used by display_name, which may render before activate() populates
+        ## _options, so fall back to resolving the source list here.
+        options = self._options or self._resolve_options()
+        val = self._get()
+        for v, label in options:
+            if v == val:
+                return label
+        return '?'
+
     def for_display(self) -> str:
-        if not self._editing:
-            _, label = self._options[self._current_idx()] if self._options else (None, '?')
-            return f"{self.display_name} {label}"
-        _, label = self._options[self._edit_idx] if self._options else (None, '?')
-        blink_on = time.time() % _BLINK_PERIOD < _BLINK_ON
-        val_str = _cycle_underline(label) if blink_on else label
-        return f"{self.display_name} | {val_str}"
+        if not self._options:
+            return self.name
+        _, label = self._options[self._edit_idx]
+        if time.time() % _BLINK_PERIOD < _BLINK_ON:
+            label = _cycle_underline(label)
+        return f"{self.name} | {label}"
 
     def _cycle(self, delta):
-        if self._editing and self._options:
+        if self._options:
             self._edit_idx = (self._edit_idx + delta) % len(self._options)
 
     def key_enter(self):
-        if not self._editing:
-            self._edit_idx = self._current_idx()
-            self._editing = True
-        else:
-            if self._options:
-                self._set(self._options[self._edit_idx][0])
-            self._editing = False
-            self.set_done()
+        if self._options:
+            self._set(self._options[self._edit_idx][0])
+        self.set_done()
 
     def key_esc(self):
-        if self._editing:
-            self._editing = False
-        else:
-            self.set_done()
+        self.set_done()
 
     def key_backspace(self):
-        self.key_esc()
+        self.set_done()
 
     def key_up(self):
         self._cycle(-1)
