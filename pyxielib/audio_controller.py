@@ -76,20 +76,54 @@ class AudioController:
         self._test_result: Optional[bool] = None
         self._mute_cache: Optional[bool] = None
         self._mute_cache_time: float = 0.0
+        self._pactl_warned = False
 
     # --- PulseAudio / PipeWire ---
 
-    def list_sinks(self) -> List[AudioSink]:
+    def _run_pactl(self, args, timeout=5) -> Optional[str]:
+        """Run a pactl subcommand; return its stdout, or None on any failure
+        (which is logged once per failure streak). The usual reason it fails
+        here is that the process can't reach the user's PulseAudio/PipeWire
+        session, which is why the sink list comes back empty."""
         try:
             result = subprocess.run(
-                ['pactl', 'list', 'sinks'],
-                capture_output=True, check=False, timeout=5,
+                ['pactl'] + list(args),
+                capture_output=True, check=False, timeout=timeout,
             )
-        except Exception:
-            return []
+        except FileNotFoundError:
+            self._warn_pactl("pactl not found; install pipewire/pulseaudio utils for audio control")
+            return None
+        except Exception as e:
+            self._warn_pactl(f"pactl {' '.join(args)} failed: {e}")
+            return None
         if result.returncode != 0:
+            self._warn_pactl("pactl %s exited %d: %s" % (
+                ' '.join(args), result.returncode,
+                result.stderr.decode('utf-8', errors='replace').strip()))
+            return None
+        self._pactl_warned = False
+        return result.stdout.decode('utf-8', errors='replace')
+
+    def _warn_pactl(self, msg):
+        """Log a pactl failure once per streak (these calls run every poll, so
+        unthrottled logging would flood the log)."""
+        if self._pactl_warned:
+            return
+        logger.warning(msg)
+        logger.warning("Audio control needs the PulseAudio/PipeWire session: check that "
+                       "run_display runs as the audio user with XDG_RUNTIME_DIR set")
+        self._pactl_warned = True
+
+    def server_running(self) -> bool:
+        """True if pactl can reach an audio server (distinguishes 'no server'
+        from 'server with no sinks')."""
+        return self._run_pactl(['info']) is not None
+
+    def list_sinks(self) -> List[AudioSink]:
+        out = self._run_pactl(['list', 'sinks'])
+        if out is None:
             return []
-        return self._parse_sinks(result.stdout.decode('utf-8', errors='replace'))
+        return self._parse_sinks(out)
 
     @staticmethod
     def _parse_sinks(output) -> List[AudioSink]:
@@ -127,16 +161,10 @@ class AudioController:
                          is_bluetooth=is_bt, bt_mac=bt_mac)
 
     def get_default_sink(self) -> Optional[str]:
-        try:
-            result = subprocess.run(
-                ['pactl', 'get-default-sink'],
-                capture_output=True, check=False, timeout=5,
-            )
-        except Exception:
+        out = self._run_pactl(['get-default-sink'])
+        if out is None:
             return None
-        if result.returncode != 0:
-            return None
-        return result.stdout.decode('utf-8', errors='replace').strip() or None
+        return out.strip() or None
 
     def get_default_sink_description(self) -> Optional[str]:
         default = self.get_default_sink()
@@ -148,14 +176,7 @@ class AudioController:
         return default
 
     def set_default_sink(self, name) -> bool:
-        try:
-            result = subprocess.run(
-                ['pactl', 'set-default-sink', name],
-                capture_output=True, check=False, timeout=5,
-            )
-        except Exception:
-            return False
-        return result.returncode == 0
+        return self._run_pactl(['set-default-sink', name]) is not None
 
     def sink_for_mac(self, mac) -> Optional[AudioSink]:
         """Return the audio sink belonging to a Bluetooth device, if present."""
@@ -184,30 +205,20 @@ class AudioController:
         now = time.time()
         if self._mute_cache is not None and now - self._mute_cache_time < _MUTE_CACHE_TTL:
             return self._mute_cache
-        try:
-            result = subprocess.run(
-                ['pactl', 'get-sink-mute', '@DEFAULT_SINK@'],
-                capture_output=True, check=False, timeout=5,
-            )
-        except Exception:
+        out = self._run_pactl(['get-sink-mute', '@DEFAULT_SINK@'])
+        if out is None:
             return False
-        muted = 'yes' in result.stdout.decode('utf-8', errors='replace').lower()
+        muted = 'yes' in out.lower()
         self._mute_cache = muted
         self._mute_cache_time = now
         return muted
 
     def set_mute(self, muted) -> bool:
-        try:
-            result = subprocess.run(
-                ['pactl', 'set-sink-mute', '@DEFAULT_SINK@', '1' if muted else '0'],
-                capture_output=True, check=False, timeout=5,
-            )
-        except Exception:
-            return False
-        if result.returncode == 0:
+        ok = self._run_pactl(['set-sink-mute', '@DEFAULT_SINK@', '1' if muted else '0']) is not None
+        if ok:
             self._mute_cache = muted
             self._mute_cache_time = time.time()
-        return result.returncode == 0
+        return ok
 
     # --- Test sound ---
 

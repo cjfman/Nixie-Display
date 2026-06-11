@@ -669,6 +669,10 @@ class AudioSelectItem(ListItem):
         self._sinks = self.audio.list_sinks()
         if self._sinks:
             self.set_values([s.description[:16] for s in self._sinks])
+        elif not self.audio.server_running():
+            ## Distinguish "can't reach the audio server" from a real empty list
+            ## so it's clear the menu found nothing because pactl can't connect.
+            self.set_values(["No audio server"])
         else:
             self.set_values(["No outputs"])
 
