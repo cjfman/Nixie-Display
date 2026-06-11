@@ -1,5 +1,6 @@
 import logging
 import subprocess
+import time
 from typing import List, Sequence, Tuple
 
 from pyxielib.pyxieutil import PyxieError
@@ -227,6 +228,100 @@ class ListItem(MenuItem):
 
     def key_enter(self):
         """Specifically do nothing"""
+
+
+_BLINK_PERIOD = 0.5   ## seconds per blink cycle
+_BLINK_ON     = 0.25  ## seconds the value is underlined within each cycle
+
+
+def _cycle_underline(s):
+    return ''.join(c + '!' for c in s)
+
+
+class CycleItem(MenuItem):
+    """A setting that cycles through a fixed list of options via inline edit mode.
+
+    Browse:  shows  "{display_name} {option_label}"
+    Edit:    shows  "{display_name} | {option_label!}" (blinking underline)
+
+    Arrows (up/down/left/right) cycle options in edit mode.
+    Enter in browse → edit.  Enter in edit → commit + set_done().
+    ESC/Backspace in edit → cancel (back to browse).
+    ESC/Backspace in browse → set_done().
+
+    ``options`` may be a list of (value, label) pairs **or** a zero-argument
+    callable that returns such a list; the callable form is re-evaluated on
+    every ``activate()`` so the list stays fresh after config resets.
+    """
+    def __init__(self, name, options, get_fn, set_fn, **kwargs):
+        super().__init__(name, **kwargs)
+        self._options_src = options
+        self._options = []
+        self._get = get_fn
+        self._set = set_fn
+        self._edit_idx = 0
+        self._editing = False
+
+    def activate(self):
+        self._options = list(self._options_src() if callable(self._options_src) else self._options_src)
+        self._edit_idx = self._current_idx()
+        self._editing = False
+
+    def reset(self):
+        super().reset()
+        self._editing = False
+        self._edit_idx = 0
+
+    def _current_idx(self):
+        val = self._get()
+        for i, (v, _) in enumerate(self._options):
+            if v == val:
+                return i
+        return 0
+
+    def for_display(self) -> str:
+        if not self._editing:
+            _, label = self._options[self._current_idx()] if self._options else (None, '?')
+            return f"{self.display_name} {label}"
+        _, label = self._options[self._edit_idx] if self._options else (None, '?')
+        blink_on = time.time() % _BLINK_PERIOD < _BLINK_ON
+        val_str = _cycle_underline(label) if blink_on else label
+        return f"{self.display_name} | {val_str}"
+
+    def _cycle(self, delta):
+        if self._editing and self._options:
+            self._edit_idx = (self._edit_idx + delta) % len(self._options)
+
+    def key_enter(self):
+        if not self._editing:
+            self._edit_idx = self._current_idx()
+            self._editing = True
+        else:
+            if self._options:
+                self._set(self._options[self._edit_idx][0])
+            self._editing = False
+            self.set_done()
+
+    def key_esc(self):
+        if self._editing:
+            self._editing = False
+        else:
+            self.set_done()
+
+    def key_backspace(self):
+        self.key_esc()
+
+    def key_up(self):
+        self._cycle(-1)
+
+    def key_down(self):
+        self._cycle(1)
+
+    def key_left(self):
+        self._cycle(-1)
+
+    def key_right(self):
+        self._cycle(1)
 
 
 class Menu(MenuItem):

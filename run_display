@@ -83,6 +83,11 @@ def make_tap_config(cfg):
     return TapRevolutionConfig(defaults, persistent)
 
 
+def make_audio_config(cfg):
+    section = cfg.get('audio') or {}
+    return section.get('test_sound', 'audio-test-signal')
+
+
 def setup_logging(logfile=None, loglevel='info'):
     level = logging.getLevelName(loglevel.upper())
     handler = logging.FileHandler(logfile) if logfile else logging.StreamHandler(sys.stdout)
@@ -156,6 +161,7 @@ def main(args):
             tap_config=make_tap_config(cfg),
             controller=ctrl,
             program_map=program_map,
+            test_sound=make_audio_config(cfg),
         )
 
     # m h dom mon dow

@@ -1,12 +1,35 @@
+import array
+import io
 import logging
+import math
+import os
 import re
 import subprocess
 import threading
 import time
+import wave
 from dataclasses import dataclass, field
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
+
+_SOUNDS_BASE = '/usr/share/sounds/freedesktop/stereo'
+
+
+def _generate_beep_wav(freq=1000, duration=1.0, sample_rate=44100) -> bytes:
+    """Generate a sine-wave beep as raw WAV bytes (mono 16-bit PCM)."""
+    n = int(sample_rate * duration)
+    samples = array.array('h', (
+        int(32767 * math.sin(2 * math.pi * freq * i / sample_rate))
+        for i in range(n)
+    ))
+    buf = io.BytesIO()
+    with wave.open(buf, 'w') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sample_rate)
+        w.writeframes(samples)
+    return buf.getvalue()
 
 
 @dataclass
@@ -34,6 +57,9 @@ class AudioController:
         self._scan_timeout = 10
         self._pair_thread: Optional[threading.Thread] = None
         self._pair_result: Optional[bool] = None
+        self._test_proc = None
+        self._test_thread: Optional[threading.Thread] = None
+        self._test_result: Optional[bool] = None
 
     # --- PulseAudio / PipeWire ---
 
@@ -114,6 +140,78 @@ class AudioController:
         except Exception:
             return False
         return result.returncode == 0
+
+    def is_muted(self) -> bool:
+        try:
+            result = subprocess.run(
+                ['pactl', 'get-sink-mute', '@DEFAULT_SINK@'],
+                capture_output=True, check=False, timeout=5,
+            )
+        except Exception:
+            return False
+        return 'yes' in result.stdout.decode('utf-8', errors='replace').lower()
+
+    def set_mute(self, muted) -> bool:
+        try:
+            result = subprocess.run(
+                ['pactl', 'set-sink-mute', '@DEFAULT_SINK@', '1' if muted else '0'],
+                capture_output=True, check=False, timeout=5,
+            )
+        except Exception:
+            return False
+        return result.returncode == 0
+
+    # --- Test sound ---
+
+    def play_test_sound_async(self, sound_name='audio-test-signal') -> None:
+        self.stop_test()
+        self._test_result = None
+        self._test_thread = threading.Thread(
+            target=self._test_worker, args=(sound_name,), daemon=True,
+        )
+        self._test_thread.start()
+
+    def _test_worker(self, sound_name) -> None:
+        path = os.path.join(_SOUNDS_BASE, sound_name + '.oga')
+        try:
+            if os.path.isfile(path):
+                self._test_proc = subprocess.Popen(
+                    ['paplay', path],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+            else:
+                logger.info("Sound file not found: %s; generating 1 kHz beep", path)
+                self._test_proc = subprocess.Popen(
+                    ['aplay', '-q', '-'],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+                self._test_proc.stdin.write(_generate_beep_wav())
+                self._test_proc.stdin.close()
+            self._test_proc.wait()
+            self._test_result = True
+        except Exception:
+            self._test_result = False
+        finally:
+            self._test_proc = None
+
+    def poll_test(self) -> Optional[bool]:
+        if self._test_thread is None:
+            return self._test_result
+        if self._test_thread.is_alive():
+            return None
+        self._test_thread = None
+        return self._test_result
+
+    def stop_test(self) -> None:
+        if self._test_proc is not None:
+            try:
+                self._test_proc.terminate()
+            except Exception:
+                pass
+        self._test_proc = None
+        self._test_thread = None
+        self._test_result = None
 
     # --- Bluetooth scanning ---
 

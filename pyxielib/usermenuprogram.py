@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 
 class UserMenuProgram(Program):
     def __init__(self, event_path=None, *, program_map=None, ani_path='animations',
-                 levels_path='levels', tap_config=None, controller=None, **kwargs):
+                 levels_path='levels', tap_config=None, controller=None,
+                 test_sound='audio-test-signal', **kwargs):
         super().__init__("User Control", **kwargs)
         self.event_path       = event_path
         self.program_map      = program_map or {}
@@ -52,7 +53,7 @@ class UserMenuProgram(Program):
             menulib.SystemInfoItem(),
             menulib.GitStatusItem(size=self.size),
             menulib.WiFiMenu(),
-            menulib.AudioMenu(),
+            menulib.AudioMenu(test_sound=test_sound),
             menulib.SleepItem(self.controller),
             menulib.ExitItem("Exit Program"),
             menulib.RebootItem() if not terminal_mode else DisabledItem("Reboot"),

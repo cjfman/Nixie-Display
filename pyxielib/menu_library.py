@@ -6,7 +6,7 @@ import threading
 from typing import List, Optional
 
 from pyxielib.audio_controller import AudioController, BluetoothDevice
-from pyxielib.navigator import DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
+from pyxielib.navigator import CycleItem, DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
 from pyxielib.animation import Animation, MarqueeAnimation
 from pyxielib.animation_file import FileAnimation
@@ -852,12 +852,58 @@ class BTRemoveItem(ListItem):
         self.set_values(None)
 
 
+class AudioTestItem(MenuItem):
+    """Plays a test sound when entered; shows 'Testing' until playback finishes,
+    then pops back so Enter on the same item re-runs the test."""
+    def __init__(self, audio: AudioController, test_sound='audio-test-signal', **kwargs):
+        super().__init__("Test Audio", **kwargs)
+        self.audio = audio
+        self.test_sound = test_sound
+        self._testing = False
+
+    def activate(self):
+        self.audio.play_test_sound_async(self.test_sound)
+        self._testing = True
+
+    def for_display(self) -> str:
+        if self._testing:
+            result = self.audio.poll_test()
+            if result is not None:
+                self._testing = False
+                self.set_done()
+        return "Testing"
+
+    def reset(self):
+        super().reset()
+        self.audio.stop_test()
+        self._testing = False
+
+    def key_enter(self):
+        pass  ## handled by Navigator.enter() → activate()
+
+    def key_esc(self):
+        self.audio.stop_test()
+        self._testing = False
+        self.set_done()
+
+    def key_backspace(self):
+        self.key_esc()
+
+
 class AudioMenu(Menu):
-    def __init__(self):
+    def __init__(self, test_sound='audio-test-signal'):
         super().__init__("Audio Settings")
         self.audio = AudioController()
         current = lambda: self.audio.get_default_sink_description() or "Unknown"
+        mute_options = [('off', 'OFF'), ('on', 'ON')]
         self.add_submenu(MsgItem("View Current", current))
         self.add_submenu(AudioSelectItem(self.audio, display_name="Select Output"))
+        self.add_submenu(CycleItem(
+            "Mute",
+            mute_options,
+            get_fn=lambda: 'on' if self.audio.is_muted() else 'off',
+            set_fn=lambda v: self.audio.set_mute(v == 'on'),
+        ))
         self.add_submenu(BTAddItem(self.audio, display_name="Add Bluetooth"))
         self.add_submenu(BTRemoveItem(self.audio, display_name="Remove Bluetooth"))
+        self.add_submenu(AudioTestItem(self.audio, test_sound=test_sound, display_name="Test Audio"))

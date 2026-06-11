@@ -18,7 +18,7 @@ from typing import List, Optional
 
 from pyxielib import tap_revolution as taplib
 from pyxielib.animation import Animation, MarqueeAnimation
-from pyxielib.navigator import ListItem, Menu, MenuItem
+from pyxielib.navigator import CycleItem, ListItem, Menu, MenuItem
 from pyxielib.tap_revolution_config import TapRevolutionConfig
 from pyxielib.tube_manager import cmdLen
 
@@ -44,6 +44,11 @@ _DIR_BLINK_ON_SECS = 0.3
 _SETTINGS_FLASH_SECS = 1.0
 
 _ARROW_NAMES = {'left', 'right', 'up', 'down'}
+
+
+def _set_difficulty(config, value):
+    config.settings['difficulty'] = value
+    config.save()
 
 
 def _s_entry(tag, kind, label_fn, prefix, get_fn, set_fn=None, options=None):
@@ -155,8 +160,19 @@ class TapRevolutionMenu(Menu):
     in-game edit) is reflected the next time a level is launched.
     """
     def __init__(self, config, levels_path, *, watcher=None, size=16, **kwargs):
+        options_fn = lambda: [
+            (d['name'], d.get('display_name', d['name']))
+            for d in config.settings.get('difficulties', [])
+        ]
+        difficulty_item = CycleItem(
+            "Difficulty",
+            options_fn,
+            get_fn=lambda: config.settings.get('difficulty', ''),
+            set_fn=lambda v: _set_difficulty(config, v),
+        )
         super().__init__("Tap Revolution", [
             TapRevolutionLevelsItem(config, levels_path, watcher=watcher, size=size),
+            difficulty_item,
             TapRevolutionSettingsItem(config),
             ResetSettingsItem(config),
         ], **kwargs)

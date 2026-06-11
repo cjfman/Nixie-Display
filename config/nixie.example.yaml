@@ -29,3 +29,9 @@ polling:
 tap_revolution:
   defaults_file: config/tap_revolution.defaults.yaml
   persistent_file: config/tap_revolution.yaml   # written at runtime; gitignored
+
+# --- Audio menu settings ---
+# audio:
+#   test_sound: audio-test-signal   # filename stem (without .oga) under
+#                                   # /usr/share/sounds/freedesktop/stereo/
+#                                   # Falls back to a generated 1 kHz beep if absent.
