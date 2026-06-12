@@ -6,6 +6,8 @@ import signal
 import sys
 import time
 
+sys.path.append("./")
+
 import pyxielib.animation_library as animationlib
 from pyxielib import controller
 from pyxielib.key_watcher import KeyWatcher, TerminalKeyWatcher

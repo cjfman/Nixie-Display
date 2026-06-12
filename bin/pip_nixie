@@ -9,6 +9,8 @@ import subprocess
 import sys
 import time
 
+sys.path.append("./")
+
 from pyxielib import controller as ctrl_module
 
 NUM_TUBES = 16
