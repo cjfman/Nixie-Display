@@ -82,7 +82,7 @@ class ProgressSpinner(FullFrameAnimation):
     ## Outer-ring segments in draw order, cumulatively OR'd one per frame.
     ## Mirrors pip_nixie's SPINNER_SEGS (the leading 0x0080 repeat gives the
     ## first segment a double beat before the ring starts filling).
-    _SEGS = [0x0080, 0x0080, 0x0100, 0x0200, 0x0400, 0x0800, 0x1000, 0x2000, 0x0040]
+    _SEGS = [0x0080, 0x0100, 0x0200, 0x0400, 0x0800, 0x1000, 0x2000, 0x0040]
 
     def __init__(self, label="", rate=0.1, num_tubes=16):
         super().__init__([(rate, f) for f in self._make_frames(label, num_tubes)])
