@@ -2,6 +2,15 @@
 NIXIE_DIR=$HOME/Nixie-Display
 nixie_print() { "$NIXIE_DIR/send_text" --debug -c raspi --keyboard-event-file /dev/input/event0 "$@"; }
 
+## Audio control (the Audio menu: pactl sink list/select/mute, paplay test) needs
+## the user's PipeWire/PulseAudio session. When raspi_run starts outside a login
+## session (e.g. @reboot cron / rc.local), XDG_RUNTIME_DIR and the session D-Bus
+## aren't set, so pactl gets "Connection refused" and the sink list is empty.
+## Point them at the per-user runtime dir. This requires the user manager to be
+## running at boot — enable it once with: sudo loginctl enable-linger "$USER"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
+
 cd "$NIXIE_DIR"
 #nixie_print "$(ip route get 8.8.8.8 | head -1 | cut -d' ' -f7)" && sleep 10
 nixie_print "Pulling from Git"
