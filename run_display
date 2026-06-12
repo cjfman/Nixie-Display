@@ -12,6 +12,7 @@ import traceback
 import pyxielib.animation_library as animationlib
 from pyxielib import assembler, config, controller, program, scheduler, stockticker, usermenuprogram
 from pyxielib.tap_revolution_config import TapRevolutionConfig
+from pyxielib.nixie_shell import NixieShellConfig
 
 file_dir = os.path.dirname(os.path.realpath(__file__))
 logger = logging.getLogger(__name__)
@@ -91,6 +92,11 @@ def make_audio_config(cfg):
     return section.get('test_sound', 'audio-test-signal')
 
 
+def make_nixie_shell_config(cfg):
+    """Build the Nixie Shell config from the master config's nixie_shell section."""
+    return NixieShellConfig.from_dict(cfg.get('nixie_shell'))
+
+
 def setup_logging(logfile=None, loglevel='info'):
     level = logging.getLevelName(loglevel.upper())
     handler = logging.FileHandler(logfile) if logfile else logging.StreamHandler(sys.stdout)
@@ -162,6 +168,7 @@ def main(args):
             ani_path=args.animations_dir,
             levels_path=args.levels_dir,
             tap_config=make_tap_config(cfg),
+            nixie_shell_config=make_nixie_shell_config(cfg),
             controller=ctrl,
             program_map=program_map,
             test_sound=make_audio_config(cfg),

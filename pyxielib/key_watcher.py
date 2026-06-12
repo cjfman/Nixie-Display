@@ -101,6 +101,10 @@ class KeyWatcher:
         """Returns True if any of the shift keys are being held"""
         return any(x in self.keys_down for x in ('KEY_LEFTSHIFT', 'KEY_RIGHTSHIFT'))
 
+    def ctrled(self) -> bool:
+        """Returns True if any of the control keys are being held"""
+        return any(x in self.keys_down for x in ('KEY_LEFTCTRL', 'KEY_RIGHTCTRL'))
+
     def empty_queue(self):
         while not self.queue.empty():
             self.queue.get()
@@ -120,6 +124,8 @@ class KeyWatcher:
         key = key.replace('KEY_', '')
         key = SPECIAL_KEYS.get(key, key)
         if len(key) == 1:
+            if self.ctrled() and key.lower() in ('a', 'e'):
+                return 'CTRL_' + key.upper()    ## Ctrl+A / Ctrl+E -> line start/end
             if self.shifted():
                 key = self.make_shifted(key)
             else:
@@ -367,6 +373,10 @@ class TerminalKeyWatcher:
             self._enqueue('ENTER')
         elif b in (b'\x7f', b'\x08'):
             self._enqueue('BACKSPACE')
+        elif b == b'\x01':              ## Ctrl+A
+            self._enqueue('CTRL_A')
+        elif b == b'\x05':              ## Ctrl+E
+            self._enqueue('CTRL_E')
         else:
             try:
                 c = b.decode('utf-8')

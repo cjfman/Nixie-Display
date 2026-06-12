@@ -75,6 +75,12 @@ class MenuItem:
         ## pylint: disable=unused-argument
         ## Should be overridden
 
+    def key_ctrl_a(self):
+        """Ctrl+A. Ignored unless overridden (e.g. move to line start)."""
+
+    def key_ctrl_e(self):
+        """Ctrl+E. Ignored unless overridden (e.g. move to line end)."""
+
     def __str__(self):
         return f"{self.__class__.__name__} '{self.name}'"
 
@@ -514,6 +520,10 @@ class Navigator:
             self.node.key_right()
         elif key == "UP":
             self.node.key_up()
+        elif key == "CTRL_A":
+            self.node.key_ctrl_a()
+        elif key == "CTRL_E":
+            self.node.key_ctrl_e()
         elif len(key) == 1:
             self.node.key_char(key)
 

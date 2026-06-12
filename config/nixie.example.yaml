@@ -36,3 +36,42 @@ tap_revolution:
 #   test_sound: audio-test-signal   # filename stem (without .oga) under
 #                                   # /usr/share/sounds/freedesktop/stereo/
 #                                   # Falls back to a generated 1 kHz beep if absent.
+
+# --- Nixie Shell: a limited, mostly read-only command line menu item ---
+# Every key is optional; omitting the whole section uses the defaults below.
+# nixie_shell:
+#   # Commands permitted to run. A bare name allows any arguments; multi-word
+#   # entries must match as a prefix, and a trailing '*' allows the remainder.
+#   allow_list:
+#     - ls
+#     - cat
+#     - echo
+#     - wc
+#     - host
+#     - dig
+#     - du
+#     - pactl info
+#     - pactl list *
+#     - systemctl status *
+#     - systemctl --user status *
+#   # NOTE: 'find' is a built-in special command (not configured here). It takes
+#   # exactly one operand: a directory (which it lists) or a file (whose name it
+#   # echoes). Options and extra operands are rejected.
+#   # Extra always-blocked command names (fnmatch patterns, e.g. "python*").
+#   # These ADD to a built-in block list (sudo, rm, bash, env, ... ) that always
+#   # applies. Likewise, secret paths (~/.ssh, ~/.aws, *.pem, /etc/shadow, ... )
+#   # are ALWAYS denied as command arguments and cannot be re-enabled here.
+#   block_list: []
+#   # Extra .gitignore-style paths to deny as command arguments (added to the
+#   # always-on secret-path deny list).
+#   path_deny_list: []
+#   max_output_bytes: 65536         # cap on captured output (truncated past this)
+#   max_output_lines: 2000
+#   timeout: 30                     # seconds before a running command is SIGINT'd
+#                                   # (default 30; set null to disable. ESC ->
+#                                   # Cancel always works regardless.)
+#   history_file: ~/logs/nixie_shell_history   # persist command history across
+#                                   # runs (the 'history' command shows it; up
+#                                   # arrow recalls). Omit to keep history only
+#                                   # in memory for the running process. May
+#                                   # contain commands as typed.

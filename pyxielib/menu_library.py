@@ -223,13 +223,14 @@ class TextBodyItem(MenuItem):
     _DOWN_GLYPH = 0x0140   ## '\ /'
     _UNDERLINE  = 0x4000   ## plain underline, shown for unprintable characters
 
-    def __init__(self, name, lines=None, *, size=16, **kwargs):
+    def __init__(self, name, lines=None, *, size=16, unprintable_code=_UNDERLINE, **kwargs):
         super().__init__(name, **kwargs)
-        self.size       = size
-        self.lines      = list(lines) if lines else [""]
-        self.line       = 0
-        self.offset     = 0
-        self._animation = None
+        self.size             = size
+        self.unprintable_code = unprintable_code
+        self.lines            = list(lines) if lines else [""]
+        self.line             = 0
+        self.offset           = 0
+        self._animation       = None
 
     def set_lines(self, lines):
         """Load a new body of text and return to the top."""
@@ -278,12 +279,11 @@ class TextBodyItem(MenuItem):
             self._animation = self._build()
         return self._animation
 
-    @classmethod
-    def _char_frame(cls, c):
-        """Frame for one character: the glyph if printable, else a plain underline."""
+    def _char_frame(self, c):
+        """Frame for one character: the glyph if printable, else the replacement code."""
         if isPrintable(c):
             return TextFrame(c)
-        return HexFrame(cls._UNDERLINE)
+        return HexFrame(self.unprintable_code)
 
     @classmethod
     def _ud_glyph(cls, has_up, has_down) -> Optional[int]:
