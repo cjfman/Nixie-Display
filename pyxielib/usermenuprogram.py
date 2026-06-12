@@ -21,8 +21,9 @@ class UserMenuProgram(Program):
                  controller=None, test_sound='audio-test-signal', logfile=None,
                  log_tail=200, **kwargs):
         super().__init__("User Control", **kwargs)
-        logfile     = logfile or os.path.expanduser('~/logs/nixie.log')
-        stderr_path = os.path.splitext(logfile)[0] + '.stderr'
+        logfile      = logfile or os.path.expanduser('~/logs/nixie.log')
+        stderr_path  = os.path.splitext(logfile)[0] + '.stderr'
+        runonce_path = os.path.join(os.path.dirname(logfile), 'runonce.log')
         self.event_path       = event_path
         self.program_map      = program_map or {}
         self.controller       = controller
@@ -62,6 +63,7 @@ class UserMenuProgram(Program):
             Menu("Logs", [
                 menulib.LogViewerItem(logfile, tail=log_tail, size=self.size, display_name="stdout"),
                 menulib.LogViewerItem(stderr_path, tail=log_tail, size=self.size, display_name="stderr"),
+                menulib.LogViewerItem(runonce_path, tail=log_tail, size=self.size, display_name="runonce"),
             ]),
             menulib.SleepItem(self.controller),
             menulib.ExitItem("Exit Program"),

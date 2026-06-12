@@ -1,0 +1,36 @@
+#!/bin/bash
+# Template for the raspi_run one-shot hook.
+#
+# Copy this to runonce.sh, edit, and push to the nixie-live branch. On the next
+# start, raspi_run runs it ONCE (keyed by file content hash) and appends its
+# output to ~/logs/runonce.log, which you can read from the menu under
+# Logs > runonce. Editing and re-pushing makes it run again.
+#
+# stdout/stderr are already redirected into runonce.log by raspi_run, so just
+# run commands normally.
+
+echo "user: $(id)"
+
+# --- Make the audio (PipeWire/PulseAudio) session available at boot ---
+# enable-linger starts the user systemd manager (and PipeWire) without a login,
+# which is what makes pactl reachable from the nixie service. The service has
+# passwordless sudo (Reboot/Shutdown/WiFi already use it).
+sudo loginctl enable-linger "$USER"
+
+# --- Diagnostics (these reflect THIS script's environment) ---
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"
+ls -la "$XDG_RUNTIME_DIR" 2>&1 | head
+
+echo "--- systemctl --user (is pipewire installed/enabled?) ---"
+systemctl --user is-active pipewire pipewire-pulse wireplumber 2>&1
+
+echo "--- pactl info ---"
+pactl info 2>&1
+
+echo "--- pactl list sinks short ---"
+pactl list sinks short 2>&1
+
+# Note: right after enable-linger, PipeWire may not be up yet, so the pactl
+# lines above can still fail in THIS run. Reboot (or restart the nixie service)
+# and check Logs > runonce / Audio Settings > Audio Diag afterwards.

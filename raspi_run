@@ -27,6 +27,29 @@ if [[ ! -f $PIP_FLAG ]] || [[ "$BEFORE_HASH" != "$AFTER_HASH" ]]; then
         pip install -r "$HOME/Nixie-Display/requirements.txt"
     touch $PIP_FLAG
 fi
+
+## One-shot setup/diagnostic hook. If runonce.sh is present and its contents
+## have changed since the last run, run it once and capture output to
+## ~/logs/runonce.log (viewable in the Logs menu). Keyed by content hash so a
+## newly pushed or edited script runs exactly once. Use it to fix things that
+## need a real session — e.g. `sudo loginctl enable-linger "$USER"` for audio —
+## without a screen or SSH. See runonce.sh.example for a template.
+RUNONCE="$NIXIE_DIR/runonce.sh"
+RUNONCE_HASH_FILE="$HOME/.nixie_runonce_hash"
+if [[ -f "$RUNONCE" ]]; then
+    NEW_HASH=$(sha1sum "$RUNONCE" | cut -d' ' -f1)
+    if [[ "$NEW_HASH" != "$(cat "$RUNONCE_HASH_FILE" 2>/dev/null)" ]]; then
+        nixie_print "Run once"
+        mkdir -p "$HOME/logs"
+        {
+            echo "=== runonce $(date) (hash $NEW_HASH) ==="
+            bash "$RUNONCE"
+            echo "=== exit $? ==="
+        } >> "$HOME/logs/runonce.log" 2>&1
+        echo "$NEW_HASH" > "$RUNONCE_HASH_FILE"
+    fi
+fi
+
 cd "$HOME"
 nixie_print "Starting..."
 "$NIXIE_DIR/run_display" -c raspi --keyboard-event-file /dev/input/event0 --extended-hours --git-check 5 --logfile logs/nixie.log --loglevel debug 2>logs/nixie.stderr
