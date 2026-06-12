@@ -1,0 +1,81 @@
+#!/bin/bash
+# One-time, root-requiring audio setup for the nixie display.
+#
+# Run this ON THE PI while logged in (it elevates with sudo as needed), because
+# the deployment_scripts/ run-once channel can't -- its sudo needs a password.
+# It grants the display's service user the group memberships PulseAudio needs to
+# claim ALSA (HDMI) and Bluetooth audio, which is the missing piece behind the
+# "Dummy Output only / speaker won't appear" problem.
+#
+#   bash scripts/setup_audio_perms.sh                  # default user 'nixie'
+#   bash scripts/setup_audio_perms.sh someuser         # a different display user
+#   bash scripts/setup_audio_perms.sh --nopasswd       # also let future
+#                                                      # deployment scripts run
+#                                                      # apt/usermod/systemctl
+#                                                      # unattended
+#
+# Reboot afterwards for the group changes to take effect.
+set -u
+
+USER_NAME="nixie"
+NOPASSWD=0
+for arg in "$@"; do
+    case "$arg" in
+        --nopasswd) NOPASSWD=1 ;;
+        --*)        echo "unknown option: $arg" ;;
+        *)          USER_NAME="$arg" ;;
+    esac
+done
+
+SUDO=""
+[[ $EUID -ne 0 ]] && SUDO="sudo"
+
+if ! id "$USER_NAME" >/dev/null 2>&1; then
+    echo "No such user: $USER_NAME" >&2
+    exit 1
+fi
+echo "Display service user: $USER_NAME"
+
+add_groups() {
+    ## Add $1 to the audio-related groups that exist. audio = /dev/snd (ALSA,
+    ## HDMI); bluetooth = BlueZ control/media; lp = legacy rfcomm.
+    local who="$1" grp
+    for grp in audio bluetooth lp; do
+        if getent group "$grp" >/dev/null; then
+            echo "  adding $who to '$grp'"
+            $SUDO usermod -aG "$grp" "$who"
+        fi
+    done
+}
+
+echo "Granting groups to $USER_NAME:"
+add_groups "$USER_NAME"
+
+## If PulseAudio runs system-wide (as user 'pulse'), it -- not $USER_NAME --
+## is what needs Bluetooth/audio access.
+PA_USER=$(ps -o user= -C pulseaudio 2>/dev/null | sort -u | grep -vx "$USER_NAME" | head -1)
+if [[ "${PA_USER:-}" == "pulse" ]]; then
+    echo "PulseAudio is running system-mode as 'pulse'; granting it groups too:"
+    add_groups pulse
+fi
+
+## Make sure the user manager (and PulseAudio) start at boot without a login.
+$SUDO loginctl enable-linger "$USER_NAME" 2>/dev/null || true
+
+## Optional: unblock the run-once deployment scripts so they can install
+## packages / change services without a password next time.
+if [[ $NOPASSWD -eq 1 ]]; then
+    echo "Installing NOPASSWD sudoers drop-in for $USER_NAME (apt/usermod/systemctl/loginctl)"
+    DROPIN=/etc/sudoers.d/nixie-deploy
+    printf '%s ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/sbin/usermod, /usr/bin/systemctl, /bin/systemctl, /usr/bin/loginctl\n' \
+        "$USER_NAME" | $SUDO tee "$DROPIN" >/dev/null
+    $SUDO chmod 0440 "$DROPIN"
+    $SUDO visudo -cf "$DROPIN" || echo "WARNING: sudoers check failed; review $DROPIN"
+fi
+
+echo
+echo "Done. Groups for $USER_NAME are now:"
+id "$USER_NAME"
+echo
+echo "Next: reboot (sudo reboot). After it comes up, the speaker should appear"
+echo "in Select Output (reconnect it via Add Bluetooth if needed)."
