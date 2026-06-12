@@ -185,6 +185,28 @@ class AudioController:
                 return sink
         return None
 
+    def diagnostics(self) -> List[str]:
+        """Lines describing whether audio control can reach the server, for the
+        Audio Diag menu item. Reflects this process's own environment — which
+        is the point: it surfaces the missing session that leaves the sink list
+        empty (XDG_RUNTIME_DIR unset / pactl 'Connection refused')."""
+        xdg = os.environ.get('XDG_RUNTIME_DIR') or '(unset)'
+        lines = ["XDG: " + xdg]
+        if not self.server_running():
+            lines.append("pactl: no server")
+            lines.append("Session unreachable")
+            lines.append("Run: enable-linger")
+            return lines
+        lines.append("pactl: connected")
+        default = self.get_default_sink()
+        lines.append("default: " + (default or "(none)"))
+        sinks = self.list_sinks()
+        lines.append("sinks: %d" % len(sinks))
+        for sink in sinks:
+            mark = '*' if sink.name == default else '-'
+            lines.append(f"{mark} {sink.description}")
+        return lines
+
     def select_sink_for_mac(self, mac, *, wait=6.0) -> bool:
         """Make a just-connected BT device the default output.
 

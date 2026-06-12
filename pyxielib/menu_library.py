@@ -119,7 +119,7 @@ class SystemInfoItem(ListItem):
         items = []
         ip = SystemInfoItem._run('sh', '-c', "ip route get 8.8.8.8 2>/dev/null | head -1 | cut -d' ' -f7")
         if ip and re.match(r'^\d{1,3}(\.\d{1,3}){3}$', ip):
-            items.append("IP: " + ip)
+            items.append(ip)
         else:
             items.append("IP: N/A")
         items.append("OS: " + SystemInfoItem._read_os_release())
@@ -1102,8 +1102,21 @@ class AudioTestItem(MenuItem):
         self.key_esc()
 
 
+class AudioDiagItem(TextBodyItem):
+    """Read-only audio diagnostics: whether pactl can reach the audio server
+    (and the XDG_RUNTIME_DIR it needs) plus the detected sinks. Lets you check
+    from the display when Select Output is unexpectedly empty. Rebuilt on each
+    activate() so it always reflects the current state."""
+    def __init__(self, audio: AudioController, *, size=16, **kwargs):
+        super().__init__("Audio Diag", size=size, **kwargs)
+        self.audio = audio
+
+    def activate(self):
+        self.set_lines(self.audio.diagnostics())
+
+
 class AudioMenu(Menu):
-    def __init__(self, test_sound='audio-test-signal'):
+    def __init__(self, test_sound='audio-test-signal', size=16):
         super().__init__("Audio Settings")
         self.audio = AudioController()
         current = lambda: self.audio.get_default_sink_description() or "Unknown"
@@ -1118,3 +1131,4 @@ class AudioMenu(Menu):
         self.add_submenu(BTAddItem(self.audio, display_name="Add Bluetooth"))
         self.add_submenu(BTRemoveItem(self.audio, display_name="Remove Bluetooth"))
         self.add_submenu(AudioTestItem(self.audio, test_sound=test_sound, display_name="Test Audio"))
+        self.add_submenu(AudioDiagItem(self.audio, size=size, display_name="Audio Diag"))

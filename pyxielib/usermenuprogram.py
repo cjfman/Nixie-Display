@@ -57,7 +57,7 @@ class UserMenuProgram(Program):
             trmenulib.TapRevolutionMenu(tap_config, levels_path, watcher=self.watcher, size=self.size),
             menulib.MirrorItem("Mirror Mode"),
             NixieShellItem(nixie_shell_config, size=self.size),
-            menulib.AudioMenu(test_sound=test_sound),
+            menulib.AudioMenu(test_sound=test_sound, size=self.size),
             menulib.GitStatusItem(size=self.size),
             Menu("Logs", [
                 menulib.LogViewerItem(logfile, tail=log_tail, size=self.size, display_name="stdout"),
