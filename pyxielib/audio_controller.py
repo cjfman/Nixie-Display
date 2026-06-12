@@ -161,10 +161,16 @@ class AudioController:
                          is_bluetooth=is_bt, bt_mac=bt_mac)
 
     def get_default_sink(self) -> Optional[str]:
-        out = self._run_pactl(['get-default-sink'])
+        ## `pactl get-default-sink` only exists in PulseAudio 15+; the Pi runs
+        ## 14.2. Parse `pactl info`'s "Default Sink:" line instead, which works
+        ## across versions (set-default-sink is fine -- it's the old one).
+        out = self._run_pactl(['info'])
         if out is None:
             return None
-        return out.strip() or None
+        for line in out.splitlines():
+            if line.startswith('Default Sink:'):
+                return line.split(':', 1)[1].strip() or None
+        return None
 
     def get_default_sink_description(self) -> Optional[str]:
         default = self.get_default_sink()
