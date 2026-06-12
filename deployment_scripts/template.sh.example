@@ -1,13 +1,15 @@
 #!/bin/bash
-# Template for the raspi_run one-shot hook.
+# Template for a one-shot deployment script.
 #
-# Copy this to runonce.sh, edit, and push to the nixie-live branch. On the next
-# start, raspi_run runs it ONCE (keyed by file content hash) and appends its
-# output to ~/logs/runonce.log, which you can read from the menu under
-# Logs > runonce. Editing and re-pushing makes it run again.
+# Copy this into deployment_scripts/ as <name>.sh (e.g. enable-audio.sh) and push
+# to the nixie-live branch. On the next start, raspi_run runs every *.sh in
+# deployment_scripts/ exactly ONCE — keyed by each file's content hash, in
+# filename order — and appends output to ~/logs/runonce.log (menu: Logs > runonce).
+# Editing and re-pushing a script runs it again. Prefix names with NN- to order
+# them. The .example suffix keeps this template from being run.
 #
-# stdout/stderr are already redirected into runonce.log by raspi_run, so just
-# run commands normally.
+# stdout/stderr are already redirected into the log by raspi_run, so just run
+# commands normally.
 
 echo "user: $(id)"
 

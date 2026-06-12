@@ -1131,4 +1131,4 @@ class AudioMenu(Menu):
         self.add_submenu(BTAddItem(self.audio, display_name="Add Bluetooth"))
         self.add_submenu(BTRemoveItem(self.audio, display_name="Remove Bluetooth"))
         self.add_submenu(AudioTestItem(self.audio, test_sound=test_sound, display_name="Test Audio"))
-        self.add_submenu(AudioDiagItem(self.audio, size=size, display_name="Audio Diag"))
+        self.add_submenu(AudioDiagItem(self.audio, size=size, display_name="Audio Diagnosis"))

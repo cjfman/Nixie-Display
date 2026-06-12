@@ -28,26 +28,33 @@ if [[ ! -f $PIP_FLAG ]] || [[ "$BEFORE_HASH" != "$AFTER_HASH" ]]; then
     touch $PIP_FLAG
 fi
 
-## One-shot setup/diagnostic hook. If runonce.sh is present and its contents
-## have changed since the last run, run it once and capture output to
-## ~/logs/runonce.log (viewable in the Logs menu). Keyed by content hash so a
-## newly pushed or edited script runs exactly once. Use it to fix things that
-## need a real session — e.g. `sudo loginctl enable-linger "$USER"` for audio —
-## without a screen or SSH. See runonce.sh.example for a template.
-RUNONCE="$NIXIE_DIR/runonce.sh"
-RUNONCE_HASH_FILE="$HOME/.nixie_runonce_hash"
-if [[ -f "$RUNONCE" ]]; then
-    NEW_HASH=$(sha1sum "$RUNONCE" | cut -d' ' -f1)
-    if [[ "$NEW_HASH" != "$(cat "$RUNONCE_HASH_FILE" 2>/dev/null)" ]]; then
-        nixie_print "Run once"
-        mkdir -p "$HOME/logs"
-        {
-            echo "=== runonce $(date) (hash $NEW_HASH) ==="
-            bash "$RUNONCE"
-            echo "=== exit $? ==="
-        } >> "$HOME/logs/runonce.log" 2>&1
-        echo "$NEW_HASH" > "$RUNONCE_HASH_FILE"
-    fi
+## One-shot deployment scripts. Every *.sh in deployment_scripts/ is run once,
+## keyed by its own content hash, with output captured to ~/logs/runonce.log
+## (viewable in the Logs menu). Edit+repush a script to run it again; prefix
+## names with NN- to control order. Use these for setup that needs a real
+## session — e.g. `loginctl enable-linger` for audio — without a screen or SSH.
+run_deploy_script() {
+    local script="$1" name new_hash hash_file
+    name=$(basename "$script")
+    new_hash=$(sha1sum "$script" | cut -d' ' -f1)
+    hash_file="$RUNONCE_STATE/$name.hash"
+    [[ "$new_hash" == "$(cat "$hash_file" 2>/dev/null)" ]] && return
+    nixie_print "Run once"
+    {
+        echo "=== $name $(date) (hash $new_hash) ==="
+        bash "$script"
+        echo "=== exit $? ==="
+    } >> "$HOME/logs/runonce.log" 2>&1
+    echo "$new_hash" > "$hash_file"
+}
+
+RUNONCE_DIR="$NIXIE_DIR/deployment_scripts"
+RUNONCE_STATE="$HOME/.nixie/runonce_state"
+if [[ -d "$RUNONCE_DIR" ]]; then
+    mkdir -p "$RUNONCE_STATE" "$HOME/logs"
+    for script in "$RUNONCE_DIR"/*.sh; do
+        [[ -e "$script" ]] && run_deploy_script "$script"
+    done
 fi
 
 cd "$HOME"
