@@ -232,12 +232,17 @@ class TextBodyItem(MenuItem):
         self.offset           = 0
         self._animation       = None
 
-    def set_lines(self, lines):
+    def set_lines(self, lines, line=0):
         """Load a new body of text and return to the top."""
         self.lines      = list(lines) if lines else [""]
         self.line       = 0
         self.offset     = 0
         self._animation = None
+        size = len(self.lines)
+        if line > 0:
+            self.line = min(line, size - 1)
+        elif line < 0:
+            self.line = max(0, size + line)
 
     def reset(self):
         super().reset()
@@ -350,7 +355,7 @@ class LogViewerItem(TextBodyItem):
         self.tail = tail
 
     def activate(self):
-        self.set_lines(self._read())
+        self.set_lines(self._read(), -1)
 
     @classmethod
     def _strip_preamble(cls, line):
@@ -371,7 +376,6 @@ class LogViewerItem(TextBodyItem):
             return ["No log file"]
         if not lines:
             return ["(empty log)"]
-        lines.reverse()   ## most-recent entry first
         return lines
 
 
