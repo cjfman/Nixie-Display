@@ -19,22 +19,44 @@ set -u
 
 USER_NAME="nixie"
 NOPASSWD=0
+INSTALL_KEYS=0
 for arg in "$@"; do
     case "$arg" in
-        --nopasswd) NOPASSWD=1 ;;
-        --*)        echo "unknown option: $arg" ;;
-        *)          USER_NAME="$arg" ;;
+        --nopasswd)     NOPASSWD=1 ;;
+        --install-keys) INSTALL_KEYS=1 ;;
+        --*)            echo "unknown option: $arg" ;;
+        *)              USER_NAME="$arg" ;;
     esac
 done
 
 SUDO=""
 [[ $EUID -ne 0 ]] && SUDO="sudo"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(dirname "$SCRIPT_DIR")"
 
 if ! id "$USER_NAME" >/dev/null 2>&1; then
     echo "No such user: $USER_NAME" >&2
     exit 1
 fi
 echo "Display service user: $USER_NAME"
+
+## Install the run-once signing public key(s) so the deployment_scripts/ channel
+## is verified. NO sudo needed (it's $USER_NAME's home). Doing this turns ON
+## signature enforcement: from then on only signed scripts run. Do it via this
+## trusted terminal session (not the git channel itself). Run with --install-keys.
+if [[ $INSTALL_KEYS -eq 1 ]]; then
+    HOME_DIR=$(getent passwd "$USER_NAME" | cut -d: -f6)
+    DEST="$HOME_DIR/.nixie/runonce_keys"
+    if compgen -G "$REPO/keys/runonce/*.pem" >/dev/null; then
+        $SUDO -u "$USER_NAME" mkdir -p "$DEST"
+        $SUDO -u "$USER_NAME" cp "$REPO"/keys/runonce/*.pem "$DEST"/
+        echo "Installed public key(s) to $DEST :"
+        ls -1 "$DEST"
+        echo ">>> Signature enforcement is now ON. Only signed deployment scripts run."
+    else
+        echo "No public keys found at $REPO/keys/runonce/*.pem" >&2
+    fi
+fi
 
 add_groups() {
     ## Add $1 to the audio-related groups that exist. audio = /dev/snd (ALSA,

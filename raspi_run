@@ -61,14 +61,21 @@ run_deploy_script() {
     nixie_print "Run $name"
     {
         echo "=== $name $(date) (hash $new_hash) ==="
-        bash "$script"
-        echo "=== exit $? ==="
+        ## Verify the RSA signature before running. Permissive until a public key
+        ## is installed in $RUNONCE_KEYS, then strict (see pyxielib/runonce_sig.py).
+        if "$NIXIE_DIR/bin/verify_runonce" --keys-dir "$RUNONCE_KEYS" "$script"; then
+            bash "$script"
+            echo "=== exit $? ==="
+        else
+            echo "=== skipped: signature check failed ==="
+        fi
     } >> "$HOME/logs/runonce.log" 2>&1
     echo "$new_hash" > "$hash_file"
 }
 
 RUNONCE_DIR="$NIXIE_DIR/deployment_scripts"
 RUNONCE_STATE="$HOME/.nixie/runonce_state"
+RUNONCE_KEYS="$HOME/.nixie/runonce_keys"   ## trusted RSA public keys; empty => permissive
 if [[ -d "$RUNONCE_DIR" ]]; then
     mkdir -p "$RUNONCE_STATE" "$HOME/logs"
     for script in "$RUNONCE_DIR"/*.sh; do

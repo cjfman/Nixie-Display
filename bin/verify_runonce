@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+"""Verify a run-once script's RSA signature before raspi_run executes it.
+
+Prints a one-line verdict (captured into ~/logs/runonce.log by raspi_run) and
+exits 0 to run the script or non-zero to skip it. Permissive while no public
+keys are installed; strict once any are. See pyxielib/runonce_sig.py.
+"""
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+from pyxielib import runonce_sig
+
+
+def make_parser():
+    parser = argparse.ArgumentParser(
+        description="Verify a run-once script's RSA signature (exit 0 = run, non-zero = skip).")
+    parser.add_argument('script', help="Path to the runonce.sh script to check")
+    parser.add_argument('--keys-dir', default=runonce_sig.DEFAULT_KEYS_DIR,
+        help="Directory of trusted public keys (*.pem/*.pub). "
+             "Empty or missing => permissive: unsigned scripts still run.")
+    return parser
+
+
+def main():
+    args = make_parser().parse_args()
+    enforce = bool(runonce_sig.list_public_keys(args.keys_dir))
+    result = runonce_sig.verify(args.script, args.keys_dir)
+    run, line = runonce_sig.decide(result, enforce)
+    print(line)
+    sys.exit(0 if run else 1)
+
+
+if __name__ == '__main__':
+    main()
