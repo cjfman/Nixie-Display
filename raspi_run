@@ -11,16 +11,35 @@ nixie_print() { "$NIXIE_DIR/send_text" --debug -c raspi --keyboard-event-file /d
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
 
-cd "$NIXIE_DIR"
-#nixie_print "$(ip route get 8.8.8.8 | head -1 | cut -d' ' -f7)" && sleep 10
-nixie_print "Pulling from Git"
-git checkout nixie-live
-BEFORE_HASH=$(git rev-parse HEAD)
-git pull -f || echo "Failed to pull latest code from git"
-AFTER_HASH=$(git rev-parse HEAD)
+## Capture this launcher's own output to a known file so boot problems are
+## diagnosable from the menu (Logs > raspi_run) rather than the daemon's unknown
+## journal. send_text/run_display talk to the display directly, not via stdout.
+mkdir -p "$HOME/logs"
+exec >> "$HOME/logs/raspi_run.log" 2>&1
+echo "=== raspi_run $(date) (reexec=${NIXIE_REEXEC:-0}) ==="
 
+## Pull the latest code, then re-exec the freshly-pulled copy. `git pull` rewrites
+## this very file; if bash keeps reading the old descriptor it resumes at a stale
+## byte offset and silently skips whole sections (that is why the deployment hook
+## below never ran while run_display still launched). Re-execing restarts bash on
+## the new file from the top. The NIXIE_REEXEC guard makes it happen once.
+if [[ -z "$NIXIE_REEXEC" ]]; then
+    cd "$NIXIE_DIR"
+    nixie_print "Pulling from Git"
+    git checkout nixie-live
+    BEFORE_HASH=$(git rev-parse HEAD)
+    git pull -f || echo "Failed to pull latest code from git"
+    AFTER_HASH=$(git rev-parse HEAD)
+    export NIXIE_REEXEC=1
+    [[ "$BEFORE_HASH" != "$AFTER_HASH" ]] && export NIXIE_PULLED_CHANGES=1
+    exec bash "$NIXIE_DIR/raspi_run" "$@"
+fi
+
+## --- Below here runs in the re-exec'd process, reading the up-to-date file from
+## --- the top, so git can no longer corrupt the control flow. ---
+cd "$NIXIE_DIR"
 PIP_FLAG=/tmp/nixie_pip_done
-if [[ ! -f $PIP_FLAG ]] || [[ "$BEFORE_HASH" != "$AFTER_HASH" ]]; then
+if [[ ! -f $PIP_FLAG ]] || [[ -n "$NIXIE_PULLED_CHANGES" ]]; then
     "$NIXIE_DIR/bin/pip_nixie" -c raspi --keyboard-event-file /dev/input/event0 -- \
         pip install --break-system-packages -r "$HOME/Nixie-Display/requirements.txt" || \
     "$NIXIE_DIR/bin/pip_nixie" -c raspi --keyboard-event-file /dev/input/event0 -- \
@@ -39,7 +58,7 @@ run_deploy_script() {
     new_hash=$(sha1sum "$script" | cut -d' ' -f1)
     hash_file="$RUNONCE_STATE/$name.hash"
     [[ "$new_hash" == "$(cat "$hash_file" 2>/dev/null)" ]] && return
-    nixie_print "Run once"
+    nixie_print "Run $name"
     {
         echo "=== $name $(date) (hash $new_hash) ==="
         bash "$script"
