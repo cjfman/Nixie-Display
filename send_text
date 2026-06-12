@@ -7,8 +7,8 @@
 
 all_args=("$@")
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-NIXIE_CAT="$SCRIPT_DIR/nixie-cat/nixie-cat"
-PYPRINT="$SCRIPT_DIR/pyprint"
+NIXIE_CAT="$SCRIPT_DIR/bin/nixie-cat"
+PYPRINT="$SCRIPT_DIR/bin/pyprint"
 
 debug=false
 opts=()
