@@ -160,8 +160,24 @@ grammar, and sandbox expression mini-language (assignment/set/print, the
 
 ### Production deployment
 
-The production system runs on a Raspberry Pi. `raspi_run` is the startup script:
-it pulls the `nixie-live` branch from git, then launches `run_display -c raspi`.
-Logs go to `~/logs/nixie.log` and `~/logs/nixie.stderr`.
+The production system runs on a Raspberry Pi (Bullseye, headless — SSH/screen are
+hard). `raspi_run` is the startup script: it pulls the `nixie-live` branch,
+**re-execs its freshly-pulled self** (so `git pull` can't corrupt the running
+script — see below), runs any `deployment_scripts/*.sh`, then launches
+`run_display -c raspi`. Logs go to `~/logs/{nixie.log,nixie.stderr,runonce.log,
+raspi_run.log}`, all viewable on the display under the **Logs** menu.
 
-The live branch is `nixie-live`. `master` is the development branch.
+The live branch is `nixie-live`. `master` is the development branch. **Deploy =
+`git merge` master → nixie-live**, push; the Pi pulls on boot.
+
+On-Pi setup without a terminal goes through `deployment_scripts/*.sh` (run once
+each, hash-keyed, output to `~/logs/runonce.log`); root-only setup (groups,
+packages) goes in `scripts/setup_audio_perms.sh` since the run-once user's sudo
+needs a password. The channel can be RSA-signed (`pyxielib/runonce_sig.py`,
+`bin/{sign,verify}_runonce`). The Audio menu (`AudioMenu` in `menu_library.py` +
+`pyxielib/audio_controller.py`) drives pactl/bluetoothctl — the Pi uses
+PulseAudio 14.2 with several version-specific quirks.
+
+**See the `deployment` skill** (`.claude/skills/deployment/SKILL.md`) for the full
+picture: the raspi_run re-exec hazard, the run-once/signing channel, and the
+PulseAudio stack + permission requirements.
