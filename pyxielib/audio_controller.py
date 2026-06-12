@@ -328,15 +328,19 @@ class AudioController:
         self._scan_proc = None
 
     def scan_devices(self) -> List[BluetoothDevice]:
-        return self._run_bt_devices([])
+        return self._run_bt(['devices'])
 
     def list_paired_devices(self) -> List[BluetoothDevice]:
-        return self._run_bt_devices(['Paired'])
+        ## `bluetoothctl paired-devices` works on older BlueZ (Bullseye's 5.55);
+        ## the `devices Paired` filter only exists in 5.65+. Try the old command
+        ## first, fall back to the new filter for newer BlueZ.
+        return self._run_bt(['paired-devices']) or self._run_bt(['devices', 'Paired'])
 
-    def _run_bt_devices(self, extra_args) -> List[BluetoothDevice]:
+    def _run_bt(self, args) -> List[BluetoothDevice]:
+        """Run a bluetoothctl subcommand and parse its `Device <mac> <name>` lines."""
         try:
             result = subprocess.run(
-                ['bluetoothctl', 'devices'] + extra_args,
+                ['bluetoothctl'] + list(args),
                 capture_output=True, check=False, timeout=5,
             )
         except Exception:
