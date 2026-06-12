@@ -13,9 +13,17 @@ echo "user: $(id)"
 
 # --- Make the audio (PipeWire/PulseAudio) session available at boot ---
 # enable-linger starts the user systemd manager (and PipeWire) without a login,
-# which is what makes pactl reachable from the nixie service. The service has
-# passwordless sudo (Reboot/Shutdown/WiFi already use it).
-sudo loginctl enable-linger "$USER"
+# which is what makes pactl reachable from the nixie service. Try the sudo form
+# first (the service has passwordless sudo for Reboot/Shutdown/WiFi); if sudo is
+# scoped to only those commands, fall back to the unprivileged form, which works
+# on polkit setups that allow self-linger.
+if sudo -n loginctl enable-linger "$USER"; then
+    echo "enable-linger: ok (sudo)"
+elif loginctl enable-linger "$USER"; then
+    echo "enable-linger: ok (no sudo)"
+else
+    echo "enable-linger: FAILED both ways (need root or a polkit self-linger rule)"
+fi
 
 # --- Diagnostics (these reflect THIS script's environment) ---
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
