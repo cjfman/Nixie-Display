@@ -122,17 +122,33 @@ def create_controller(c_type, serial, print_code, verbose, raspi_speed=10**6):
     return ctrl
 
 
+GIT_FETCH_TIMEOUT = 30
+
+
 def git_behind_origin(ref):
-    """Fetch and return True if local HEAD is behind ref on origin"""
+    """Fetch and return True if local HEAD is behind ref on origin.
+
+    The fetch is bounded by a timeout: this runs on the main loop, so on the Pi
+    a flaky-network `git fetch` that hangs would otherwise wedge the loop and
+    silently stop the periodic check from ever firing again (while the menu's
+    own timed fetch keeps working — hence "the menu shows behind but it never
+    restarts"). Each outcome is logged so the check is diagnosable from nixie.log.
+    """
     try:
-        subprocess.run(['git', 'fetch'], cwd=file_dir, check=True, capture_output=True)
+        subprocess.run(['git', 'fetch'], cwd=file_dir, check=True,
+            capture_output=True, timeout=GIT_FETCH_TIMEOUT)
         result = subprocess.run(['git', 'rev-list', '--count', f'HEAD..{ref}'],
-            cwd=file_dir, check=True, capture_output=True, text=True)
+            cwd=file_dir, check=True, capture_output=True, text=True, timeout=GIT_FETCH_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        logger.warning(f"Git check timed out after {GIT_FETCH_TIMEOUT}s; retrying next interval")
+        return False
     except subprocess.CalledProcessError as e:
         logger.error(f"Git check failed: {e.stderr.strip() if e.stderr else e}")
         return False
 
-    return int(result.stdout.strip()) > 0
+    behind = int(result.stdout.strip())
+    logger.debug(f"Git check: HEAD is {behind} commit(s) behind {ref}")
+    return behind > 0
 
 
 def display_message(ctrl, message):
@@ -199,6 +215,10 @@ def main(args):
     error = False
     git_update = False
     git_period_secs = args.git_check * 60 if args.git_check else None
+    if git_period_secs:
+        logger.info(f"Git update check enabled: every {args.git_check} min against {args.git_origin}")
+    else:
+        logger.info("Git update check disabled")
     last_git_check = time.monotonic()
     try:
         while True:
