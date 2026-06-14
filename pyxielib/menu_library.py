@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 import os
@@ -5,7 +6,7 @@ import subprocess
 import threading
 import time
 from collections import deque
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pyxielib.audio_controller import AudioController, BluetoothDevice
 from pyxielib.navigator import CycleItem, DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
@@ -349,13 +350,47 @@ class LogViewerItem(TextBodyItem):
         'TRACE':   'TRCE',
     }
 
+    _positions_file: str = os.path.expanduser('~/.nixie/nixie_log_positions.json')
+    _positions: Optional[Dict[str, int]] = None  ## class-level, keyed by expanded path
+
+    @classmethod
+    def _load_positions(cls):
+        if cls._positions is None:
+            try:
+                with open(cls._positions_file) as f:
+                    cls._positions = json.load(f)
+            except (OSError, json.JSONDecodeError):
+                cls._positions = {}
+
+    @classmethod
+    def _flush_positions(cls):
+        try:
+            os.makedirs(os.path.dirname(cls._positions_file), exist_ok=True)
+            with open(cls._positions_file, 'w') as f:
+                json.dump(cls._positions, f)
+        except OSError:
+            logger.warning("Could not save log positions to %s", cls._positions_file)
+
     def __init__(self, path, *, tail=200, **kwargs):
         super().__init__("Logs", **kwargs)
-        self.path = path
+        self.path = os.path.expanduser(path)
         self.tail = tail
 
+    def reset(self):
+        n = len(self.lines)
+        self._load_positions()
+        self._positions[self.path] = max(0, n - 1 - self.line)
+        self._flush_positions()
+        super().reset()
+
     def activate(self):
-        self.set_lines(self._read(), -1)
+        lines = self._read()
+        n = len(lines)
+        self._load_positions()
+        saved = self._positions.get(self.path, 0)
+        ## Restore same "age" depth; fall back to oldest if tail is now shorter.
+        target = n - 1 - saved if saved < n else 0
+        self.set_lines(lines, target)
 
     @classmethod
     def _strip_preamble(cls, line):
