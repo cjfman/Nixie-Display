@@ -186,6 +186,8 @@ class _Parser:
             raise ShellParseError("not allowed")
         expanded = _expand_env(self.seg, self.environ)
         if expanded != self.seg:
+            if not self.argv:        ## $VAR expansion is never allowed in the command name
+                raise ShellParseError("not allowed")
             self.expanded = True
         self.token += expanded
         self.seg = ''
@@ -210,7 +212,8 @@ def parse_command(line, environ=None) -> Tuple[List[str], bool]:
 
     Honors single/double quotes and ``$NAME``/``${NAME}`` expansion (in
     double-quoted and unquoted text only). Raises :class:`ShellParseError` on an
-    unmatched quote or a pipe/redirect/compound/subcommand metacharacter. Globs,
+    unmatched quote, a pipe/redirect/compound/subcommand metacharacter, or a
+    ``$VAR`` substitution in ``argv[0]`` (command names must be literal). Globs,
     ``~`` and ``$(...)`` are never expanded; an expanded value is inserted
     verbatim and never re-split or re-parsed. ``expanded`` is True when any
     environment variable was substituted (so the caller can log both forms).
@@ -350,6 +353,7 @@ def check_command(argv, config) -> Decision:
 
     ## A path in argv[0] (e.g. './cat', '/tmp/ls') would execute that exact file
     ## while matching an allowed *basename*. Require a bare name resolved on PATH.
+    ## (Expanded command names are already rejected by parse_command.)
     if '/' in argv[0]:
         return Decision(False, "not allowed", base or logging.WARNING)
     if cmd in ALWAYS_BLOCKED or _matches_block(cmd, config.block_list):
@@ -446,13 +450,21 @@ class CommandHistory:
 # Execution
 # --------------------------------------------------------------------------- #
 
+## Pager overrides injected into every subprocess environment so that commands
+## like ``git log`` or ``systemctl status`` never spawn an interactive pager.
+_PAGER_ENV = {'PAGER': 'cat', 'SYSTEMD_PAGER': '', 'GIT_PAGER': 'cat'}
+
+
 class CommandRunner:
     """Run an argv in a subprocess off the menu thread, capturing capped output.
 
     ``stdin`` is ``DEVNULL`` so commands that would read it (e.g. ``cat`` with no
-    file) get EOF instead of hanging; stderr is merged into stdout. Output is
-    capped at ``max_bytes``/``max_lines`` and an optional ``timeout`` SIGINTs the
-    process; both stop a runaway producer.
+    file) get EOF instead of hanging; stderr is merged into stdout. The process
+    runs in its own session so SIGINT/SIGKILL land on the whole process group,
+    not just the top-level pid. Pager env vars are overridden so that ``git`` or
+    ``systemctl`` cannot spawn an interactive pager. Output is capped at
+    ``max_bytes``/``max_lines`` and an optional ``timeout`` SIGINTs the group;
+    both stop a runaway producer.
     """
     def __init__(self, argv, *, max_bytes=65536, max_lines=2000, timeout=None):
         self.argv = argv
@@ -481,14 +493,14 @@ class CommandRunner:
             return list(self._output)
 
     def cancel(self):
-        """Stop the command: SIGINT now, SIGKILL after a short grace."""
+        """Stop the command: SIGINT the process group now, SIGKILL after a short grace."""
         proc = self.proc
         if proc is None or proc.poll() is not None:
             self._done.set()
             return
         try:
-            proc.send_signal(signal.SIGINT)
-        except ProcessLookupError:
+            os.killpg(proc.pid, signal.SIGINT)
+        except OSError:
             return
         threading.Timer(2.0, self._hard_kill).start()
 
@@ -496,8 +508,8 @@ class CommandRunner:
         proc = self.proc
         if proc is not None and proc.poll() is None:
             try:
-                proc.kill()
-            except ProcessLookupError:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except OSError:
                 pass
 
     def _run(self):
@@ -505,6 +517,8 @@ class CommandRunner:
             self.proc = subprocess.Popen(
                 self.argv, shell=False, stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                start_new_session=True,
+                env=dict(os.environ, **_PAGER_ENV),
             )
         except OSError as e:
             self._set_output(["error: %s" % e])
@@ -950,8 +964,8 @@ class NixieShellItem(MenuItem):
             self._show_history()
             return
         try:
-            argv, _ = parse_command(line)     ## expanded value is intentionally
-        except ShellParseError as e:          ## never logged (it may be a secret)
+            argv, _ = parse_command(line)         ## expanded value is intentionally
+        except ShellParseError as e:              ## never logged (it may be a secret)
             self._flash(e.what(), self._FLASH_MSG_SECS)   ## keep text for editing
             return
         if not argv:
