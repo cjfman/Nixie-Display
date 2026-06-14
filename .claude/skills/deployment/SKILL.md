@@ -50,8 +50,22 @@ only for `halt`/`reboot`/`iwlist`/`wpa_cli`). So they **cannot** `apt install` o
 `usermod` — those fail "a password is required". Root-requiring setup goes in
 **`scripts/setup_audio_perms.sh`** (run at a terminal): adds `nixie` to
 audio/bluetooth/lp groups, re-asserts `loginctl enable-linger`,
-`--install-keys` (install signing public key), `--nopasswd` (scoped sudoers
-drop-in so future deployment scripts *can* install).
+`--install-keys` (install signing public key), `--nopasswd` (narrow sudoers
+drop-in — see scope below).
+
+**`--nopasswd` is scoped to `loginctl` and the `usb_gadget_root.sh` /
+`wifi_ap_root.sh` helper paths only — deliberately NOT `apt-get`, `usermod`, or
+`systemctl`.** All three are effectively root for an unattended, branch-pushed
+channel (`apt-get` runs maintainer scripts as root / `install ./local.deb`;
+`usermod` can add to the `sudo` group; `systemctl` can run/override arbitrary
+units). So a deployment script can't install packages, add groups, or manage
+system services unattended — those stay terminal-only via this script.
+**Restarting PulseAudio does NOT need any of this:** PA runs as a *per-user*
+service, so `systemctl --user restart pulseaudio` works as `nixie` with no sudo,
+given `XDG_RUNTIME_DIR` + linger (both already set up). Only if PA is in
+system-mode (running as user `pulse`) would a restart need root — then add a
+dedicated `scripts/pulse_restart_root.sh` helper to the drop-in, matching the
+usb-gadget/wifi-ap pattern, rather than re-granting `systemctl`.
 
 ## RSA signing of the channel
 
