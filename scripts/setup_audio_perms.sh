@@ -88,14 +88,16 @@ $SUDO loginctl enable-linger "$USER_NAME" 2>/dev/null || true
 ## Optional: unblock the run-once deployment scripts so they can install
 ## packages / change services without a password next time.
 if [[ $NOPASSWD -eq 1 ]]; then
-    ## Also let the deployment_scripts/ channel arm USB OTG by running the
-    ## (root-requiring) gadget setup helper unattended. Scoped to that one path.
+    ## Also let the deployment_scripts/ channel arm USB OTG and toggle the WiFi
+    ## AP by running those (root-requiring) helpers unattended. Scoped to the two
+    ## specific paths.
     USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
     GADGET="$USER_HOME/Nixie-Display/scripts/usb_gadget_root.sh"
-    echo "Installing NOPASSWD sudoers drop-in for $USER_NAME (apt/usermod/systemctl/loginctl + usb gadget)"
+    WIFI_AP="$USER_HOME/Nixie-Display/scripts/wifi_ap_root.sh"
+    echo "Installing NOPASSWD sudoers drop-in for $USER_NAME (apt/usermod/systemctl/loginctl + usb gadget + wifi ap)"
     DROPIN=/etc/sudoers.d/nixie-deploy
-    printf '%s ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/sbin/usermod, /usr/bin/systemctl, /bin/systemctl, /usr/bin/loginctl, %s\n' \
-        "$USER_NAME" "$GADGET" | $SUDO tee "$DROPIN" >/dev/null
+    printf '%s ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/sbin/usermod, /usr/bin/systemctl, /bin/systemctl, /usr/bin/loginctl, %s, %s\n' \
+        "$USER_NAME" "$GADGET" "$WIFI_AP" | $SUDO tee "$DROPIN" >/dev/null
     $SUDO chmod 0440 "$DROPIN"
     $SUDO visudo -cf "$DROPIN" || echo "WARNING: sudoers check failed; review $DROPIN"
 fi

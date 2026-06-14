@@ -37,6 +37,13 @@ tap_revolution:
 #                                   # /usr/share/sounds/freedesktop/stereo/
 #                                   # Falls back to a generated 1 kHz beep if absent.
 
+# --- WiFi access point (on-demand fallback, toggled from the menu) ---
+# The Pi can broadcast its own WPA2 network so you can SSH in (ssh nixie@192.168.4.1)
+# when no external WiFi/USB is available. Off by default and after every reboot.
+# wifi_ap:
+#   ssid: nixie-control             # 1-32 chars (invalid -> default)
+#   password: neon-tube-backdoor-64 # WPA2: 8-63 chars (invalid -> default)
+
 # --- Nixie Shell: a limited, mostly read-only command line menu item ---
 # Every key is optional; omitting the whole section uses the defaults below.
 # nixie_shell:

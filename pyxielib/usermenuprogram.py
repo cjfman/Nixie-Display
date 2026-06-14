@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 class UserMenuProgram(Program):
     def __init__(self, event_path=None, *, program_map=None, ani_path='animations',
                  levels_path='levels', tap_config=None, nixie_shell_config=None,
-                 controller=None, test_sound='audio-test-signal', logfile=None,
-                 log_tail=200, **kwargs):
+                 wifi_ap_config=None, controller=None, test_sound='audio-test-signal',
+                 logfile=None, log_tail=200, **kwargs):
         super().__init__("User Control", **kwargs)
         logfile       = logfile or os.path.expanduser('~/logs/nixie.log')
         stderr_path   = os.path.splitext(logfile)[0] + '.stderr'
@@ -70,8 +70,8 @@ class UserMenuProgram(Program):
             menulib.SleepItem(self.controller),
             menulib.ExitItem("Exit Program"),
             menulib.SystemInfoItem(),
-            menulib.WiFiMenu(),
-            menulib.SSHAccessMenu(),
+            menulib.WiFiMenu(wifi_ap_config=wifi_ap_config),
+            menulib.SSHAccessMenu(wifi_ap_config=wifi_ap_config),
             menulib.RebootItem() if not terminal_mode else DisabledItem("Reboot"),
             menulib.ShutdownItem() if not terminal_mode else DisabledItem("Shutdown"),
         ]))

@@ -13,6 +13,7 @@ import pyxielib.animation_library as animationlib
 from pyxielib import assembler, config, controller, program, scheduler, stockticker, usermenuprogram
 from pyxielib.tap_revolution_config import TapRevolutionConfig
 from pyxielib.nixie_shell import NixieShellConfig
+from pyxielib.wifi_ap_controller import WiFiAPConfig
 
 file_dir = os.path.dirname(os.path.realpath(__file__))
 logger = logging.getLogger(__name__)
@@ -95,6 +96,11 @@ def make_audio_config(cfg):
 def make_nixie_shell_config(cfg):
     """Build the Nixie Shell config from the master config's nixie_shell section."""
     return NixieShellConfig.from_dict(cfg.get('nixie_shell'))
+
+
+def make_wifi_ap_config(cfg):
+    """Build the WiFi AP config from the master config's wifi_ap section."""
+    return WiFiAPConfig.from_dict(cfg.get('wifi_ap'))
 
 
 def setup_logging(logfile=None, loglevel='info'):
@@ -185,6 +191,7 @@ def main(args):
             levels_path=args.levels_dir,
             tap_config=make_tap_config(cfg),
             nixie_shell_config=make_nixie_shell_config(cfg),
+            wifi_ap_config=make_wifi_ap_config(cfg),
             controller=ctrl,
             program_map=program_map,
             test_sound=make_audio_config(cfg),

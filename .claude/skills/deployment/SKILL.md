@@ -113,6 +113,37 @@ hostname, the `usb0` address (or "Not available" when the marker is absent /
 Recovery: if a bad `cmdline.txt` edit ever fails to boot, pull the SD card and
 restore `cmdline.txt.bak` on the boot partition.
 
+## WiFi AP fallback (on-demand, menu-toggled)
+
+When neither external WiFi nor USB is available, the Pi can broadcast its own
+WPA2 network (`hostapd` + `dnsmasq`): join it from a laptop/phone and
+`ssh nixie@192.168.4.1`. The Zero 2 W has **one radio**, so the AP **replaces**
+client WiFi while up; turning it off restores client mode.
+
+**Persistence model (the key design point):** the AP is toggled with
+`systemctl start/stop` — **never `enable`** — so the running service *is* the
+state. A `run_display` restart leaves `hostapd`/`dnsmasq` running → **AP
+persists**; a **reboot** doesn't start them (they're left disabled) → **AP off on
+boot**. No marker file, no startup hook.
+
+- `scripts/wifi_ap_root.sh {up <conf>|down|status}` (root, NOPASSWD-whitelisted)
+  owns the mechanics: `up` generates `/etc/hostapd/hostapd.conf` (+ points
+  `/etc/default/hostapd`'s `DAEMON_CONF` at it) and `/etc/dnsmasq.d/nixie-ap.conf`,
+  frees `wlan0` (`dhcpcd -k wlan0`), sets static `192.168.4.1/24`, starts the
+  services. `down` stops them and **`dhcpcd -n wlan0`** rebinds so client WiFi
+  autoconnects again (no reboot). It only touches `wlan0`, so a USB gadget on
+  `usb0` is unaffected. SSID/password come from a `0600` conf file (off the
+  argv). `WIFI_AP_ETC_DIR` overrides `/etc` for off-Pi testing.
+- `deployment_scripts/11-wifi-ap.sh` (run-once, needs `--nopasswd` armed)
+  installs the packages, `unmask`s + **`disable`s** them at boot, and enables
+  `ssh`.
+- Config: `wifi_ap: {ssid, password}` in the master YAML (defaults
+  `nixie-control` / `neon-tube-backdoor-64`; validated 1–32 / 8–63 chars,
+  invalid → default). Wired via `make_wifi_ap_config` → `WiFiAPConfig` →
+  `WiFiAPController` (`pyxielib/wifi_ap_controller.py`).
+- Toggle: `WiFiAPItem` (a `[y/n]`-confirm state machine) appears in **both** the
+  WiFi Settings and SSH Access menus.
+
 ## Audio stack (the long debugging saga)
 
 The audio server is **plain PulseAudio 14.2, NOT PipeWire** (`pipewire` is

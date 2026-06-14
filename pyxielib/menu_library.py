@@ -12,6 +12,7 @@ from typing import Dict, List, Optional
 from pyxielib.audio_controller import AudioController, BluetoothDevice
 from pyxielib.navigator import CycleItem, DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
+from pyxielib.wifi_ap_controller import WiFiAPConfig, WiFiAPController
 from pyxielib.animation import Animation, FullFrame, HexFrame, LoopedFullFrameAnimation, MarqueeAnimation, TextFrame
 from pyxielib.decoder import isPrintable
 from pyxielib.animation_file import FileAnimation
@@ -645,16 +646,78 @@ def _interface_ip(iface) -> Optional[str]:
     return None
 
 
+class WiFiAPItem(MenuItem):
+    """Toggle the on-demand WiFi access point on/off, with a y/n confirm.
+
+    Enabling the AP replaces client WiFi (single radio), so Enter prompts for
+    confirmation before switching. Mirrors the WiFiSelectItem state machine.
+    """
+    def __init__(self, controller, config, **kwargs):
+        super().__init__("WiFi AP", **kwargs)
+        self.ctrl = controller
+        self.config = config
+        self.state = 'idle'
+        self._was_on = False
+        self._ok = False
+
+    def for_display(self) -> str:
+        if self.state == 'idle':
+            return self._status_text()
+        if self.state == 'confirm':
+            return "Disable AP?[y/n]" if self._was_on else "Enable AP?[y/n]"
+        if self.state == 'working':
+            return "Stopping..." if self._was_on else "Starting..."
+        if self.state == 'result':
+            if self._ok:
+                return "AP OFF" if self._was_on else "AP ON"
+            return "Failed"
+
+        return "AP Err"
+
+    def _status_text(self) -> str:
+        if self.ctrl.status():
+            return f"AP: ON {self.ctrl.ip_address() or ''}".strip()
+
+        return "AP: OFF"
+
+    def reset(self):
+        super().reset()
+        self.state = 'idle'
+
+    def key_enter(self):
+        if self.state == 'idle':
+            self._was_on = self.ctrl.status()
+            self.state = 'confirm'
+        elif self.state == 'result':
+            self.set_done()
+
+    def key_char(self, c):
+        if self.state != 'confirm':
+            return
+
+        c = c.lower()
+        if c == 'y':
+            self.state = 'working'
+            if self._was_on:
+                self._ok = self.ctrl.disable()
+            else:
+                self._ok = self.ctrl.enable(self.config.ssid, self.config.password)
+            self.state = 'result'
+        elif c == 'n':
+            self.state = 'idle'
+
+
 class SSHAccessMenu(Menu):
     """Reachability info for SSHing into the Pi: hostname + USB/WiFi addresses."""
     _marker_file = os.path.expanduser('~/.nixie/usb_gadget_enabled')
 
-    def __init__(self):
+    def __init__(self, wifi_ap_config=None):
         super().__init__("SSH Access")
         self.wifi = WiFiController('wlan0', sudo=True)
         self.add_submenu(MsgItem("SSH Host", self._ssh_host))
         self.add_submenu(MsgItem("USB", self._usb_status))
         self.add_submenu(MsgItem("WiFi", self._wifi_status))
+        self.add_submenu(WiFiAPItem(WiFiAPController('wlan0'), wifi_ap_config or WiFiAPConfig()))
 
     def activate(self):
         super().activate()
@@ -679,7 +742,7 @@ class SSHAccessMenu(Menu):
 
 
 class WiFiMenu(Menu):
-    def __init__(self):
+    def __init__(self, wifi_ap_config=None):
         super().__init__("WiFi Settings")
         self.wifi = WiFiController('wlan0', sudo=True)
 
@@ -693,6 +756,7 @@ class WiFiMenu(Menu):
         self.add_submenu(MsgItem("Status", conn))
         self.add_submenu(WiFiSelectItem(self.wifi, display_name="Select Network"))
         self.add_submenu(WiFiScanItem(wifi=self.wifi))
+        self.add_submenu(WiFiAPItem(WiFiAPController('wlan0'), wifi_ap_config or WiFiAPConfig()))
 
     def activate(self):
         super().activate()
