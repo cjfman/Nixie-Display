@@ -16,23 +16,36 @@ export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUN
 ## journal. send_text/run_display talk to the display directly, not via stdout.
 mkdir -p "$HOME/logs"
 exec >> "$HOME/logs/raspi_run.log" 2>&1
-echo "=== raspi_run $(date) (reexec=${NIXIE_REEXEC:-0}) ==="
+[[ "$1" == "--reexec" ]] && REEXEC=1 || REEXEC=0
+echo "=== raspi_run $(date) (reexec=$REEXEC) ==="
 
 ## Pull the latest code, then re-exec the freshly-pulled copy. `git pull` rewrites
 ## this very file; if bash keeps reading the old descriptor it resumes at a stale
 ## byte offset and silently skips whole sections (that is why the deployment hook
 ## below never ran while run_display still launched). Re-execing restarts bash on
-## the new file from the top. The NIXIE_REEXEC guard makes it happen once.
-if [[ -z "$NIXIE_REEXEC" ]]; then
+## the new file from the top, once.
+##
+## The "already re-exec'd" signal is a POSITIONAL ARG, not an exported env var.
+## Exported vars flow downward only — the daemon that restarts raspi_run has its
+## own environment and does not inherit what its child exported. Positional args
+## are cleaner still: they cannot be inherited by any subprocess (e.g. run_display).
+## A bare `raspi_run` always pulls; only this script's own re-exec passes --reexec.
+if [[ "$1" != "--reexec" ]]; then
     cd "$NIXIE_DIR"
     nixie_print "Pulling from Git"
     git checkout nixie-live
     BEFORE_HASH=$(git rev-parse HEAD)
     git pull -f || echo "Failed to pull latest code from git"
     AFTER_HASH=$(git rev-parse HEAD)
-    export NIXIE_REEXEC=1
-    [[ "$BEFORE_HASH" != "$AFTER_HASH" ]] && export NIXIE_PULLED_CHANGES=1
-    exec bash "$NIXIE_DIR/raspi_run" "$@"
+    PULLED_FLAG=
+    [[ "$BEFORE_HASH" != "$AFTER_HASH" ]] && PULLED_FLAG=--pulled
+    exec bash "$NIXIE_DIR/raspi_run" --reexec $PULLED_FLAG "$@"
+fi
+shift   ## drop --reexec; leaves --pulled (if present) then any original args
+NIXIE_PULLED_CHANGES=
+if [[ "$1" == "--pulled" ]]; then
+    NIXIE_PULLED_CHANGES=1
+    shift
 fi
 
 ## --- Below here runs in the re-exec'd process, reading the up-to-date file from

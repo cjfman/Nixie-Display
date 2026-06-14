@@ -27,10 +27,19 @@ by byte offset, so a changed file makes execution resume at a stale offset and
 **silently skip whole sections** — the classic symptom is "a later block runs but
 an earlier one is skipped" (e.g. `run_display` launches but the deployment hook
 never ran). **Fix in place:** after `git pull`, raspi_run does
-`NIXIE_REEXEC=1 exec bash "$NIXIE_DIR/raspi_run"` (guarded so it happens once), so
-everything below runs from a clean read of the up-to-date file. This also removed
-the old two-boot bootstrap lag — a pushed change now applies on the next reboot.
+`exec bash "$NIXIE_DIR/raspi_run" --reexec`, so everything below runs from a clean
+read of the up-to-date file. This also removed the old two-boot bootstrap lag — a
+pushed change now applies on the next reboot.
 **Never let a long-running script git-pull/rewrite itself without re-exec.**
+
+**The re-exec "once" guard is a positional arg (`--reexec`), not an exported env
+var** — `exec bash "$NIXIE_DIR/raspi_run" --reexec [--pulled]`, guard on `$1`.
+Exported vars flow downward only: the daemon that restarts raspi_run provides its
+own environment and does not inherit what its child process exported. A positional
+arg is cleaner still — it cannot be inherited by any subprocess (run_display or
+otherwise). A bare `raspi_run` always pulls; only the self-re-exec passes the flag.
+The exact mechanism for a suspected pull-skip regression (2026-06-13) was not
+confirmed; this change hardens the guard regardless.
 
 raspi_run captures its own output to `~/logs/raspi_run.log` (Logs > raspi_run).
 `send_text`/`run_display` talk to the display directly, not stdout, so the
