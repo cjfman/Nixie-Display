@@ -71,6 +71,7 @@ class UserMenuProgram(Program):
             menulib.ExitItem("Exit Program"),
             menulib.SystemInfoItem(),
             menulib.WiFiMenu(),
+            menulib.SSHAccessMenu(),
             menulib.RebootItem() if not terminal_mode else DisabledItem("Reboot"),
             menulib.ShutdownItem() if not terminal_mode else DisabledItem("Shutdown"),
         ]))

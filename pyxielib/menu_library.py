@@ -2,6 +2,7 @@ import json
 import logging
 import re
 import os
+import socket
 import subprocess
 import threading
 import time
@@ -625,6 +626,56 @@ class WiFiSelectItem(ListItem):
             self.state = 'connecting'
         elif c == 'n':
             self.state = 'select'
+
+
+def _interface_ip(iface) -> Optional[str]:
+    """Return the first IPv4 address on <iface>, or None if absent/unset."""
+    try:
+        proc = subprocess.run(
+            ['ip', '-4', '-o', 'addr', 'show', iface],
+            capture_output=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    match = re.search(r'\binet\s+(\d{1,3}(?:\.\d{1,3}){3})', proc.stdout.decode(errors='replace'))
+    if match:
+        return match.group(1)
+
+    return None
+
+
+class SSHAccessMenu(Menu):
+    """Reachability info for SSHing into the Pi: hostname + USB/WiFi addresses."""
+    _marker_file = os.path.expanduser('~/.nixie/usb_gadget_enabled')
+
+    def __init__(self):
+        super().__init__("SSH Access")
+        self.wifi = WiFiController('wlan0', sudo=True)
+        self.add_submenu(MsgItem("SSH Host", self._ssh_host))
+        self.add_submenu(MsgItem("USB", self._usb_status))
+        self.add_submenu(MsgItem("WiFi", self._wifi_status))
+
+    def activate(self):
+        super().activate()
+        self.wifi.load(force=True)
+
+    @staticmethod
+    def _ssh_host() -> str:
+        host = socket.gethostname().rstrip('.')
+        if host.endswith('.local'):
+            return host
+
+        return f"{host}.local"
+
+    def _usb_status(self) -> str:
+        if not os.path.exists(self._marker_file):
+            return "Not available"
+
+        return _interface_ip("usb0") or "Connect USB cable"
+
+    def _wifi_status(self) -> str:
+        return self.wifi.ip_address() or "Not connected"
 
 
 class WiFiMenu(Menu):

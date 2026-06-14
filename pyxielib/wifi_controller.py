@@ -35,7 +35,10 @@ class WiFiController:
         self.proc      = None
         self.cmd = ['wpa_cli', '-i', self.device]
         if self.sudo:
-            self.cmd = ['sudo'] + self.cmd
+            ## -n (non-interactive): on the Pi wpa_cli is NOPASSWD so this is
+            ## silent; anywhere without passwordless sudo it fails fast instead
+            ## of blocking the (headless) display on a password prompt.
+            self.cmd = ['sudo', '-n'] + self.cmd
 
     def network_ssids(self):
         if self.networks is None:

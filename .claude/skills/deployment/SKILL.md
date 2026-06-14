@@ -80,6 +80,39 @@ success logs the matching key file's stem). Signed bytes = the file minus
 - **Order: install keys + sign scripts BEFORE enabling `--nopasswd`**, else a
   branch push is unsigned root.
 
+## USB OTG SSH fallback
+
+When no WiFi is available, the Pi can be reached over a direct USB cable: the
+Zero 2 W's data micro-USB port (**`USB`**, not `PWR`) runs in OTG gadget mode and
+enumerates as a USB ethernet adapter (`g_ether`) on the host — one cable carries
+both power and data. Both ends self-assign link-local `169.254.x.x`, so it's
+reachable at `<hostname>.local` (avahi/mDNS), no router involved.
+
+Setup is three **root-owned, boot-partition** changes, all done idempotently by
+`scripts/usb_gadget_root.sh`: `dtoverlay=dwc2` in `config.txt`,
+`modules-load=dwc2,g_ether` (inserted after `rootwait`) in `cmdline.txt`, and
+`systemctl enable ssh avahi-daemon` + `touch <boot>/ssh`. It backs up
+`config.txt`/`cmdline.txt` to `*.bak` first, writes a marker
+`~/.nixie/usb_gadget_enabled`, and prints **REBOOT REQUIRED** (the module only
+loads on the next boot). It detects `/boot` (Bullseye) vs `/boot/firmware`
+(Bookworm); `USB_GADGET_BOOT_DIR` overrides it for off-Pi testing.
+
+Two ways to apply it:
+- **By hand over SSH:** `sudo scripts/usb_gadget_root.sh` (it requires root).
+- **Unattended via the run-once channel:** `deployment_scripts/10-usb-gadget.sh`
+  is a thin `sudo -n` wrapper. Since editing `/boot` needs root and the run-once
+  user's sudo needs a password, `scripts/setup_audio_perms.sh --nopasswd` now
+  also whitelists `usb_gadget_root.sh` in the sudoers drop-in — run that once
+  (over current WiFi) to arm it, then deploy. If unarmed, the script logs how to
+  fix it to `runonce.log` and exits cleanly.
+
+The **SSH Access** menu (`SSHAccessMenu` in `menu_library.py`) shows the SSH
+hostname, the `usb0` address (or "Not available" when the marker is absent /
+"Connect USB cable" when armed but no cable), and the WiFi address.
+
+Recovery: if a bad `cmdline.txt` edit ever fails to boot, pull the SD card and
+restore `cmdline.txt.bak` on the boot partition.
+
 ## Audio stack (the long debugging saga)
 
 The audio server is **plain PulseAudio 14.2, NOT PipeWire** (`pipewire` is
