@@ -1,64 +1,43 @@
 #!/bin/bash
 NIXIE_DIR=$HOME/Nixie-Display
-nixie_print() { "$NIXIE_DIR/send_text" --debug -c raspi --keyboard-event-file /dev/input/event0 "$@"; }
+RUNONCE_DIR="$NIXIE_DIR/deployment_scripts"
+RUNONCE_STATE="$HOME/.nixie/runonce_state"
+RUNONCE_KEYS="$HOME/.nixie/runonce_keys"   ## trusted RSA public keys; empty => permissive
 
-## Audio control (the Audio menu: pactl sink list/select/mute, paplay test) needs
-## the user's PipeWire/PulseAudio session. When raspi_run starts outside a login
-## session (e.g. @reboot cron / rc.local), XDG_RUNTIME_DIR and the session D-Bus
-## aren't set, so pactl gets "Connection refused" and the sink list is empty.
-## Point them at the per-user runtime dir. This requires the user manager to be
-## running at boot — enable it once with: sudo loginctl enable-linger "$USER"
-export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
+nixie_print() {
+    "$NIXIE_DIR/send_text" --debug -c raspi --keyboard-event-file /dev/input/event0 "$@"
+}
 
-## Capture this launcher's own output to a known file so boot problems are
-## diagnosable from the menu (Logs > raspi_run) rather than the daemon's unknown
-## journal. send_text/run_display talk to the display directly, not via stdout.
-mkdir -p "$HOME/logs"
-exec >> "$HOME/logs/raspi_run.log" 2>&1
-[[ "$1" == "--reexec" ]] && REEXEC=1 || REEXEC=0
-echo "=== raspi_run $(date) (reexec=$REEXEC) ==="
-
-## Pull the latest code, then re-exec the freshly-pulled copy. `git pull` rewrites
-## this very file; if bash keeps reading the old descriptor it resumes at a stale
-## byte offset and silently skips whole sections (that is why the deployment hook
-## below never ran while run_display still launched). Re-execing restarts bash on
-## the new file from the top, once.
-##
-## The "already re-exec'd" signal is a POSITIONAL ARG, not an exported env var.
-## Exported vars flow downward only — the daemon that restarts raspi_run has its
-## own environment and does not inherit what its child exported. Positional args
-## are cleaner still: they cannot be inherited by any subprocess (e.g. run_display).
-## A bare `raspi_run` always pulls; only this script's own re-exec passes --reexec.
-if [[ "$1" != "--reexec" ]]; then
+## Pull and re-exec the freshly-pulled copy of this file. `git pull` rewrites this
+## file while bash is executing it; bash resumes at a stale byte offset and silently
+## skips sections. Re-execing restarts bash on the new file from the top.
+## Only execs when HEAD actually changed: if nothing was pulled, git didn't touch the
+## file so there is no byte-offset hazard. Passes --no-pull to the re-exec so the
+## next run skips this step. May not return: exits via exec when HEAD changes.
+git_pull() {
     cd "$NIXIE_DIR"
     nixie_print "Pulling from Git"
     git checkout nixie-live
-    BEFORE_HASH=$(git rev-parse HEAD)
+    local before after
+    before=$(git rev-parse HEAD)
     git pull -f || echo "Failed to pull latest code from git"
-    AFTER_HASH=$(git rev-parse HEAD)
-    PULLED_FLAG=
-    [[ "$BEFORE_HASH" != "$AFTER_HASH" ]] && PULLED_FLAG=--pulled
-    exec bash "$NIXIE_DIR/raspi_run" --reexec $PULLED_FLAG "$@"
-fi
-shift   ## drop --reexec; leaves --pulled (if present) then any original args
-NIXIE_PULLED_CHANGES=
-if [[ "$1" == "--pulled" ]]; then
-    NIXIE_PULLED_CHANGES=1
-    shift
-fi
+    after=$(git rev-parse HEAD)
+    if [[ "$before" != "$after" ]]; then
+        exec bash "$NIXIE_DIR/raspi_run" --no-pull "$@"
+    fi
+}
 
-## --- Below here runs in the re-exec'd process, reading the up-to-date file from
-## --- the top, so git can no longer corrupt the control flow. ---
-cd "$NIXIE_DIR"
-PIP_FLAG=/tmp/nixie_pip_done
-if [[ ! -f $PIP_FLAG ]] || [[ -n "$NIXIE_PULLED_CHANGES" ]]; then
+pip_install() {
+    local pip_flag=/tmp/nixie_pip_done
+    if [[ -f "$pip_flag" ]] && [[ -z "$NO_PULL" ]]; then
+        return
+    fi
     "$NIXIE_DIR/bin/pip_nixie" -c raspi --keyboard-event-file /dev/input/event0 -- \
-        pip install --break-system-packages -r "$HOME/Nixie-Display/requirements.txt" || \
+        pip install --break-system-packages -r "$NIXIE_DIR/requirements.txt" || \
     "$NIXIE_DIR/bin/pip_nixie" -c raspi --keyboard-event-file /dev/input/event0 -- \
-        pip install -r "$HOME/Nixie-Display/requirements.txt"
-    touch $PIP_FLAG
-fi
+        pip install -r "$NIXIE_DIR/requirements.txt"
+    touch "$pip_flag"
+}
 
 ## One-shot deployment scripts. Every *.sh in deployment_scripts/ is run once,
 ## keyed by its own content hash, with output captured to ~/logs/runonce.log
@@ -70,7 +49,9 @@ run_deploy_script() {
     name=$(basename "$script")
     new_hash=$(sha1sum "$script" | cut -d' ' -f1)
     hash_file="$RUNONCE_STATE/$name.hash"
-    [[ "$new_hash" == "$(cat "$hash_file" 2>/dev/null)" ]] && return
+    if [[ "$new_hash" == "$(cat "$hash_file" 2>/dev/null)" ]]; then
+        return
+    fi
     nixie_print "Run $name"
     {
         echo "=== $name $(date) (hash $new_hash) ==="
@@ -86,22 +67,61 @@ run_deploy_script() {
     echo "$new_hash" > "$hash_file"
 }
 
-RUNONCE_DIR="$NIXIE_DIR/deployment_scripts"
-RUNONCE_STATE="$HOME/.nixie/runonce_state"
-RUNONCE_KEYS="$HOME/.nixie/runonce_keys"   ## trusted RSA public keys; empty => permissive
-if [[ -d "$RUNONCE_DIR" ]]; then
+run_deploy_scripts() {
+    if [[ ! -d "$RUNONCE_DIR" ]]; then
+        return
+    fi
     mkdir -p "$RUNONCE_STATE" "$HOME/logs"
     for script in "$RUNONCE_DIR"/*.sh; do
-        [[ -e "$script" ]] && run_deploy_script "$script"
+        if [[ -e "$script" ]]; then
+            run_deploy_script "$script"
+        fi
     done
+}
+
+launch_display() {
+    cd "$HOME"
+    nixie_print "Starting..."
+    if "$NIXIE_DIR/run_display" -c raspi --keyboard-event-file /dev/input/event0 \
+            --extended-hours --git-check 5 --logfile logs/nixie.log --loglevel debug \
+            2>logs/nixie.stderr; then
+        nixie_print "Waiting..."
+    else
+        nixie_print "Crashed"
+    fi
+}
+
+## Audio control needs the user's PulseAudio session. When raspi_run starts
+## outside a login session (@reboot cron / rc.local), XDG_RUNTIME_DIR and the
+## session D-Bus aren't set, so pactl gets "Connection refused" and the Audio
+## menu's sink list is empty. Enable the user manager once with:
+##   sudo loginctl enable-linger "$USER"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
+
+## Capture output to a known file so boot problems are diagnosable from the menu
+## (Logs > raspi_run) rather than the daemon's unknown journal. send_text and
+## run_display talk to the display directly (not via stdout), so the redirect is safe.
+mkdir -p "$HOME/logs"
+exec >> "$HOME/logs/raspi_run.log" 2>&1
+
+## Parse arguments without assuming position.
+NO_PULL=
+ARGS=()
+for arg in "$@"; do
+    if [[ "$arg" == "--no-pull" ]]; then
+        NO_PULL=1
+    else
+        ARGS+=("$arg")
+    fi
+done
+echo "=== raspi_run $(date) (pulled=${NO_PULL:-0}) ==="
+
+if [[ -z "$NO_PULL" ]]; then
+    git_pull "${ARGS[@]}"
 fi
 
-cd "$HOME"
-nixie_print "Starting..."
-"$NIXIE_DIR/run_display" -c raspi --keyboard-event-file /dev/input/event0 --extended-hours --git-check 5 --logfile logs/nixie.log --loglevel debug 2>logs/nixie.stderr
-if [[ $? -ne 0 ]]; then
-    nixie_print "Crashed"
-else
-    nixie_print "Waiting..."
-fi
+pip_install
+run_deploy_scripts
+launch_display
 exit 1

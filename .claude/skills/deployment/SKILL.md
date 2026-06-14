@@ -32,14 +32,15 @@ read of the up-to-date file. This also removed the old two-boot bootstrap lag �
 pushed change now applies on the next reboot.
 **Never let a long-running script git-pull/rewrite itself without re-exec.**
 
-**The re-exec "once" guard is a positional arg (`--reexec`), not an exported env
-var** — `exec bash "$NIXIE_DIR/raspi_run" --reexec [--pulled]`, guard on `$1`.
-Exported vars flow downward only: the daemon that restarts raspi_run provides its
-own environment and does not inherit what its child process exported. A positional
-arg is cleaner still — it cannot be inherited by any subprocess (run_display or
-otherwise). A bare `raspi_run` always pulls; only the self-re-exec passes the flag.
-The exact mechanism for a suspected pull-skip regression (2026-06-13) was not
-confirmed; this change hardens the guard regardless.
+**The re-exec only happens when HEAD actually changed.** If `git pull` brought in
+new commits, raspi_run execs itself with `--no-pull` so the next run reads the
+updated file from the top and skips the pull step. If nothing changed, git didn't
+touch the file, there is no byte-offset hazard, and the script continues without
+exec-ing. Arguments are parsed with a loop (not positional checks) so `--no-pull`
+can appear anywhere. `--no-pull` is not exported, so it cannot be inherited by any
+subprocess; the daemon that restarts raspi_run provides its own environment and
+launches a bare `raspi_run` that always pulls. The log marker `(pulled=0/1)`
+shows whether new code was deployed.
 
 raspi_run captures its own output to `~/logs/raspi_run.log` (Logs > raspi_run).
 `send_text`/`run_display` talk to the display directly, not stdout, so the
