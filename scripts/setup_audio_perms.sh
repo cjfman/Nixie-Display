@@ -102,23 +102,49 @@ start_user_session() {
     fi
 }
 
+set_pa_resident() {
+    ## Keep $USER_NAME's PA from auto-exiting when idle. The default is socket
+    ## activation with a ~20s idle timeout, so PA only flickers to life per
+    ## `pactl` call and then quits -- which means there's no resident daemon to
+    ## hold the Bluetooth A2DP endpoint, so the speaker's connect never completes
+    ## and it drops back to discoverable. exit-idle-time = -1 == never auto-exit.
+    local home conf
+    home="$(getent passwd "$USER_NAME" | cut -d: -f6)"
+    if [[ -z "$home" ]]; then
+        return
+    fi
+    conf="$home/.config/pulse/daemon.conf"
+    $SUDO -u "$USER_NAME" mkdir -p "$home/.config/pulse"
+    if $SUDO -u "$USER_NAME" grep -qs '^exit-idle-time' "$conf"; then
+        echo "  exit-idle-time already set in daemon.conf"
+    else
+        printf 'exit-idle-time = -1\n' | $SUDO -u "$USER_NAME" tee -a "$conf" >/dev/null
+        echo "  set exit-idle-time = -1 in $conf"
+    fi
+}
+
 enable_pulse() {
-    ## Enable + start $USER_NAME's per-user PulseAudio. Without this the display
-    ## (which runs as $USER_NAME) has NO audio server at all -- the real reason
-    ## only 'Dummy Output' ever showed and no Bluetooth sink could appear.
+    ## Enable + start $USER_NAME's per-user PulseAudio, RESIDENT. Without this the
+    ## display (which runs as $USER_NAME) has no audio server holding the BT
+    ## endpoint -- the reason only 'Dummy Output' showed and the speaker would
+    ## pair but never connect.
     if as_display_user systemctl --user unmask pulseaudio.socket pulseaudio.service >/dev/null 2>&1; then
         :
     fi
-    if as_display_user systemctl --user enable pulseaudio.socket >/dev/null 2>&1; then
-        echo "  enabled pulseaudio.socket for $USER_NAME"
-    else
-        echo "  WARNING: could not enable pulseaudio.socket (will still try to start)"
-    fi
+    set_pa_resident
+    ## Start at boot and keep it resident. add-wants pins pulseaudio.service into
+    ## default.target even though the packaged unit has no [Install] section, so
+    ## linger -> default.target -> PA every boot (not just on first socket use).
+    as_display_user systemctl --user enable pulseaudio.socket >/dev/null 2>&1
+    as_display_user systemctl --user add-wants default.target pulseaudio.service >/dev/null 2>&1
+    ## (Re)start now so it picks up exit-idle-time and registers the BT endpoint.
+    as_display_user systemctl --user restart pulseaudio.service >/dev/null 2>&1
+    sleep 1
     if as_display_user pactl info >/dev/null 2>&1; then
         echo "  $USER_NAME PulseAudio is responding"
     else
-        echo "  pactl couldn't reach PA; trying an explicit start"
-        as_display_user systemctl --user start pulseaudio.service >/dev/null 2>&1
+        echo "  WARNING: PA not responding; trying pulseaudio --start"
+        as_display_user pulseaudio --start --exit-idle-time=-1 >/dev/null 2>&1
     fi
 }
 
@@ -182,6 +208,13 @@ verify_audio() {
         printf '%s\n' "$mods" | sed 's/^/    /'
     else
         echo "  WARNING: no bluez modules loaded (pulseaudio-module-bluetooth missing?)"
+    fi
+    ## The whole point of this round: PA must be RESIDENT, not autospawn-and-die.
+    if pgrep -u "$USER_NAME" -x pulseaudio >/dev/null 2>&1; then
+        echo "  PA is resident (process running for $USER_NAME) -- good"
+    else
+        echo "  WARNING: no resident $USER_NAME PA process; it will not hold the"
+        echo "           Bluetooth endpoint. Check exit-idle-time / add-wants above."
     fi
 }
 

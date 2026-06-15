@@ -451,8 +451,14 @@ class AudioController:
 
     def _is_connected(self, mac) -> bool:
         """Source of truth for pairing success: query the device and check it
-        reports paired/connected, rather than trusting bluetoothctl exit codes
-        (which are unreliable)."""
+        actually reports Connected, rather than trusting bluetoothctl exit codes
+        (which are unreliable).
+
+        Requires `Connected: yes`, not just `Paired: yes`. For an audio speaker a
+        bond without an A2DP connection is useless -- and the speaker stays in
+        discoverable mode until something connects -- so reporting success on
+        pairing alone is a false positive that hides the real failure (no audio
+        endpoint to connect to)."""
         try:
             result = subprocess.run(
                 ['bluetoothctl', 'info', mac],
@@ -463,7 +469,9 @@ class AudioController:
         out = result.stdout.decode('utf-8', errors='replace')
         paired = re.search(r'Paired:\s*yes', out, re.IGNORECASE) is not None
         connected = re.search(r'Connected:\s*yes', out, re.IGNORECASE) is not None
-        return paired or connected
+        if paired and not connected:
+            logger.warning("%s paired but did not connect (no A2DP link)", mac)
+        return connected
 
     def poll_pair(self) -> Optional[bool]:
         if self._pair_thread is None:
