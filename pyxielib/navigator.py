@@ -469,6 +469,7 @@ class Navigator:
 
     def reset(self):
         """Reset the navigator, all menues, and all menu items"""
+        logger.trace("Navigator reset (full tree)")
         self.root.reset()
         self.node = self.root
         self.should_exit = False
@@ -482,6 +483,7 @@ class Navigator:
             ## Enter a menu
             self.visited.append(self.node)
             self.node = self.node.current()
+            logger.trace("Activating node '%s'", self.node.name)
             self.node.activate()
 
     def back(self) -> bool:
@@ -490,10 +492,12 @@ class Navigator:
         Return true if a previous menu has been activated.
         """
         if not self.visited:
+            logger.trace("Navigator reset (exit at root)")
             self.root.reset()
             self.should_exit = True
             return False
 
+        logger.trace("Resetting node '%s'", self.node.name)
         self.node.reset()
         self.node = self.visited.pop()
         return True
