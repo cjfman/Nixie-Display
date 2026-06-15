@@ -32,7 +32,9 @@ for arg in "$@"; do
 done
 
 SUDO=""
-[[ $EUID -ne 0 ]] && SUDO="sudo"
+if [[ $EUID -ne 0 ]]; then
+    SUDO="sudo"
+fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(dirname "$SCRIPT_DIR")"
 
@@ -40,7 +42,9 @@ if ! id "$USER_NAME" >/dev/null 2>&1; then
     echo "No such user: $USER_NAME" >&2
     exit 1
 fi
-echo "Display service user: $USER_NAME"
+USER_UID="$(id -u "$USER_NAME")"
+RUNTIME_DIR="/run/user/$USER_UID"
+echo "Display service user: $USER_NAME (uid $USER_UID)"
 
 ## Install the run-once signing public key(s) so the deployment_scripts/ channel
 ## is verified. NO sudo needed (it's $USER_NAME's home). Doing this turns ON
@@ -72,6 +76,71 @@ add_groups() {
     done
 }
 
+## Run a command inside $USER_NAME's user session with the env PulseAudio needs.
+as_display_user() {
+    $SUDO -u "$USER_NAME" env \
+        XDG_RUNTIME_DIR="$RUNTIME_DIR" \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=${RUNTIME_DIR}/bus" \
+        "$@"
+}
+
+start_user_session() {
+    ## Bring $USER_NAME's user manager up now so /run/user/<uid> exists this
+    ## session too (linger handles it at every future boot).
+    $SUDO systemctl start "user@${USER_UID}.service"
+    local i
+    for i in $(seq 1 10); do
+        if [[ -d "$RUNTIME_DIR" ]]; then
+            break
+        fi
+        sleep 1
+    done
+    if [[ -d "$RUNTIME_DIR" ]]; then
+        echo "  $RUNTIME_DIR exists"
+    else
+        echo "  WARNING: $RUNTIME_DIR still missing after starting user@${USER_UID}.service"
+    fi
+}
+
+enable_pulse() {
+    ## Enable + start $USER_NAME's per-user PulseAudio. Without this the display
+    ## (which runs as $USER_NAME) has NO audio server at all -- the real reason
+    ## only 'Dummy Output' ever showed and no Bluetooth sink could appear.
+    if as_display_user systemctl --user unmask pulseaudio.socket pulseaudio.service >/dev/null 2>&1; then
+        :
+    fi
+    if as_display_user systemctl --user enable pulseaudio.socket >/dev/null 2>&1; then
+        echo "  enabled pulseaudio.socket for $USER_NAME"
+    else
+        echo "  WARNING: could not enable pulseaudio.socket (will still try to start)"
+    fi
+    if as_display_user pactl info >/dev/null 2>&1; then
+        echo "  $USER_NAME PulseAudio is responding"
+    else
+        echo "  pactl couldn't reach PA; trying an explicit start"
+        as_display_user systemctl --user start pulseaudio.service >/dev/null 2>&1
+    fi
+}
+
+verify_audio() {
+    local info mods
+    info="$(as_display_user pactl info 2>&1)"
+    if printf '%s' "$info" | grep -q "User Name: $USER_NAME"; then
+        echo "  $USER_NAME PulseAudio is up:"
+        printf '%s\n' "$info" | grep -E 'User Name|Server Version|Default Sink' | sed 's/^/    /'
+    else
+        echo "  WARNING: $USER_NAME PA still not reachable. Raw output:"
+        printf '%s\n' "$info" | sed 's/^/    /'
+    fi
+    mods="$(as_display_user pactl list short modules 2>/dev/null | grep -i bluez)"
+    if [[ -n "$mods" ]]; then
+        echo "  Bluetooth modules loaded:"
+        printf '%s\n' "$mods" | sed 's/^/    /'
+    else
+        echo "  WARNING: no bluez modules loaded (pulseaudio-module-bluetooth missing?)"
+    fi
+}
+
 echo "Granting groups to $USER_NAME:"
 add_groups "$USER_NAME"
 
@@ -84,7 +153,15 @@ if [[ "${PA_USER:-}" == "pulse" ]]; then
 fi
 
 ## Make sure the user manager (and PulseAudio) start at boot without a login.
-$SUDO loginctl enable-linger "$USER_NAME" 2>/dev/null || true
+if ! $SUDO loginctl enable-linger "$USER_NAME" 2>/dev/null; then
+    echo "  WARNING: enable-linger failed; PA may not start at boot"
+fi
+
+## Bring the session up now and enable $USER_NAME's own PulseAudio.
+echo "Starting $USER_NAME user session:"
+start_user_session
+echo "Enabling $USER_NAME PulseAudio:"
+enable_pulse
 
 ## Optional: unblock the run-once deployment scripts so they can arm the
 ## USB-gadget / WiFi-AP helpers and re-assert linger without a password next
@@ -105,8 +182,17 @@ if [[ $NOPASSWD -eq 1 ]]; then
 fi
 
 echo
+echo "Verifying $USER_NAME audio server:"
+verify_audio
+
+echo
 echo "Done. Groups for $USER_NAME are now:"
 id "$USER_NAME"
 echo
 echo "Next: reboot (sudo reboot). After it comes up, the speaker should appear"
 echo "in Select Output (reconnect it via Add Bluetooth if needed)."
+echo
+echo "Note: while you are logged in as 'pi', pi's own PulseAudio is also running"
+echo "and can hold the single Bluetooth A2DP endpoint. On a normal headless boot"
+echo "pi isn't logged in, so only $USER_NAME's PA runs. To test BT now without a"
+echo "reboot, first stop pi's PA:  systemctl --user stop pulseaudio.socket pulseaudio.service; pulseaudio -k"
