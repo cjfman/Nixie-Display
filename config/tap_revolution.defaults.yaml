@@ -66,7 +66,7 @@ hit_flash:
   frame_secs: 0.05
 
 # Audio settings.
-# audio_dir: directory to search for audio files referenced by bare filename in .trl
+audio_dir: ~/audio #directory to search for audio files referenced by bare filename in .trl
 #   headers. If the audio field contains a '/' it is treated as a path instead.
 # audio_offset_ms: how many ms audio arrives late (positive for Bluetooth).
 #   Start audio this many ms early to compensate. Set via Calibrate in the menu.
