@@ -8,12 +8,17 @@ Menu), plus the three children it creates: TapRevolutionLevelsItem (Play),
 TapRevolutionSettingsItem (editable settings), and ResetSettingsItem.
 """
 
+import array
 import collections
 import copy
 import dataclasses
+import io
 import logging
+import math
 import os
+import tempfile
 import time
+import wave
 from typing import List, Optional
 
 from pyxielib import tap_revolution as taplib
@@ -23,6 +28,41 @@ from pyxielib.tap_revolution_config import TapRevolutionConfig
 from pyxielib.tube_manager import cmdLen
 
 logger = logging.getLogger(__name__)
+
+## ─────────────────────────────────────────────────────────────────────────── ##
+## Calibration helpers                                                          ##
+## ─────────────────────────────────────────────────────────────────────────── ##
+
+_CALIB_BPM        = 60
+_CALIB_BEATS      = 6    ## measurement beats (taps are recorded for these)
+_CALIB_LEAD_IN    = 2    ## extra beats at the start before measurement begins
+_CALIB_CLICK_FREQ = 880
+_CALIB_CLICK_DUR  = 0.05 ## seconds per click burst
+
+
+def _make_click_wav() -> bytes:
+    """WAV bytes: (_CALIB_LEAD_IN + _CALIB_BEATS) clicks at _CALIB_BPM."""
+    sample_rate = 44100
+    beat_secs   = 60.0 / _CALIB_BPM
+    n_beats     = _CALIB_LEAD_IN + _CALIB_BEATS
+    n_total     = int(sample_rate * beat_secs * n_beats)
+    n_click     = int(sample_rate * _CALIB_CLICK_DUR)
+    samples     = array.array('h', bytes(2 * n_total))
+    for i in range(n_beats):
+        start = int(i * beat_secs * sample_rate)
+        for j in range(n_click):
+            if start + j < n_total:
+                samples[start + j] = int(32767 * math.sin(
+                    2 * math.pi * _CALIB_CLICK_FREQ * j / sample_rate
+                ))
+    buf = io.BytesIO()
+    with wave.open(buf, 'w') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sample_rate)
+        w.writeframes(samples.tobytes())
+    return buf.getvalue()
+
 
 ## ─────────────────────────────────────────────────────────────────────────── ##
 ## Settings list helpers                                                        ##
@@ -113,6 +153,13 @@ def _build_items(draft):
         _s_entry('hit_flash', 'readonly',
                  lambda d: f"HIT FLASH {d['hit_flash']['frame_secs']*1000:.0f}MS", None,
                  lambda d: d['hit_flash']),
+        _s_entry('audio_offset_ms', 'signed_int',
+                 lambda d: f"OFFSET {int(d.get('audio_offset_ms', 0))}MS", "OFFSET",
+                 lambda d: d.get('audio_offset_ms', 0),
+                 lambda d, v: d.__setitem__('audio_offset_ms', v)),
+        _s_entry('audio_dir', 'readonly',
+                 lambda d: f"AUDIO DIR {d.get('audio_dir') or '(none)'}", None,
+                 lambda d: d.get('audio_dir', '')),
     ]
 
 
@@ -175,6 +222,7 @@ class TapRevolutionMenu(Menu):
             TapRevolutionLevelsItem(config, levels_path, watcher=watcher, size=size),
             difficulty_item,
             TapRevolutionSettingsItem(config),
+            TapRevolutionCalibrationItem(config, watcher=watcher),
             ResetSettingsItem(config),
         ], **kwargs)
 
@@ -255,6 +303,8 @@ class TapRevolutionLevelsItem(ListItem):
 
     def reset(self):
         super().reset()
+        if self.animation is not None:
+            self.animation.stop_audio()
         self.set_values(None)
         self.cur_path    = self.levels_path
         self.dir_stack   = []
@@ -282,10 +332,12 @@ class TapRevolutionLevelsItem(ListItem):
             if self._quit_confirm:
                 if self.animation.done():
                     self._quit_confirm = False
+                    self.animation.stop_audio()
                     self.results = self._make_results()
                     return self.results
                 return "QUIT Y/N"
             if self.animation.done():
+                self.animation.stop_audio()
                 self.results = self._make_results()
                 return self.results
             return self.animation
@@ -365,8 +417,15 @@ class TapRevolutionLevelsItem(ListItem):
             if diff.scroll_time is not None:
                 level = dataclasses.replace(level, scroll_time=diff.scroll_time)
             self.key_lane = self.config.key_lane_map()
+            level_path    = self.level_files.get(name, '')
+            resolved_audio = (
+                self.config.resolve_audio(level.audio, level_path)
+                if level.audio and level_path else None
+            )
             self.animation = taplib.TapRevolutionAnimation(
-                level, size=self.size,
+                level,
+                audio_path=resolved_audio,
+                size=self.size,
                 **self.config.animation_kwargs(window_scale=diff.window_scale))
 
     def key_up(self):
@@ -387,6 +446,7 @@ class TapRevolutionLevelsItem(ListItem):
     def key_char(self, c):
         if self._quit_confirm:
             if c.lower() == 'y':
+                self.animation.stop_audio()
                 self.animation     = None
                 self._quit_confirm = False
             elif c.lower() == 'n':
@@ -730,12 +790,20 @@ class TapRevolutionSettingsItem(MenuItem):
             self._edit_buffer = str(round(float(entry.get(self._draft)) * 1000))
         elif entry.type == 'int':
             self._edit_buffer = str(abs(int(entry.get(self._draft))))
+        elif entry.type == 'signed_int':
+            self._edit_buffer = str(int(entry.get(self._draft)))
         else:
             self._edit_buffer = ''
         self.state = 'edit'
 
     def _edit_char(self, c):
-        if c.isdigit() and len(self._edit_buffer) < 5:
+        entry = self._edit_entry
+        if entry and entry.type == 'signed_int':
+            if c == '-' and self._edit_buffer in ('', '0'):
+                self._edit_buffer = '-'
+            elif c.isdigit() and len(self._edit_buffer) < 6:
+                self._edit_buffer += c
+        elif c.isdigit() and len(self._edit_buffer) < 5:
             self._edit_buffer += c
 
     def _edit_commit(self):
@@ -751,7 +819,7 @@ class TapRevolutionSettingsItem(MenuItem):
         elif entry.type == 'select':
             if self._select_options:
                 entry.set(self._draft, self._select_options[self._select_idx][0])
-        elif entry.type in ('ms', 'int') and self._edit_buffer:
+        elif entry.type in ('ms', 'int', 'signed_int') and self._edit_buffer not in ('', '-'):
             raw = int(self._edit_buffer)
             entry.set(self._draft, raw / 1000.0 if entry.type == 'ms' else raw)
         self._edit_buffer = ''
@@ -821,6 +889,191 @@ class TapRevolutionSettingsItem(MenuItem):
         elif c.lower() == 'n':
             self._flash_msg   = "CANCELED"
             self._flash_until = time.time() + _SETTINGS_FLASH_SECS
+
+
+class TapRevolutionCalibrationItem(MenuItem):
+    """Tap-along calibration that measures BT audio latency and saves it as audio_offset_ms.
+
+    Tap *on the beat* (predictively, the way a musician keeps time) rather than reactively
+    after hearing the click. The lead-in beats let you internalize the tempo; your predictive
+    taps then encode the BT pipeline delay without adding your audio reaction time on top.
+    Reactive tapping would over-compensate by including that reaction time.
+
+    States: idle → playing → result → idle
+    """
+    def __init__(self, config, *, watcher=None, **kwargs):
+        super().__init__("Calibrate", **kwargs)
+        self.config  = config
+        self.watcher = watcher
+        self._audio    = taplib.TapAudioPlayer()
+        self._tmp_file = None
+        self._reset_state()
+
+    ## ------------------------------------------------------------------ ##
+    ## Lifecycle                                                            ##
+    ## ------------------------------------------------------------------ ##
+
+    def activate(self):
+        self._cleanup()
+        self._reset_state()
+
+    def reset(self):
+        super().reset()
+        self._cleanup()
+        self._reset_state()
+
+    def _reset_state(self):
+        self.state       = 'idle'
+        self._play_start = 0.0
+        self._beat_times: List[float] = []
+        self._beat_secs  = 60.0 / _CALIB_BPM
+        self._n_beats    = _CALIB_BEATS
+        self._tapped     = set()
+        self._errors: List[float] = []
+        self._result_ms  = 0
+
+    def _cleanup(self):
+        self._audio.stop()
+        if self._tmp_file is not None:
+            try:
+                self._tmp_file.close()
+                os.unlink(self._tmp_file.name)
+            except Exception:
+                pass
+        self._tmp_file = None
+
+    ## ------------------------------------------------------------------ ##
+    ## Display                                                              ##
+    ## ------------------------------------------------------------------ ##
+
+    def for_display(self) -> str:
+        if self.state == 'idle':
+            return "ENTER TO START"
+        if self.state == 'playing':
+            return self._poll_playing()
+        if self.state == 'result':
+            sign = '+' if self._result_ms >= 0 else ''
+            return f"SET {sign}{self._result_ms}MS Y/N"
+        return ''
+
+    def _poll_playing(self) -> str:
+        elapsed  = time.time() - self._play_start
+        first_t  = self._beat_times[0] if self._beat_times else 0.0
+        last_t   = self._beat_times[-1] if self._beat_times else 0.0
+        if elapsed < first_t:
+            countdown = max(1, math.ceil((first_t - elapsed) / self._beat_secs))
+            return f"TAP ON BEAT {countdown}"
+        beat_in_measure = sum(1 for t in self._beat_times if t <= elapsed)
+        if beat_in_measure <= self._n_beats and elapsed <= last_t + self._beat_secs:
+            return f"BEAT {beat_in_measure}/{self._n_beats}"
+        ## All measurement beats elapsed — wrap up.
+        self._result_ms = round(sum(self._errors) / len(self._errors) * 1000) if self._errors else 0
+        self._cleanup()
+        self.state = 'result'
+        sign = '+' if self._result_ms >= 0 else ''
+        return f"SET {sign}{self._result_ms}MS Y/N"
+
+    ## ------------------------------------------------------------------ ##
+    ## Key dispatch                                                         ##
+    ## ------------------------------------------------------------------ ##
+
+    def key_enter(self):
+        if self.state == 'idle':
+            self._start_calibration()
+        elif self.state == 'result':
+            self._save_and_exit()
+
+    def key_left(self):
+        self._tap()
+
+    def key_right(self):
+        self._tap()
+
+    def key_up(self):
+        self._tap()
+
+    def key_down(self):
+        self._tap()
+
+    def key_char(self, c):
+        if self.state == 'result':
+            if c.lower() == 'y':
+                self._save_and_exit()
+            elif c.lower() == 'n':
+                self._reset_state()
+
+    def key_esc(self):
+        if self.state in ('playing', 'result'):
+            self._cleanup()
+            self._reset_state()
+        else:
+            self.set_done()
+
+    def key_backspace(self):
+        self.key_esc()
+
+    ## ------------------------------------------------------------------ ##
+    ## Calibration helpers                                                  ##
+    ## ------------------------------------------------------------------ ##
+
+    def _tap(self):
+        if self.state != 'playing':
+            return
+        when = self.watcher.last_pop_time if self.watcher is not None else time.time()
+        ## Find the nearest un-tapped measurement beat.
+        best_i, best_abs = None, float('inf')
+        for i, t in enumerate(self._beat_times):
+            if i in self._tapped:
+                continue
+            err = when - (self._play_start + t)
+            if abs(err) < best_abs:
+                best_abs = abs(err)
+                best_i   = i
+        if best_i is not None and best_abs < 2.0:
+            self._tapped.add(best_i)
+            self._errors.append(when - (self._play_start + self._beat_times[best_i]))
+
+    def _load_calibration(self):
+        """Return (audio_path, beat_times) from the calibration track or generated WAV."""
+        cal_track = str(self.config.settings.get('calibration_track', '') or '')
+        if cal_track:
+            cal_path = os.path.expanduser(cal_track)
+            try:
+                level = taplib.Level.from_file(cal_path)
+                audio_path = (
+                    self.config.resolve_audio(level.audio, cal_path)
+                    if level.audio else None
+                )
+                return audio_path, [n.time for n in level.notes]
+            except Exception as e:
+                logger.error("Failed to load calibration track '%s': %s", cal_path, e)
+        ## Fallback: generated click WAV with lead-in beats.
+        wav = _make_click_wav()
+        tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+        tmp.write(wav)
+        tmp.flush()
+        self._tmp_file = tmp
+        beat_secs  = 60.0 / _CALIB_BPM
+        beat_times = [(i + _CALIB_LEAD_IN) * beat_secs for i in range(_CALIB_BEATS)]
+        return tmp.name, beat_times
+
+    def _start_calibration(self):
+        self._cleanup()
+        self._reset_state()
+        audio_path, beat_times = self._load_calibration()
+        self._beat_times = beat_times
+        self._beat_secs  = (beat_times[1] - beat_times[0]) if len(beat_times) > 1 else 1.0
+        self._n_beats    = len(beat_times)
+        if audio_path:
+            self._audio.start(audio_path)
+        self._play_start = time.time()
+        self.state = 'playing'
+
+    def _save_and_exit(self):
+        self.config.settings['audio_offset_ms'] = self._result_ms
+        self.config.save()
+        self._reset_state()
+        self.set_done()
 
 
 class ResetSettingsItem(MenuItem):

@@ -64,3 +64,14 @@ results_secs: 6    # freeze time for the end-of-game results (if it fits)
 hit_flash:
   frames: [x, +, x]
   frame_secs: 0.05
+
+# Audio settings.
+# audio_dir: directory to search for audio files referenced by bare filename in .trl
+#   headers. If the audio field contains a '/' it is treated as a path instead.
+# audio_offset_ms: how many ms audio arrives late (positive for Bluetooth).
+#   Start audio this many ms early to compensate. Set via Calibrate in the menu.
+# calibration_track: path to a .trl file used for audio calibration. If blank, a
+#   generated click track is used.
+audio_dir: ""
+audio_offset_ms: 0
+calibration_track: ""

@@ -54,6 +54,9 @@ CODE_DEFAULTS: Dict[str, Any] = {
         {'name': 'easy',   'display_name': 'Easy',   'gap': 400, 'scroll_time': 3.0,  'window_scale': 1.8},
     ],
     'difficulty': 'hard',
+    'audio_dir':         '',
+    'audio_offset_ms':   0,
+    'calibration_track': '',
 }
 
 
@@ -134,6 +137,22 @@ class TapRevolutionConfig:
     def results_secs(self) -> int:
         return int(self.settings['results_secs'])
 
+    def resolve_audio(self, audio_field, trl_path) -> str:
+        """Resolve an audio field from a .trl header to an absolute path.
+
+        If audio_field contains '/', treat it as a path (absolute, or relative to the
+        .trl file's directory). Otherwise look it up in audio_dir; fall back to the
+        .trl file's directory if audio_dir is unset.
+        """
+        if '/' in audio_field:
+            if os.path.isabs(audio_field):
+                return audio_field
+            return os.path.join(os.path.dirname(trl_path), audio_field)
+        audio_dir = str(self.settings.get('audio_dir', '') or '')
+        if audio_dir:
+            return os.path.join(os.path.expanduser(audio_dir), audio_field)
+        return os.path.join(os.path.dirname(trl_path), audio_field)
+
     def animation_kwargs(self, window_scale=1.0) -> Dict[str, Any]:
         """Keyword args for ``TapRevolutionAnimation`` from the active settings.
 
@@ -154,6 +173,7 @@ class TapRevolutionConfig:
             'judge_flash':          bool(s['judge_flash']),
             'hit_flash_frames':     tuple(s['hit_flash']['frames']),
             'hit_flash_frame_secs': float(s['hit_flash']['frame_secs']),
+            'audio_offset_secs':    float(s.get('audio_offset_ms', 0)) / 1000.0,
         }
 
     def key_lane_map(self) -> Dict[str, str]:
@@ -207,4 +227,6 @@ class TapRevolutionConfig:
         else:
             lines.append("BAD OFF")
         lines.append(f"GRACE {round(float(s['grace']) * 1000)}MS")
+        lines.append(f"AUDIO OFFSET {int(s.get('audio_offset_ms', 0))}MS")
+        lines.append(f"AUDIO DIR {s.get('audio_dir') or '(none)'}")
         return lines

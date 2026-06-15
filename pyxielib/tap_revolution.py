@@ -15,6 +15,8 @@ sync later: the chart is already on the same wall-clock timeline audio would use
 import dataclasses
 import logging
 import os
+import platform
+import subprocess
 import threading
 import time
 
@@ -71,6 +73,38 @@ DEFAULT_COOLDOWN = 0.15
 ## tap drops it, and a successful hit plays this quick glyph burst in its place.
 HIT_FLASH_FRAMES = ('x', '+', 'x')
 HIT_FLASH_FRAME_SECS = 0.05
+
+
+class TapAudioPlayer:
+    """Start and stop a background audio subprocess for game music."""
+    def __init__(self):
+        self._proc: Optional[subprocess.Popen] = None
+
+    def start(self, path):
+        self.stop()
+        cmd = self._make_cmd(path)
+        try:
+            self._proc = subprocess.Popen(
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except FileNotFoundError:
+            logger.warning("Audio player not found for: %s", path)
+
+    def stop(self):
+        if self._proc is not None:
+            try:
+                self._proc.terminate()
+            except Exception:
+                pass
+            self._proc = None
+
+    @staticmethod
+    def _make_cmd(path) -> List[str]:
+        if platform.system() == 'Darwin':
+            return ['afplay', path]
+        if path.lower().endswith('.mp3'):
+            return ['mpg123', '-q', path]
+        return ['paplay', path]
 
 
 def parse_lane(name) -> str:
@@ -215,7 +249,7 @@ class TapRevolutionAnimation(Animation):
                  flash_secs=0.6, hit_windows=None, grace=DEFAULT_GRACE,
                  cooldown=DEFAULT_COOLDOWN, bad_penalty=DEFAULT_BAD_PENALTY, bad_enabled=True,
                  hit_flash_frames=HIT_FLASH_FRAMES, hit_flash_frame_secs=HIT_FLASH_FRAME_SECS,
-                 lead_in=None):
+                 audio_path=None, audio_offset_secs=0.0, lead_in=None):
         super().__init__()
         self.level = level
         self.size = size
@@ -239,13 +273,23 @@ class TapRevolutionAnimation(Animation):
         self.hit_flash_frame_secs = hit_flash_frame_secs
         ## Shift every note so the earliest one scrolls in cleanly from the edge.
         self.lead_in = lead_in if lead_in is not None else self.scroll_time
+        self._audio_path = audio_path
+        self.audio_offset_secs = audio_offset_secs
+        self._audio = TapAudioPlayer()
         self.lock = threading.Lock()
         self.reset()
+
+    def stop_audio(self):
+        self._audio.stop()
 
     def reset(self):
         """(Re)anchor the timeline and clear all play state — replayable."""
         with self.lock:
-            self.start_time = time.time()
+            if self._audio_path:
+                self._audio.start(self._audio_path)
+                self.start_time = time.time() + self.audio_offset_secs
+            else:
+                self.start_time = time.time()
             self.note_states = [_NoteState(n.time + self.lead_in, n.lane) for n in self.level.notes]
             self.score = 0
             self.combo = 0
