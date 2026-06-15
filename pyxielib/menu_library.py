@@ -540,6 +540,8 @@ class WiFiScanItem(ListItem):
             self.state = 'password'
         elif 'password' == self.state:
             success = self.wifi.add_network(self.ssid, self.passwd, save=True, connect=False)
+            logger.info("Saved WiFi network '%s' (%s)", self.ssid,
+                        "ok" if success else "failed")
             self.state = 'connected' if success else 'failed'
         elif self.state in ('connected', 'failed'):
             self.reset()
@@ -565,6 +567,7 @@ class WiFiSelectItem(ListItem):
         super().__init__("WiFi Select", **kwargs)
         self.wifi = wifi
         self.state = 'select'
+        self._target = None
 
     def activate(self):
         self.set_values(self.wifi.network_ssids())
@@ -591,6 +594,7 @@ class WiFiSelectItem(ListItem):
         super().reset()
         self.set_values(None)
         self.state = 'select'
+        self._target = None
 
     def poll(self):
         if self.state != 'connecting':
@@ -599,9 +603,13 @@ class WiFiSelectItem(ListItem):
         success = self.wifi.poll()
         if success is not None:
             self.state = 'success' if success else 'failed'
+            logger.info("WiFi network '%s' %s", self._target,
+                        "connected" if success else "connection failed")
 
     def select(self):
-        self.wifi.select_network(self.current_value(), blocking=False)
+        self._target = self.current_value()
+        logger.info("Connecting to WiFi network '%s'", self._target)
+        self.wifi.select_network(self._target, blocking=False)
 
     def key_enter(self):
         if self.state == 'select':
@@ -702,6 +710,8 @@ class WiFiAPItem(MenuItem):
                 self._ok = self.ctrl.disable()
             else:
                 self._ok = self.ctrl.enable(self.config.ssid, self.config.password)
+            logger.info("WiFi AP %s %s", "disable" if self._was_on else "enable",
+                        "succeeded" if self._ok else "failed")
             self.state = 'result'
         elif c == 'n':
             self.state = 'idle'
@@ -1032,6 +1042,8 @@ class AudioSelectItem(ListItem):
         if c == 'y':
             sink = self._sinks[self.idx]
             success = self.audio.set_default_sink(sink.name)
+            logger.info("Audio output set to '%s' (%s)", sink.description,
+                        "ok" if success else "failed")
             self.state = 'done' if success else 'failed'
         elif c == 'n':
             self.state = 'select'
@@ -1056,6 +1068,7 @@ class BTAddItem(ListItem):
         self._scan_spinner = None
         self._pair_spinner = None
         self._result_until = 0.0
+        self._pairing = None
 
     def activate(self):
         self._paired_macs = {d.mac for d in self.audio.list_paired_devices()}
@@ -1109,9 +1122,11 @@ class BTAddItem(ListItem):
             if result is True:
                 self.state = 'paired'
                 self._result_until = time.time() + self._RESULT_SECS
+                logger.info("Bluetooth device '%s' paired", self._pairing)
             elif result is False:
                 self.state = 'failed'
                 self._result_until = time.time() + self._RESULT_SECS
+                logger.info("Bluetooth pairing with '%s' failed", self._pairing)
 
     def key_enter(self):
         if self.state == 'select':
@@ -1129,8 +1144,10 @@ class BTAddItem(ListItem):
             return
         c = c.lower()
         if c == 'y':
-            mac = self._devices[self.idx].mac
-            self.audio.pair_and_connect_async(mac)
+            device = self._devices[self.idx]
+            self._pairing = device.name
+            logger.info("Pairing Bluetooth device '%s' (%s)", device.name, device.mac)
+            self.audio.pair_and_connect_async(device.mac)
             self.state = 'pairing'
         elif c == 'n':
             self.state = 'select'
@@ -1143,6 +1160,7 @@ class BTAddItem(ListItem):
         self._scan_spinner = None
         self._pair_spinner = None
         self._result_until = 0.0
+        self._pairing = None
         self.state = None
         self.set_values(None)
 
@@ -1193,6 +1211,8 @@ class BTRemoveItem(ListItem):
             device = self._devices[self.idx]
             self.state = 'removing'
             success = self.audio.remove_device(device.mac)
+            logger.info("Bluetooth device '%s' (%s) removal %s", device.name, device.mac,
+                        "succeeded" if success else "failed")
             self.state = 'removed' if success else 'failed'
         elif c == 'n':
             self.state = 'select'

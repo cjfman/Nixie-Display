@@ -89,7 +89,6 @@ _ARROW_NAMES = {'left', 'right', 'up', 'down'}
 def _set_difficulty(config, value):
     config.settings['difficulty'] = value
     config.save()
-    logger.info("Tap Revolution difficulty set to '%s'", value)
 
 
 def _s_entry(tag, kind, label_fn, prefix, get_fn, set_fn=None, options=None):

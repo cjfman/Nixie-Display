@@ -338,7 +338,10 @@ class CycleItem(MenuItem):
 
     def key_enter(self):
         if self._options:
-            self._set(self._options[self._edit_idx][0])
+            value, label = self._options[self._edit_idx]
+            if value != self._get():
+                logger.info("Setting '%s' changed to %s", self.name, label)
+            self._set(value)
         self.set_done()
 
     def key_esc(self):
