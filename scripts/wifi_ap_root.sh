@@ -124,6 +124,19 @@ ensure_hostapd_daemon_conf() {
     printf '%s\nDAEMON_CONF="%s"\n' "$body" "$HOSTAPD_CONF" > "$f"
 }
 
+stop_client_wifi() {
+    ## hostapd and wpa_supplicant fight over the single radio: if the supplicant
+    ## keeps wlan0 in "managed" mode it re-associates to a known network right
+    ## after hostapd enables the AP, so hostapd stays "active" but never beacons
+    ## (the interface shows `type managed`, not `type AP`). dhcpcd -k alone does
+    ## NOT stop it on Bullseye. Tell the supplicant on this interface to quit,
+    ## then fall back to killing any still bound to it.
+    wpa_cli -i "$WLAN" terminate >/dev/null 2>&1 || true
+    if pgrep -f "wpa_supplicant.*$WLAN" >/dev/null 2>&1; then
+        pkill -f "wpa_supplicant.*$WLAN" || true
+    fi
+}
+
 do_up() {
     write_hostapd_conf
     write_dnsmasq_conf
@@ -134,6 +147,7 @@ do_up() {
     ensure_hostapd_daemon_conf
     rfkill unblock wlan 2>/dev/null || true
     ## Free wlan0 from client mode without disturbing other interfaces (usb0).
+    stop_client_wifi
     dhcpcd -k "$WLAN" 2>/dev/null || true
     ip addr flush dev "$WLAN" || true
     ip link set "$WLAN" up || true
@@ -152,6 +166,11 @@ do_down() {
     systemctl stop hostapd 2>/dev/null || true
     systemctl stop dnsmasq 2>/dev/null || true
     ip addr flush dev "$WLAN" || true
+    ## hostapd left the radio in AP mode; put it back to managed and bounce the
+    ## link so the supplicant can re-associate.
+    ip link set "$WLAN" down || true
+    iw dev "$WLAN" set type managed 2>/dev/null || true
+    ip link set "$WLAN" up || true
     ## Rebind via dhcpcd: re-runs its wpa_supplicant hook so client WiFi resumes
     ## and autoconnects to known networks (no reboot needed).
     dhcpcd -n "$WLAN" 2>/dev/null || true
