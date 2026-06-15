@@ -94,6 +94,7 @@ class TapAudioPlayer:
             self._proc = subprocess.Popen(
                 cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
+            logger.debug("Audio playback started: %s", ' '.join(cmd))
         except FileNotFoundError:
             logger.warning("Audio player not found for: %s", path)
 
@@ -346,6 +347,9 @@ class TapRevolutionAnimation(Animation):
             self.hit_flash_hit = False   ## whether that tap landed a note (-> x+x burst)
             self.bad_cooldown_until: Dict[str, float] = {}  ## per-lane lockout after a BAD tap
             self._last_code: Optional[str] = None
+            logger.debug("Timeline anchored: %d notes, lead_in=%.2fs, audio=%s, offset=%.3fs",
+                         len(self.note_states), self.lead_in,
+                         self._audio_path or '(none)', self.audio_offset_secs)
 
     def tubeCount(self) -> int:
         return self.size
@@ -444,6 +448,7 @@ class TapRevolutionAnimation(Animation):
         if self._audio_started or self._audio_start_at is None:
             return
         if now >= self._audio_start_at:
+            logger.debug("Lead-in elapsed (%.2fs); starting music", self.lead_in)
             self._audio.start(self._audio_path)
             self._audio_started = True
 

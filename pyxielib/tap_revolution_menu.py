@@ -89,6 +89,7 @@ _ARROW_NAMES = {'left', 'right', 'up', 'down'}
 def _set_difficulty(config, value):
     config.settings['difficulty'] = value
     config.save()
+    logger.info("Tap Revolution difficulty set to '%s'", value)
 
 
 def _s_entry(tag, kind, label_fn, prefix, get_fn, set_fn=None, options=None):
@@ -207,6 +208,7 @@ class TapRevolutionMenu(Menu):
     in-game edit) is reflected the next time a level is launched.
     """
     def __init__(self, config, levels_path, *, watcher=None, size=16, **kwargs):
+        self.config = config
         options_fn = lambda: [
             (d['name'], d.get('display_name', d['name']))
             for d in config.settings.get('difficulties', [])
@@ -225,6 +227,11 @@ class TapRevolutionMenu(Menu):
             TapRevolutionCalibrationItem(config, watcher=watcher),
             ResetSettingsItem(config),
         ], **kwargs)
+
+    def activate(self):
+        super().activate()
+        logger.info("Tap Revolution menu opened (difficulty=%s)",
+                    self.config.settings.get('difficulty'))
 
 
 class TapRevolutionLevelsItem(ListItem):
@@ -279,7 +286,8 @@ class TapRevolutionLevelsItem(ListItem):
         """
         try:
             entries = sorted(os.listdir(path))
-        except OSError:
+        except OSError as e:
+            logger.debug("Could not scan levels dir '%s': %s", path, e)
             return {}, {}
 
         counts, subdirs, files = {}, {}, {}
@@ -332,14 +340,10 @@ class TapRevolutionLevelsItem(ListItem):
             if self._quit_confirm:
                 if self.animation.done():
                     self._quit_confirm = False
-                    self.animation.stop_audio()
-                    self.results = self._make_results()
-                    return self.results
+                    return self._finish()
                 return "QUIT Y/N"
             if self.animation.done():
-                self.animation.stop_audio()
-                self.results = self._make_results()
-                return self.results
+                return self._finish()
             return self.animation
 
         return self._browse_display()
@@ -374,6 +378,16 @@ class TapRevolutionLevelsItem(ListItem):
         else:
             self.set_done()
 
+    def _finish(self) -> Animation:
+        """Stop audio, log the completed game with its score, and build the results marquee."""
+        res = self.animation.results()
+        breakdown = ', '.join(f"{k}={v}" for k, v in res.items() if k != 'SCORE')
+        logger.info("Level '%s' complete: score=%d (%s)",
+                    self.animation.level.name, res.get('SCORE', 0), breakdown)
+        self.animation.stop_audio()
+        self.results = self._make_results()
+        return self.results
+
     def _make_results(self) -> Animation:
         return MarqueeAnimation.fromText(self.animation.results_text(), self.size,
                                          freeze=self.config.results_secs())
@@ -386,6 +400,7 @@ class TapRevolutionLevelsItem(ListItem):
         if path is None:
             return None
         try:
+            logger.debug("Loading level '%s' from %s", name, path)
             return taplib.Level.from_file(path)
         except Exception as e:
             logger.error(f"Failed to load level '{name}': {e}")
@@ -427,6 +442,10 @@ class TapRevolutionLevelsItem(ListItem):
                 audio_path=resolved_audio,
                 size=self.size,
                 **self.config.animation_kwargs(window_scale=diff.window_scale))
+            logger.info(
+                "Starting level '%s' (notes=%d, difficulty=%s, audio=%s)",
+                level.name, len(level.notes),
+                self.config.settings.get('difficulty'), resolved_audio or '(none)')
 
     def key_up(self):
         if not self._play_key('UP'):
@@ -446,6 +465,8 @@ class TapRevolutionLevelsItem(ListItem):
     def key_char(self, c):
         if self._quit_confirm:
             if c.lower() == 'y':
+                logger.info("Level '%s' cancelled at score=%d",
+                            self.animation.level.name, self.animation.score)
                 self.animation.stop_audio()
                 self.animation     = None
                 self._quit_confirm = False
@@ -882,11 +903,16 @@ class TapRevolutionSettingsItem(MenuItem):
 
     def _save_confirm_char(self, c):
         if c.lower() == 'y':
+            changed = sorted(k for k in self._draft
+                             if self._draft.get(k) != self._original.get(k))
             self.config.settings = copy.deepcopy(self._draft)
             self.config.save()
+            logger.info("Tap Revolution settings saved; changed: %s",
+                        ', '.join(changed) or '(none)')
             self._flash_msg   = "SAVED"
             self._flash_until = time.time() + _SETTINGS_FLASH_SECS
         elif c.lower() == 'n':
+            logger.debug("Tap Revolution settings edit canceled")
             self._flash_msg   = "CANCELED"
             self._flash_until = time.time() + _SETTINGS_FLASH_SECS
 
@@ -968,6 +994,8 @@ class TapRevolutionCalibrationItem(MenuItem):
             return f"BEAT {beat_in_measure}/{self._n_beats}"
         ## All measurement beats elapsed — wrap up.
         self._result_ms = round(sum(self._errors) / len(self._errors) * 1000) if self._errors else 0
+        logger.info("Calibration measured audio_offset_ms=%d from %d/%d taps",
+                    self._result_ms, len(self._errors), self._n_beats)
         self._cleanup()
         self.state = 'result'
         sign = '+' if self._result_ms >= 0 else ''
@@ -1004,6 +1032,7 @@ class TapRevolutionCalibrationItem(MenuItem):
 
     def key_esc(self):
         if self.state in ('playing', 'result'):
+            logger.debug("Calibration cancelled from state '%s'", self.state)
             self._cleanup()
             self._reset_state()
         else:
@@ -1064,6 +1093,8 @@ class TapRevolutionCalibrationItem(MenuItem):
         self._beat_times = beat_times
         self._beat_secs  = (beat_times[1] - beat_times[0]) if len(beat_times) > 1 else 1.0
         self._n_beats    = len(beat_times)
+        logger.info("Calibration started (%d beats, audio=%s)",
+                    self._n_beats, audio_path or '(click track)')
         if audio_path:
             self._audio.start(audio_path)
         self._play_start = time.time()
@@ -1072,6 +1103,7 @@ class TapRevolutionCalibrationItem(MenuItem):
     def _save_and_exit(self):
         self.config.settings['audio_offset_ms'] = self._result_ms
         self.config.save()
+        logger.info("Calibration saved audio_offset_ms=%d", self._result_ms)
         self._reset_state()
         self.set_done()
 
@@ -1103,6 +1135,7 @@ class ResetSettingsItem(MenuItem):
             self.set_done()
         elif c.lower() == 'y':
             self.config.reset()
+            logger.info("Tap Revolution settings reset to defaults")
             self._flash_until = time.time() + _SETTINGS_FLASH_SECS
         elif c.lower() == 'n':
             self.set_done()

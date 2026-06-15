@@ -97,6 +97,7 @@ class TapRevolutionConfig:
         os.makedirs(os.path.dirname(self.persistent_path) or '.', exist_ok=True)
         with open(self.persistent_path, 'w') as f:
             yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+        logger.debug("Wrote Tap Revolution settings to %s", self.persistent_path)
 
     def _load(self):
         """Build active settings; seed the persistent file from defaults if absent."""
@@ -108,6 +109,8 @@ class TapRevolutionConfig:
             self._write(self._defaults)
 
         self.settings = deep_merge(copy.deepcopy(self._defaults), persistent)
+        logger.debug("Loaded Tap Revolution config (defaults=%s, persistent=%s)",
+                     self.defaults_path, self.persistent_path)
 
     def save(self):
         """Persist the current settings (for in-game edits)."""
