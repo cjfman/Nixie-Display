@@ -122,6 +122,50 @@ enable_pulse() {
     fi
 }
 
+quiet_other_pulse() {
+    ## Any OTHER user running its own PulseAudio (e.g. an auto-login console user
+    ## like 'pi') competes with $USER_NAME for the single Bluetooth A2DP media
+    ## endpoint -- only one process per adapter can own it, so the loser's
+    ## connect fails with org.bluez.Error.Failed and no card appears. The display
+    ## user needs audio; a login/console user does not. Mask + stop those PAs and
+    ## set autospawn=no so nothing respawns one. ('pulse' = system-mode daemon,
+    ## handled separately above, so it's excluded here.)
+    local others u uid home
+    others="$(ps -o user= -C pulseaudio 2>/dev/null | sort -u \
+              | grep -vx "$USER_NAME" | grep -vx pulse)"
+    if [[ -z "$others" ]]; then
+        echo "  no competing PulseAudio instances"
+        return
+    fi
+    for u in $others; do
+        quiet_one_pulse "$u"
+    done
+}
+
+quiet_one_pulse() {
+    local u="$1" uid home
+    if ! id "$u" >/dev/null 2>&1; then
+        return
+    fi
+    uid="$(id -u "$u")"
+    home="$(getent passwd "$u" | cut -d: -f6)"
+    echo "  silencing $u's PulseAudio (uid $uid)"
+    $SUDO -u "$u" env XDG_RUNTIME_DIR="/run/user/$uid" \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+        systemctl --user mask pulseaudio.socket pulseaudio.service >/dev/null 2>&1
+    $SUDO -u "$u" env XDG_RUNTIME_DIR="/run/user/$uid" \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+        systemctl --user stop pulseaudio.socket pulseaudio.service >/dev/null 2>&1
+    $SUDO -u "$u" env XDG_RUNTIME_DIR="/run/user/$uid" pulseaudio -k >/dev/null 2>&1
+    ## autospawn=no so no client respawns it after the mask.
+    if [[ -n "$home" ]]; then
+        $SUDO -u "$u" mkdir -p "$home/.config/pulse"
+        if ! $SUDO -u "$u" grep -qs '^autospawn' "$home/.config/pulse/client.conf"; then
+            printf 'autospawn = no\n' | $SUDO -u "$u" tee -a "$home/.config/pulse/client.conf" >/dev/null
+        fi
+    fi
+}
+
 verify_audio() {
     local info mods
     info="$(as_display_user pactl info 2>&1)"
@@ -162,6 +206,8 @@ echo "Starting $USER_NAME user session:"
 start_user_session
 echo "Enabling $USER_NAME PulseAudio:"
 enable_pulse
+echo "Silencing competing PulseAudio (other users):"
+quiet_other_pulse
 
 ## Optional: unblock the run-once deployment scripts so they can arm the
 ## USB-gadget / WiFi-AP helpers and re-assert linger without a password next
@@ -189,10 +235,10 @@ echo
 echo "Done. Groups for $USER_NAME are now:"
 id "$USER_NAME"
 echo
-echo "Next: reboot (sudo reboot). After it comes up, the speaker should appear"
-echo "in Select Output (reconnect it via Add Bluetooth if needed)."
+echo "Competing per-user PulseAudio instances have been masked, so only"
+echo "$USER_NAME runs an audio server (and owns the Bluetooth A2DP endpoint)."
 echo
-echo "Note: while you are logged in as 'pi', pi's own PulseAudio is also running"
-echo "and can hold the single Bluetooth A2DP endpoint. On a normal headless boot"
-echo "pi isn't logged in, so only $USER_NAME's PA runs. To test BT now without a"
-echo "reboot, first stop pi's PA:  systemctl --user stop pulseaudio.socket pulseaudio.service; pulseaudio -k"
+echo "Next: reboot (sudo reboot). After it comes up, the speaker should appear"
+echo "in Select Output (reconnect it via Add Bluetooth if needed). A reboot is"
+echo "the clean way to let $USER_NAME's PA claim the endpoint now that the"
+echo "competing instance is gone."
