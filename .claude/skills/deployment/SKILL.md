@@ -58,10 +58,15 @@ runs again. `deployment_scripts/template.sh.example` is the template (the
 **The run-once scripts run as `nixie`, whose sudo needs a PASSWORD** (NOPASSWD
 only for `halt`/`reboot`/`iwlist`/`wpa_cli`). So they **cannot** `apt install` or
 `usermod` — those fail "a password is required". Root-requiring setup goes in
-**`scripts/setup_audio_perms.sh`** (run at a terminal): adds `nixie` to
-audio/bluetooth/lp groups, re-asserts `loginctl enable-linger`,
-`--install-keys` (install signing public key), `--nopasswd` (narrow sudoers
-drop-in — see scope below).
+**`scripts/setup_audio_perms.sh`** (run at a terminal as `pi`; self-elevates).
+It is the one canonical audio fix: adds `nixie` to audio/bluetooth/lp groups,
+re-asserts `loginctl enable-linger`, makes nixie's PulseAudio **resident**
+(`exit-idle-time = -1` + `add-wants default.target pulseaudio.service`), and
+**silences every other user's PA** (mask + `autospawn = no`) so nixie's owns the
+single BlueZ A2DP endpoint — `pi` auto-logs in and otherwise runs a competing PA
+that steals it (→ `org.bluez.Error.Failed`, no bluez card). Optional
+`--install-keys` (install signing public key) and `--nopasswd` (narrow sudoers
+drop-in — see scope below). **Reboot after** so the new groups apply.
 
 **`--nopasswd` is scoped to `loginctl` and the `usb_gadget_root.sh` /
 `wifi_ap_root.sh` helper paths only — deliberately NOT `apt-get`, `usermod`, or
@@ -168,20 +173,37 @@ Requirements that bit us, in order:
 1. **Session reachability** — `pactl` needs `XDG_RUNTIME_DIR=/run/user/<uid>` +
    the user manager running (`loginctl enable-linger`). raspi_run exports
    `XDG_RUNTIME_DIR`/`DBUS_SESSION_BUS_ADDRESS`. Empty → "Connection refused" →
-   "No audio server".
+   "No audio server". To run pactl as `nixie` from a `pi` shell, use `sudo -u
+   nixie env XDG_RUNTIME_DIR=/run/user/1002 DBUS_SESSION_BUS_ADDRESS=…/bus pactl …`
+   (a nixie login shell + manual `export` → "Failed to create secure directory").
 2. **Group membership** — `nixie` must be in the **`audio`** group (and
    `bluetooth`, `lp`) or PulseAudio can't open `/dev/snd` and shows only a single
-   **"Dummy Output" (auto_null)** — no real sink, no default. `setup_audio_perms.sh`
-   fixes this (root, one-time). This was the core blocker.
-3. **Version gotchas** (fixed in `audio_controller.py`):
+   **"Dummy Output" (auto_null)**. `setup_audio_perms.sh` fixes this — but groups
+   apply only to a **NEW session, so reboot** after.
+3. **One PA, and it must be RESIDENT** — the display runs as `nixie`, but `pi`
+   **auto-logs in** and runs its own PA; only one process per adapter can own the
+   BlueZ A2DP endpoint, so pi's steals it → `org.bluez.Error.Failed` + no bluez
+   card. And a socket-activated PA autospawns per `pactl` call then idle-exits, so
+   nothing holds the endpoint → the speaker **pairs but won't connect** (stays
+   discoverable). `setup_audio_perms.sh` silences other users' PAs (mask +
+   `autospawn = no`) and makes nixie's resident (`exit-idle-time = -1` +
+   `add-wants default.target pulseaudio.service`). Check residency with `pgrep -u
+   nixie -x pulseaudio`, NOT `pactl` (which autospawns a throwaway).
+4. **Version gotchas** (fixed in `audio_controller.py`):
    - `pactl get-default-sink` is PulseAudio 15+; on 14.2 parse `pactl info`'s
      `Default Sink:` line. (`set-default-sink` is old and works.)
    - `bluetoothctl devices Paired` filter is BlueZ 5.65+; Bullseye has 5.55 → use
      `bluetoothctl paired-devices`.
 
 Bluetooth: pair in a **single `bluetoothctl` session** (agent is per-session);
-verify via `bluetoothctl info` not exit codes. `pulseaudio-module-bluetooth` is
-installed; BT audio bypasses `/dev/snd`.
+verify via `bluetoothctl info` and require **`Connected: yes`** (not just
+`Paired:`). `pulseaudio-module-bluetooth` is installed and its modules load
+fine — "no bluez card" was a contention/residency problem, never the module or
+bluealsa. After connect the default sink stays HDMI; `set-default-sink <bluez>`
+(Select Output) routes it. **Audio Test must synthesize a WAV and `paplay` it**
+(follows the default sink) — not a freedesktop `.oga` (paplay can't decode Ogg →
+white noise) and not `aplay` (bypasses PA, can't reach a bluez sink). Full
+write-up: `audio-bluetooth-findings.md`.
 
 ## On-Pi diagnostics
 
