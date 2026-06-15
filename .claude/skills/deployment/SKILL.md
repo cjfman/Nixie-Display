@@ -75,6 +75,19 @@ channel (`apt-get` runs maintainer scripts as root / `install ./local.deb`;
 `usermod` can add to the `sudo` group; `systemctl` can run/override arbitrary
 units). So a deployment script can't install packages, add groups, or manage
 system services unattended — those stay terminal-only via this script.
+
+**The whitelisted helper paths are the root-owned copies in `/usr/local/sbin/`,
+NOT the in-repo `scripts/*.sh`.** `--nopasswd` first `install`s
+`usb_gadget_root.sh` + `wifi_ap_root.sh` to `/usr/local/sbin/` (root:root, 0755)
+and points the drop-in there. This is the security crux: the in-repo scripts are
+rewritten by `git pull` every boot and are writable by `nixie` (the user the
+SSH/AP access hands out), so NOPASSWD on the repo path would mean a branch push —
+or any `nixie` shell — could silently change what runs as root. The installed
+copies can only be replaced by re-running this script (which needs real root).
+The Python controller (`wifi_ap_controller._helper_path`) and `10-usb-gadget.sh`
+prefer `/usr/local/sbin/` and fall back to the repo copy only off-Pi (where there
+is no NOPASSWD anyway). **Updating a helper = re-run `--nopasswd`**, not just
+deploy.
 **Restarting PulseAudio does NOT need any of this:** PA runs as a *per-user*
 service, so `systemctl --user restart pulseaudio` works as `nixie` with no sudo,
 given `XDG_RUNTIME_DIR` + linger (both already set up). Only if PA is in

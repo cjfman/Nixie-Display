@@ -9,8 +9,9 @@
 #   sudo scripts/wifi_ap_root.sh down
 #   scripts/wifi_ap_root.sh status        # no root needed
 #
-# The run-once channel + the WiFiAPController menu item call this via `sudo -n`
-# (whitelisted by `scripts/setup_audio_perms.sh --nopasswd`).
+# The run-once channel + the WiFiAPController menu item call this via `sudo -n`,
+# but only the root-owned copy that `setup_audio_perms.sh --nopasswd` installs to
+# /usr/local/sbin/ is NOPASSWD-whitelisted (this in-repo copy is not).
 #
 # Services are start/stop-ped, never `enable`d, so the AP is OFF after a reboot
 # but persists across a run_display restart (see the deployment skill).

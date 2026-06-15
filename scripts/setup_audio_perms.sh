@@ -249,9 +249,19 @@ quiet_other_pulse
 ## maintainer scripts as root), group changes (usermod), or unit control
 ## (systemctl) is effectively root -- keep those terminal-only, here.
 if [[ $NOPASSWD -eq 1 ]]; then
-    USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
-    GADGET="$USER_HOME/Nixie-Display/scripts/usb_gadget_root.sh"
-    WIFI_AP="$USER_HOME/Nixie-Display/scripts/wifi_ap_root.sh"
+    SBIN=/usr/local/sbin
+    GADGET="$SBIN/usb_gadget_root.sh"
+    WIFI_AP="$SBIN/wifi_ap_root.sh"
+    ## Install the root helpers OUTSIDE the git tree, root-owned and NOT writable
+    ## by $USER_NAME. NOPASSWD points only at these copies, so a `git pull` (which
+    ## rewrites the in-repo scripts on every boot) -- or anyone who gets a shell as
+    ## $USER_NAME via the very SSH/AP access these enable -- can't silently change
+    ## what runs as root. Updating the helpers = re-run this script.
+    echo "Installing root helpers to $SBIN (root-owned, outside the repo):"
+    $SUDO install -o root -g root -m 0755 "$REPO/scripts/usb_gadget_root.sh" "$GADGET"
+    $SUDO install -o root -g root -m 0755 "$REPO/scripts/wifi_ap_root.sh" "$WIFI_AP"
+    echo "  $GADGET"
+    echo "  $WIFI_AP"
     echo "Installing NOPASSWD sudoers drop-in for $USER_NAME (loginctl + usb gadget + wifi ap)"
     DROPIN=/etc/sudoers.d/nixie-deploy
     printf '%s ALL=(ALL) NOPASSWD: /usr/bin/loginctl, %s, %s\n' \

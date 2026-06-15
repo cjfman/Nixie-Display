@@ -8,11 +8,22 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 _REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_HELPER = os.path.join(_REPO_DIR, 'scripts', 'wifi_ap_root.sh')
+## The root-owned copy installed outside the git tree (by setup_audio_perms.sh)
+## is what NOPASSWD whitelists; the in-repo copy is the dev/uninstalled fallback.
+_INSTALLED_HELPER = '/usr/local/sbin/wifi_ap_root.sh'
+_REPO_HELPER = os.path.join(_REPO_DIR, 'scripts', 'wifi_ap_root.sh')
 _CONF_FILE = os.path.expanduser('~/.nixie/wifi_ap.conf')
 
 DEFAULT_AP_SSID = 'nixie-control'
 DEFAULT_AP_PASSWORD = 'neon-tube-backdoor-64'
+
+
+def _helper_path():
+    """Prefer the root-owned installed helper (the one NOPASSWD allows); fall
+    back to the in-repo copy on dev machines where it isn't installed."""
+    if os.path.exists(_INSTALLED_HELPER):
+        return _INSTALLED_HELPER
+    return _REPO_HELPER
 
 
 class WiFiAPConfig:
@@ -54,7 +65,7 @@ class WiFiAPController:
         self.iface = iface
 
     def _run(self, *args) -> Optional[subprocess.CompletedProcess]:
-        cmd = ['sudo', '-n', _HELPER] + list(args)
+        cmd = ['sudo', '-n', _helper_path()] + list(args)
         try:
             return subprocess.run(cmd, capture_output=True, timeout=30, check=False)
         except (OSError, subprocess.SubprocessError) as e:

@@ -9,11 +9,13 @@
 #
 # stdout/stderr are already redirected into ~/logs/runonce.log by raspi_run.
 
-NIXIE_DIR="$HOME/Nixie-Display"
-GADGET="$NIXIE_DIR/scripts/usb_gadget_root.sh"
+# The root-owned copy installed outside the git tree (by setup_audio_perms.sh
+# --nopasswd) is the one NOPASSWD allows; the in-repo script is not whitelisted.
+GADGET="/usr/local/sbin/usb_gadget_root.sh"
 
 if [[ ! -x "$GADGET" ]]; then
-    echo "usb-gadget: helper not found or not executable: $GADGET"
+    echo "usb-gadget: helper not installed at $GADGET"
+    echo "usb-gadget: run 'bash scripts/setup_audio_perms.sh --nopasswd' on the Pi first."
     exit 0
 fi
 

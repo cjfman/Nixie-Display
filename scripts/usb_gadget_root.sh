@@ -7,7 +7,9 @@
 # Requires root because it edits the boot partition. Run it by hand over SSH:
 #   sudo scripts/usb_gadget_root.sh
 # It is idempotent -- re-running it only fills in whatever is missing. The
-# deployment_scripts/ run-once channel invokes this same script via `sudo -n`.
+# deployment_scripts/ run-once channel invokes this via `sudo -n`, but only the
+# root-owned copy that setup_audio_perms.sh --nopasswd installs to
+# /usr/local/sbin/ is NOPASSWD-whitelisted (this in-repo copy is not).
 #
 # A REBOOT is required after the first run for the kernel module to load.
 #
