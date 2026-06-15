@@ -196,6 +196,10 @@ class DelayedCommandItem(SubcommandItem):
         cmd = f"sleep {delay} && " + cmd
         super().__init__(name, cmd, **kwargs, shell=True, blocking=False)
 
+    def activate(self):
+        logger.warning("Delayed command '%s' issued: %s", self.name, self.cmd)
+        super().activate()
+
 
 class ListItem(MenuItem):
     """A menu item that displays a list of strings"""

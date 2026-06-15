@@ -428,6 +428,7 @@ class ShutdownItem(DelayedCommandItem):
 
 class ExitItem(MenuItem):
     def activate(self):
+        logger.info("Exit selected; stopping program")
         raise KeyboardInterrupt()
 
 
@@ -437,6 +438,7 @@ class SleepItem(MenuItem):
         self.controller = controller
 
     def activate(self):
+        logger.info("Display sleep")
         self.controller.disable()
 
     def key_char(self, c):
@@ -448,6 +450,7 @@ class SleepItem(MenuItem):
         self.set_done()
 
     def set_done(self):
+        logger.info("Display wake")
         self.controller.enable()
         super().set_done()
 
