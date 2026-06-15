@@ -138,20 +138,24 @@ class TapRevolutionConfig:
         return int(self.settings['results_secs'])
 
     def resolve_audio(self, audio_field, trl_path) -> str:
-        """Resolve an audio field from a .trl header to an absolute path.
+        """Resolve an audio field from a .trl header to a filesystem path.
 
-        If audio_field contains '/', treat it as a path (absolute, or relative to the
-        .trl file's directory). Otherwise look it up in audio_dir; fall back to the
-        .trl file's directory if audio_dir is unset.
+        Absolute paths (and ``~``) are returned as-is. A bare filename (no '/') is
+        looked up in audio_dir, falling back to the .trl file's directory. A relative
+        path *with* a '/' is ambiguous — it may be written relative to the .trl file
+        or relative to the working directory (repo root) — so each candidate is tried
+        and the first that exists wins; if none exist, the .trl-relative form is
+        returned so the caller's not-found logging has a sensible path to report.
         """
-        if '/' in audio_field:
-            if os.path.isabs(audio_field):
-                return audio_field
-            return os.path.join(os.path.dirname(trl_path), audio_field)
-        audio_dir = str(self.settings.get('audio_dir', '') or '')
-        if audio_dir:
-            return os.path.join(os.path.expanduser(audio_dir), audio_field)
-        return os.path.join(os.path.dirname(trl_path), audio_field)
+        audio_field = os.path.expanduser(audio_field)
+        if os.path.isabs(audio_field):
+            return audio_field
+        trl_dir = os.path.dirname(trl_path)
+        if '/' not in audio_field:
+            audio_dir = os.path.expanduser(str(self.settings.get('audio_dir', '') or ''))
+            return os.path.join(audio_dir or trl_dir, audio_field)
+        candidates = [os.path.join(trl_dir, audio_field), os.path.abspath(audio_field)]
+        return next((c for c in candidates if os.path.exists(c)), candidates[0])
 
     def animation_kwargs(self, window_scale=1.0) -> Dict[str, Any]:
         """Keyword args for ``TapRevolutionAnimation`` from the active settings.

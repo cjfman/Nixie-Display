@@ -16,6 +16,7 @@ import dataclasses
 import logging
 import os
 import platform
+import shutil
 import subprocess
 import threading
 import time
@@ -82,7 +83,13 @@ class TapAudioPlayer:
 
     def start(self, path):
         self.stop()
+        if not os.path.exists(path):
+            logger.warning("Audio file not found: %s", path)
+            return
         cmd = self._make_cmd(path)
+        if cmd is None:
+            logger.warning("No installed audio player can play: %s", path)
+            return
         try:
             self._proc = subprocess.Popen(
                 cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -91,20 +98,53 @@ class TapAudioPlayer:
             logger.warning("Audio player not found for: %s", path)
 
     def stop(self):
-        if self._proc is not None:
+        ## Always wait() after terminating so the child is reaped — otherwise each
+        ## play/calibration leaves a zombie. wait() also reaps a process that already
+        ## exited on its own; fall back to kill() if terminate doesn't take.
+        proc = self._proc
+        self._proc = None
+        if proc is None:
+            return
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+        try:
+            proc.wait(timeout=1.0)
+        except subprocess.TimeoutExpired:
+            proc.kill()
             try:
-                self._proc.terminate()
+                proc.wait(timeout=1.0)
             except Exception:
                 pass
-            self._proc = None
+        except Exception:
+            pass
 
     @staticmethod
-    def _make_cmd(path) -> List[str]:
+    def _make_cmd(path) -> Optional[List[str]]:
+        """First installed player that can handle ``path``'s format, else None.
+
+        afplay (macOS) and paplay (Pi/PulseAudio) only play uncompressed/limited
+        formats — notably *not* Ogg — so ffplay (ffmpeg), which plays virtually
+        anything, is preferred for compressed formats and used as a cross-platform
+        fallback. On the Pi, Ogg therefore needs ffmpeg installed (or convert the
+        track to wav/mp3).
+        """
+        ext = os.path.splitext(path)[1].lower()
+        ffplay = ['ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet', path]
+        candidates: List[List[str]] = []
         if platform.system() == 'Darwin':
-            return ['afplay', path]
-        if path.lower().endswith('.mp3'):
-            return ['mpg123', '-q', path]
-        return ['paplay', path]
+            if ext in ('.wav', '.mp3', '.m4a', '.aac', '.aif', '.aiff', '.caf'):
+                candidates.append(['afplay', path])
+            candidates.append(ffplay)
+        else:
+            if ext == '.mp3':
+                candidates.append(['mpg123', '-q', path])
+            elif ext == '.wav':
+                candidates.append(['paplay', path])
+            candidates.append(ffplay)
+            candidates.append(['paplay', path])  ## last-ditch for PCM-ish files
+        return next((c for c in candidates if shutil.which(c[0])), None)
 
 
 def parse_lane(name) -> str:
@@ -285,11 +325,17 @@ class TapRevolutionAnimation(Animation):
     def reset(self):
         """(Re)anchor the timeline and clear all play state — replayable."""
         with self.lock:
-            if self._audio_path:
-                self._audio.start(self._audio_path)
-                self.start_time = time.time() + self.audio_offset_secs
-            else:
-                self.start_time = time.time()
+            self._audio.stop()  ## kill any prior playback when replaying
+            self.start_time = time.time()
+            ## Music file time 0 must be *heard* exactly when the first note reaches
+            ## the hit line (start_time + lead_in). Audio arrives audio_offset_secs
+            ## late (BT pipeline), so it has to start that much earlier. We start it
+            ## lazily from updateFrameSet once this wall-clock instant arrives, NOT
+            ## here at start_time — starting it now would put the music ahead of the
+            ## arrows by the whole lead_in.
+            self._audio_start_at = (self.start_time + self.lead_in - self.audio_offset_secs
+                                    if self._audio_path else None)
+            self._audio_started = False
             self.note_states = [_NoteState(n.time + self.lead_in, n.lane) for n in self.level.notes]
             self.score = 0
             self.combo = 0
@@ -380,6 +426,7 @@ class TapRevolutionAnimation(Animation):
         """Auto-miss stale notes, re-render, and report whether the frame changed."""
         now = time.time()
         with self.lock:
+            self._maybe_start_audio(now)
             self._auto_miss(now - self.start_time)
             code = self._render(now)
             if code == self._last_code:
@@ -387,6 +434,18 @@ class TapRevolutionAnimation(Animation):
             self._last_code = code
 
         return True
+
+    def _maybe_start_audio(self, now):
+        """Start music once the lead-in (minus BT offset) has elapsed; see reset().
+
+        Caller holds self.lock. If audio_offset_secs exceeds lead_in, _audio_start_at
+        lands before start_time and the music starts on the first frame.
+        """
+        if self._audio_started or self._audio_start_at is None:
+            return
+        if now >= self._audio_start_at:
+            self._audio.start(self._audio_path)
+            self._audio_started = True
 
     def _auto_miss(self, elapsed):
         """Mark notes whose hit window (plus grace) has fully passed as missed."""
