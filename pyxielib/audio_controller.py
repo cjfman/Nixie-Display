@@ -5,6 +5,7 @@ import math
 import os
 import re
 import subprocess
+import tempfile
 import threading
 import time
 import wave
@@ -12,8 +13,6 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
-
-_SOUNDS_BASE = '/usr/share/sounds/freedesktop/stereo'
 
 
 def _generate_beep_wav(freq=1000, duration=1.0, sample_rate=44100) -> bytes:
@@ -259,28 +258,33 @@ class AudioController:
         self._test_thread.start()
 
     def _test_worker(self, sound_name) -> None:
-        path = os.path.join(_SOUNDS_BASE, sound_name + '.oga')
+        ## Synthesize a clean WAV tone and play it via paplay -- through
+        ## PulseAudio, so it follows the selected default sink (incl. a Bluetooth
+        ## speaker). The old path paplay'd a freedesktop .oga (Ogg, which
+        ## paplay/libsndfile may not decode here -> compressed bytes played as PCM
+        ## = white noise) and fell back to `aplay`, which talks straight to ALSA
+        ## and so can never reach a bluez sink. A real WAV file (not a pipe) keeps
+        ## paplay happy without needing any codec.
+        tmp_path = None
         try:
-            if os.path.isfile(path):
-                self._test_proc = subprocess.Popen(
-                    ['paplay', path],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                )
-            else:
-                logger.info("Sound file not found: %s; generating 1 kHz beep", path)
-                self._test_proc = subprocess.Popen(
-                    ['aplay', '-q', '-'],
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                )
-                self._test_proc.stdin.write(_generate_beep_wav())
-                self._test_proc.stdin.close()
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+                tmp.write(_generate_beep_wav())
+                tmp_path = tmp.name
+            self._test_proc = subprocess.Popen(
+                ['paplay', tmp_path],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
             self._test_proc.wait()
             self._test_result = True
         except Exception:
             self._test_result = False
         finally:
             self._test_proc = None
+            if tmp_path is not None:
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
 
     def poll_test(self) -> Optional[bool]:
         if self._test_thread is None:
