@@ -1136,13 +1136,12 @@ class TapRevolutionCalibrationItem(MenuItem):
     def _tap(self):
         if self.state != 'playing':
             return
-        ## Reject taps that land in the lead-in before measurement beats begin.
-        ## The WAV has clicks for the lead-in too; tapping on those would be
-        ## assigned to measurement beats with large negative errors.
-        elapsed = time.time() - self._play_start
-        if self._beat_times and elapsed < self._beat_times[0]:
-            return
         when = self.watcher.last_pop_time if self.watcher is not None else time.time()
+        ## Reject taps that land in the lead-in before measurement beats begin.
+        ## Use the kernel event timestamp (same as error calc) so poll latency
+        ## can't let a lead-in tap slip through with a negative error.
+        if self._beat_times and when - self._play_start < self._beat_times[0]:
+            return
         ## Find the nearest un-tapped measurement beat.
         best_i, best_abs = None, float('inf')
         for i, t in enumerate(self._beat_times):
