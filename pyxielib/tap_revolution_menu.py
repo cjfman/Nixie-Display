@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 _CALIB_BPM        = 60
 _CALIB_BEATS      = 6    ## measurement beats (taps are recorded for these)
-_CALIB_LEAD_IN    = 2    ## extra beats at the start before measurement begins
+_CALIB_LEAD_IN    = 3    ## extra beats at the start before measurement begins
 _CALIB_CLICK_FREQ = 880
 _CALIB_CLICK_DUR  = 0.05 ## seconds per click burst
 
@@ -987,7 +987,7 @@ class TapRevolutionCalibrationItem(MenuItem):
         last_t   = self._beat_times[-1] if self._beat_times else 0.0
         if elapsed < first_t:
             countdown = max(1, math.ceil((first_t - elapsed) / self._beat_secs))
-            return f"TAP ON BEAT {countdown}"
+            return f"{countdown} - Tap to beat"
         beat_in_measure = sum(1 for t in self._beat_times if t <= elapsed)
         if beat_in_measure <= self._n_beats and elapsed <= last_t + self._beat_secs:
             return f"BEAT {beat_in_measure}/{self._n_beats}"
@@ -1046,6 +1046,12 @@ class TapRevolutionCalibrationItem(MenuItem):
 
     def _tap(self):
         if self.state != 'playing':
+            return
+        ## Reject taps that land in the lead-in before measurement beats begin.
+        ## The WAV has clicks for the lead-in too; tapping on those would be
+        ## assigned to measurement beats with large negative errors.
+        elapsed = time.time() - self._play_start
+        if self._beat_times and elapsed < self._beat_times[0]:
             return
         when = self.watcher.last_pop_time if self.watcher is not None else time.time()
         ## Find the nearest un-tapped measurement beat.
