@@ -125,8 +125,8 @@ class Leaderboard:
         """Record a score, keeping the level's leaders sorted and capped at top_n.
 
         ``results`` is the game's judgement tally (e.g. ``{'BEST': 5, 'OK': 1, ...}``);
-        its counts are stored alongside the entry (``SCORE`` is dropped as redundant
-        with ``score``). Nothing reads them back yet.
+        its counts are stored alongside the entry with lowercased keys (``SCORE`` is
+        dropped as redundant with ``score``). Nothing reads them back yet.
         """
         record = self._find(level_file)
         if record is None:
@@ -136,7 +136,7 @@ class Leaderboard:
             record['name'] = level_name
         entry = {'name': player_name, 'score': int(score)}
         if results:
-            entry['results'] = {k: int(v) for k, v in results.items() if k != 'SCORE'}
+            entry['results'] = {k.lower(): int(v) for k, v in results.items() if k.upper() != 'SCORE'}
         leaders = record.setdefault('leaders', [])
         leaders.append(entry)
         record['leaders'] = self._sorted_leaders(leaders)[:self.top_n]
