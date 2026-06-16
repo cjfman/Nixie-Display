@@ -282,7 +282,8 @@ class CycleItem(MenuItem):
     @property
     def display_name(self) -> str:
         """Parent-menu label: the item name plus its current value (live)."""
-        return f"{self.name} {self._current_label()}"
+        txt = f"{self.name} {self._current_label()}"
+        return txt if len(txt) <= self._size else self.name
 
     @display_name.setter
     def display_name(self, value):

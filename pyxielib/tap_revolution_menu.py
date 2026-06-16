@@ -232,9 +232,9 @@ class TapRevolutionMenu(Menu):
             TapRevolutionLevelsItem(config, levels_path, watcher=watcher, size=size,
                                     leaderboard=leaderboard),
             difficulty_item,
+            LeaderBoardMenu(leaderboard, size=size),
             TapRevolutionSettingsItem(config),
             TapRevolutionCalibrationItem(config, watcher=watcher),
-            LeaderBoardMenu(leaderboard, size=size),
             ResetSettingsItem(config),
             ResetScoresItem(leaderboard),
         ], **kwargs)
