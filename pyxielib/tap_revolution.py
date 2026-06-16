@@ -125,11 +125,10 @@ class TapAudioPlayer:
     def _make_cmd(path) -> Optional[List[str]]:
         """First installed player that can handle ``path``'s format, else None.
 
-        afplay (macOS) and paplay (Pi/PulseAudio) only play uncompressed/limited
-        formats — notably *not* Ogg — so ffplay (ffmpeg), which plays virtually
-        anything, is preferred for compressed formats and used as a cross-platform
-        fallback. On the Pi, Ogg therefore needs ffmpeg installed (or convert the
-        track to wav/mp3).
+        ffplay is preferred on Linux for all formats so every game track goes
+        through the same pipeline (ffplay → PulseAudio → BT sink) regardless of
+        format.  A uniform pipeline means one calibration offset applies to all
+        tracks.  Format-specific tools (mpg123, paplay) are fallbacks only.
         """
         ext = os.path.splitext(path)[1].lower()
         ffplay = ['ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet', path]
@@ -139,12 +138,10 @@ class TapAudioPlayer:
                 candidates.append(['afplay', path])
             candidates.append(ffplay)
         else:
+            candidates.append(ffplay)
             if ext == '.mp3':
                 candidates.append(['mpg123', '-q', path])
-            elif ext == '.wav':
-                candidates.append(['paplay', path])
-            candidates.append(ffplay)
-            candidates.append(['paplay', path])  ## last-ditch for PCM-ish files
+            candidates.append(['paplay', path])
         return next((c for c in candidates if shutil.which(c[0])), None)
 
 

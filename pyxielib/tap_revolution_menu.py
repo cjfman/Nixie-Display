@@ -1169,10 +1169,8 @@ class TapRevolutionCalibrationItem(MenuItem):
             except Exception as e:
                 logger.error("Failed to load calibration track '%s': %s", cal_path, e)
         ## Fallback: generated click WAV with warmup silence + lead-in beats.
-        ## Use .pcm suffix so _make_cmd() skips paplay and routes through ffplay,
-        ## matching the OGG game-audio pipeline (both: ffplay → PulseAudio → BT).
         wav = _make_click_wav()
-        tmp = tempfile.NamedTemporaryFile(suffix='.pcm', delete=False)
+        tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
         tmp.write(wav)
         tmp.flush()
         self._tmp_file = tmp
