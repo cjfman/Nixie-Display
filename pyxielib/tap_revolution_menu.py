@@ -360,13 +360,13 @@ class TapRevolutionLevelsItem(ListItem):
                 return self._browse_display()
             return self.results
         if self.animation is not None:
-            if self._quit_confirm:
-                if self.animation.done():
-                    self._quit_confirm = False
-                    return self._complete()
-                return "QUIT Y/N"
             if self.animation.done():
+                self._quit_confirm = False
                 return self._complete()
+            ## The quit prompt no longer pauses play: it's overlaid on the *same*
+            ## running animation (taps swallowed as misses, see _play_key), so the
+            ## timeline never resets and the song stays in place.
+            self.animation.set_prompt("QUIT Y/N" if self._quit_confirm else None)
             return self.animation
 
         return self._browse_display()
@@ -465,9 +465,16 @@ class TapRevolutionLevelsItem(ListItem):
             return None
 
     def _play_key(self, token):
-        """Route a key press to the lane it's bound to (no-op if unbound)."""
-        if not self._playing() or self._quit_confirm or self._hs_active:
+        """Route a key press to the lane it's bound to (no-op if unbound).
+
+        While the quit prompt is pending the game keeps running, but taps are
+        swallowed (consumed without scoring, so the note auto-misses) rather than
+        passed through to menu navigation.
+        """
+        if self._hs_active or not self._playing():
             return False
+        if self._quit_confirm:
+            return True
         lane = self.key_lane.get(token)
         if lane is None:
             return False

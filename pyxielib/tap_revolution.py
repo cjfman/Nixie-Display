@@ -318,15 +318,28 @@ class TapRevolutionAnimation(Animation):
         self.audio_offset_secs = audio_offset_secs
         self._audio = TapAudioPlayer()
         self.lock = threading.Lock()
+        self.prompt: Optional[str] = None  ## overlay text (e.g. "QUIT Y/N"); None = playfield
         self.reset()
 
     def stop_audio(self):
         self._audio.stop()
 
+    def set_prompt(self, text):
+        """Overlay ``text`` in place of the playfield while the game keeps running.
+
+        The timeline, audio, and auto-miss continue underneath — only the rendered
+        frame changes — so the prompt never pauses or resets the game.
+        """
+        self.prompt = text
+
+    def clear_prompt(self):
+        self.prompt = None
+
     def reset(self):
         """(Re)anchor the timeline and clear all play state — replayable."""
         with self.lock:
             self._audio.stop()  ## kill any prior playback when replaying
+            self.prompt = None
             self.start_time = time.time()
             ## Music file time 0 must be *heard* exactly when the first note reaches
             ## the hit line (start_time + lead_in). Audio arrives audio_offset_secs
@@ -467,6 +480,8 @@ class TapRevolutionAnimation(Animation):
 
     def _render(self, now) -> str:
         """Build the wire-format code: hit-zone tube + track + score."""
+        if self.prompt is not None:
+            return self.prompt[:self.size].ljust(self.size)
         cells = self._render_track(now - self.start_time)
         head = self._render_hit_zone(cells[0], now)
         return head + ''.join(cells[1:]) + self._render_score(now)
