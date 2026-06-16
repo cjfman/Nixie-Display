@@ -398,7 +398,7 @@ class TapRevolutionLevelsItem(ListItem):
         elapsed = time.time() - self._hs_flash_start
         if elapsed < _HS_FLASH_TOTAL:
             return "high score" if int(elapsed / _HS_FLASH_HALF) % 2 == 0 else ""
-        field = f"{self._cur_rank},{self._hs_name},"
+        field = f"{self._cur_rank},name,{self._hs_name}"
         if time.time() % 0.5 < _CURSOR_ON_SECS:
             return field + ' !'
         return field
