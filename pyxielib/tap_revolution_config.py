@@ -57,6 +57,7 @@ CODE_DEFAULTS: Dict[str, Any] = {
     'audio_dir':         '',
     'audio_offset_ms':   0,
     'calibration_track': '',
+    'leaderboard_path':  '~/.nixie/leaderboard.yaml',
 }
 
 
@@ -139,6 +140,10 @@ class TapRevolutionConfig:
 
     def results_secs(self) -> int:
         return int(self.settings['results_secs'])
+
+    def leaderboard_path(self) -> str:
+        """Filesystem path of the high-score leaderboard YAML."""
+        return os.path.expanduser(str(self.settings.get('leaderboard_path', '~/.nixie/leaderboard.yaml')))
 
     def resolve_audio(self, audio_field, trl_path) -> str:
         """Resolve an audio field from a .trl header to a filesystem path.

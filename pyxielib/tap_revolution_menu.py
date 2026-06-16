@@ -25,6 +25,7 @@ from pyxielib import tap_revolution as taplib
 from pyxielib.animation import Animation, MarqueeAnimation
 from pyxielib.navigator import CycleItem, ListItem, Menu, MenuItem
 from pyxielib.tap_revolution_config import TapRevolutionConfig
+from pyxielib.tap_revolution_leaderboard import Leaderboard
 from pyxielib.tube_manager import cmdLen
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,13 @@ _CURSOR_ON_SECS = 0.25
 _DIR_BLINK_ON_SECS = 0.3
 ## Duration to show validation-failure flash messages.
 _SETTINGS_FLASH_SECS = 1.0
+## High-score 'high score' banner: half a second per on/off phase, three flashes.
+_HS_FLASH_HALF  = 0.5
+_HS_FLASH_TOTAL = _HS_FLASH_HALF * 6
+## Longest player name accepted in the high-score entry field.
+_HS_NAME_MAX = 8
+## Seconds to count down before a leaderboard reset commits.
+_RESET_COUNTDOWN = 3
 
 _ARROW_NAMES = {'left', 'right', 'up', 'down'}
 
@@ -208,6 +216,7 @@ class TapRevolutionMenu(Menu):
     """
     def __init__(self, config, levels_path, *, watcher=None, size=16, **kwargs):
         self.config = config
+        leaderboard = Leaderboard(config.leaderboard_path())
         options_fn = lambda: [
             (d['name'], d.get('display_name', d['name']))
             for d in config.settings.get('difficulties', [])
@@ -220,11 +229,14 @@ class TapRevolutionMenu(Menu):
             size=size,
         )
         super().__init__("Tap Revolution", [
-            TapRevolutionLevelsItem(config, levels_path, watcher=watcher, size=size),
+            TapRevolutionLevelsItem(config, levels_path, watcher=watcher, size=size,
+                                    leaderboard=leaderboard),
             difficulty_item,
             TapRevolutionSettingsItem(config),
             TapRevolutionCalibrationItem(config, watcher=watcher),
+            LeaderBoardMenu(leaderboard, size=size),
             ResetSettingsItem(config),
+            ResetScoresItem(leaderboard),
         ], **kwargs)
 
     def activate(self):
@@ -247,12 +259,13 @@ class TapRevolutionLevelsItem(ListItem):
     suspended. When the chart finishes (or the player backs out early) a results
     marquee plays before returning to the level list.
     """
-    def __init__(self, config, levels_path, *, watcher=None, size=16, **kwargs):
+    def __init__(self, config, levels_path, *, watcher=None, size=16, leaderboard=None, **kwargs):
         super().__init__("Play", **kwargs)
         self.config      = config
         self.levels_path = levels_path
         self.watcher     = watcher
         self.size        = size
+        self.leaderboard = leaderboard
         self.cur_path    = levels_path
         self.dir_stack   = []
         self.subdirs     = {}
@@ -261,6 +274,15 @@ class TapRevolutionLevelsItem(ListItem):
         self.results       = None
         self.key_lane      = {}
         self._quit_confirm = False
+        self._reset_hiscore()
+
+    def _reset_hiscore(self):
+        self._cur_level_name = ''
+        self._cur_level_file = ''
+        self._hs_active      = False
+        self._hs_done        = False
+        self._hs_flash_start = 0.0
+        self._hs_name        = ''
 
     def activate(self):
         self.cur_path  = self.levels_path
@@ -321,6 +343,7 @@ class TapRevolutionLevelsItem(ListItem):
         self.results       = None
         self.key_lane      = {}
         self._quit_confirm = False
+        self._reset_hiscore()
 
     def _playing(self) -> bool:
         return self.animation is not None and self.results is None
@@ -333,19 +356,54 @@ class TapRevolutionLevelsItem(ListItem):
             if self.results.done():
                 self.animation = None
                 self.results = None
+                self._reset_hiscore()
                 return self._browse_display()
             return self.results
         if self.animation is not None:
             if self._quit_confirm:
                 if self.animation.done():
                     self._quit_confirm = False
-                    return self._finish()
+                    return self._complete()
                 return "QUIT Y/N"
             if self.animation.done():
-                return self._finish()
+                return self._complete()
             return self.animation
 
         return self._browse_display()
+
+    def _complete(self):
+        """On game end: run high-score entry if the score qualifies, else results."""
+        if not self._hs_active and not self._hs_done:
+            score = self.animation.results().get('SCORE', 0)
+            if self.leaderboard is not None and self.leaderboard.qualifies(self._cur_level_file, score):
+                self._hs_active      = True
+                self._hs_flash_start = time.time()
+                self._hs_name        = ''
+            else:
+                self._hs_done = True
+        if self._hs_active:
+            return self._hs_display()
+        return self._finish()
+
+    def _hs_in_flash(self) -> bool:
+        return time.time() - self._hs_flash_start < _HS_FLASH_TOTAL
+
+    def _hs_display(self) -> str:
+        """Flash 'high score' three times, then show the blinking name-entry field."""
+        elapsed = time.time() - self._hs_flash_start
+        if elapsed < _HS_FLASH_TOTAL:
+            return "high score" if int(elapsed / _HS_FLASH_HALF) % 2 == 0 else ""
+        field = f"Name|{self._hs_name}"
+        if time.time() % 0.5 < _CURSOR_ON_SECS:
+            return field + ' !'
+        return field
+
+    def _hs_commit(self, name):
+        """Record the score under ``name`` and fall through to the results scroll."""
+        score = self.animation.results().get('SCORE', 0)
+        self.leaderboard.add(self._cur_level_file, self._cur_level_name, name, score)
+        self._hs_active = False
+        self._hs_done   = True
 
     def _browse_display(self) -> str:
         """The current list entry; directories get a blinking '>' on the next tube."""
@@ -407,7 +465,7 @@ class TapRevolutionLevelsItem(ListItem):
 
     def _play_key(self, token):
         """Route a key press to the lane it's bound to (no-op if unbound)."""
-        if not self._playing() or self._quit_confirm:
+        if not self._playing() or self._quit_confirm or self._hs_active:
             return False
         lane = self.key_lane.get(token)
         if lane is None:
@@ -416,7 +474,15 @@ class TapRevolutionLevelsItem(ListItem):
         self.animation.tap(lane, when)
         return True
 
+    def _hs_key_char(self, c):
+        if not self._hs_in_flash() and len(self._hs_name) < _HS_NAME_MAX:
+            self._hs_name += c
+
     def key_enter(self):
+        if self._hs_active:
+            if not self._hs_in_flash() and len(self._hs_name) >= 1:
+                self._hs_commit(self._hs_name)
+            return
         if self.animation is not None or self.results is not None:
             return
         name = self.current_value()
@@ -432,6 +498,9 @@ class TapRevolutionLevelsItem(ListItem):
                 level = dataclasses.replace(level, scroll_time=diff.scroll_time)
             self.key_lane = self.config.key_lane_map()
             level_path    = self.level_files.get(name, '')
+            self._reset_hiscore()
+            self._cur_level_name = level.name
+            self._cur_level_file = os.path.basename(level_path) or level.name
             resolved_audio = (
                 self.config.resolve_audio(level.audio, level_path)
                 if level.audio and level_path else None
@@ -447,10 +516,14 @@ class TapRevolutionLevelsItem(ListItem):
                 self.config.settings.get('difficulty'), resolved_audio or '(none)')
 
     def key_up(self):
+        if self._hs_active:
+            return
         if not self._play_key('UP'):
             super().key_up()
 
     def key_down(self):
+        if self._hs_active:
+            return
         if not self._play_key('DOWN'):
             super().key_down()
 
@@ -462,7 +535,9 @@ class TapRevolutionLevelsItem(ListItem):
         self._play_key('RIGHT')
 
     def key_char(self, c):
-        if self._quit_confirm:
+        if self._hs_active:
+            self._hs_key_char(c)
+        elif self._quit_confirm:
             if c.lower() == 'y':
                 logger.info("Level '%s' cancelled at score=%d",
                             self.animation.level.name, self.animation.score)
@@ -475,7 +550,10 @@ class TapRevolutionLevelsItem(ListItem):
             self._play_key(c)
 
     def key_esc(self):
-        if self._quit_confirm:
+        if self._hs_active:
+            if not self._hs_in_flash():
+                self._hs_commit('')
+        elif self._quit_confirm:
             self._quit_confirm = False
         elif self._playing():
             self._quit_confirm = True
@@ -486,7 +564,10 @@ class TapRevolutionLevelsItem(ListItem):
             self._go_back()
 
     def key_backspace(self):
-        if self._quit_confirm:
+        if self._hs_active:
+            if not self._hs_in_flash() and self._hs_name:
+                self._hs_name = self._hs_name[:-1]
+        elif self._quit_confirm:
             self._quit_confirm = False
         else:
             self.key_esc()
@@ -1147,4 +1228,137 @@ class ResetSettingsItem(MenuItem):
 
     def key_enter(self):
         if self._flash_until:
+            self.set_done()
+
+
+class LeaderBoardItem(ListItem):
+    """Shows the top scores for one board (``file=None`` ⇒ all-time), one per line.
+
+    Each line is ``"<rank>.<score> <name>"`` (score right-aligned in 4 columns, or
+    shown in full when it exceeds 9999) truncated to the display width — never
+    marquee'd. Up/Down scroll through the top ten.
+    """
+    def __init__(self, name, leaderboard, *, file=None, size=16, **kwargs):
+        super().__init__(name, **kwargs)
+        self.leaderboard = leaderboard
+        self.file        = file
+        self.size        = size
+
+    def activate(self):
+        rows = self.leaderboard.all_time() if self.file is None else self.leaderboard.top(self.file)
+        self.idx = 0
+        self.set_values([self._format(rank, score, name)
+                         for rank, (name, score) in enumerate(rows, 1)] or ["No Scores"])
+
+    def _format(self, rank, score, name) -> str:
+        scorefield = f"{score:>4}" if score <= 9999 else str(score)
+        return f"{rank}.{scorefield} {name}"[:self.size]
+
+
+class LeaderBoardMenu(Menu):
+    """High-score boards: an 'All Time' entry plus one per level with scores.
+
+    Display name "High Scores". The child list is rebuilt on every ``activate`` so
+    newly-scored levels appear without restarting.
+    """
+    def __init__(self, leaderboard, *, size=16, **kwargs):
+        super().__init__("High Scores", [], **kwargs)
+        self.leaderboard = leaderboard
+        self.size        = size
+
+    def activate(self):
+        items = [LeaderBoardItem("All Time", self.leaderboard, size=self.size)]
+        items += [LeaderBoardItem(name, self.leaderboard, file=file, size=self.size)
+                  for name, file in self.leaderboard.levels()]
+        self.items = items
+        self.idx   = 0
+
+
+class ResetScoresItem(MenuItem):
+    """Wipe the leaderboard behind a typed 'yes' confirmation and a 3s countdown.
+
+    State machine: confirm (type YES) → countdown (any key cancels) → flash. A wrong
+    word, ESC, or a cancelled countdown flashes 'canceled' and returns to the menu;
+    completing the countdown backs up the file (dated) and writes a blank board.
+    """
+    def __init__(self, leaderboard, **kwargs):
+        super().__init__("Reset Scores", **kwargs)
+        self.leaderboard = leaderboard
+        self._reset_state()
+
+    def _reset_state(self):
+        self.state        = 'confirm'
+        self._buffer      = ''
+        self._count_start = 0.0
+        self._flash_msg   = ''
+        self._flash_until = 0.0
+
+    def activate(self):
+        self._reset_state()
+
+    def reset(self):
+        super().reset()
+        self._reset_state()
+
+    def for_display(self) -> str:
+        if self.state == 'flash':
+            if time.time() >= self._flash_until:
+                self.set_done()
+            return self._flash_msg
+        if self.state == 'countdown':
+            if time.time() - self._count_start >= _RESET_COUNTDOWN:
+                self.leaderboard.reset()
+                logger.info("Leaderboard reset")
+                return self._flash("DELETED")
+            remaining = max(1, math.ceil(_RESET_COUNTDOWN - (time.time() - self._count_start)))
+            return f"Deleting in {remaining}"
+        field = f"TYPE YES|{self._buffer}"
+        if time.time() % 0.5 < _CURSOR_ON_SECS:
+            return field + ' !'
+        return field
+
+    def _flash(self, msg) -> str:
+        self.state        = 'flash'
+        self._flash_msg   = msg
+        self._flash_until = time.time() + _SETTINGS_FLASH_SECS
+        return msg
+
+    def key_char(self, c):
+        if self.state == 'confirm':
+            self._buffer += c
+        elif self.state == 'countdown':
+            self._flash("canceled")
+        else:
+            self.set_done()
+
+    def key_enter(self):
+        if self.state == 'confirm':
+            if self._buffer.strip().lower() == 'yes':
+                self.state        = 'countdown'
+                self._count_start = time.time()
+            else:
+                self._flash("canceled")
+        elif self.state == 'countdown':
+            self._flash("canceled")
+        else:
+            self.set_done()
+
+    def key_backspace(self):
+        if self.state == 'confirm':
+            self._buffer = self._buffer[:-1]
+        elif self.state == 'countdown':
+            self._flash("canceled")
+        else:
+            self.set_done()
+
+    def key_esc(self):
+        if self.state == 'flash':
+            self.set_done()
+        else:
+            self._flash("canceled")
+
+    def key_arrow(self, d):
+        if self.state == 'countdown':
+            self._flash("canceled")
+        elif self.state == 'flash':
             self.set_done()

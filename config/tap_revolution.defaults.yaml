@@ -75,3 +75,6 @@ hit_flash:
 audio_dir: ~/audio
 audio_offset_ms: 0
 calibration_track: ""
+
+# Path to the persistent high-score leaderboard (created on first recorded score).
+leaderboard_path: ~/.nixie/leaderboard.yaml
