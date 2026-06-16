@@ -35,6 +35,7 @@ class UserMenuProgram(Program):
         self.old_msg          = None
         self.should_exit      = False
         self.should_interrupt = False
+        self.confirming_exit  = False
         if event_path is not None:
             self.watcher = KeyWatcher(
                 self.event_path,
@@ -85,6 +86,7 @@ class UserMenuProgram(Program):
         self.old_msg          = None
         self.should_exit      = False
         self.should_interrupt = False
+        self.confirming_exit  = False
 
     def interrupt(self) -> bool:
         """Returns true if active animations and programs should be interrupted to check the user menu"""
@@ -108,6 +110,7 @@ class UserMenuProgram(Program):
         self.should_exit      = True
         self.active           = False
         self.should_interrupt = False
+        self.confirming_exit  = False
         self.watcher.reset()
         self.navigator.reset()
 
@@ -126,7 +129,21 @@ class UserMenuProgram(Program):
             except KeyboardInterrupt:
                 self.menu_exit()
                 return None
-            if key is not None:
+            if key is None:
+                pass
+            elif self.confirming_exit:
+                ## Y/N confirmation before leaving the menu
+                if key in ('y', 'Y'):
+                    self.menu_exit()
+                    return None
+                elif key in ('n', 'N', 'ESC', 'BACKSPACE', 'LEFT'):
+                    self.confirming_exit = False
+                    msg = self.navigator.for_display()
+            elif key in ('ESC', 'BACKSPACE', 'LEFT') and not self.navigator.visited:
+                ## At root — ask before exiting instead of leaving immediately
+                self.confirming_exit = True
+                msg = "Exit? Y/N"
+            else:
                 msg = self.navigator.key_entry(key)
             if self.navigator.should_exit:
                 break
@@ -134,20 +151,22 @@ class UserMenuProgram(Program):
         ## If the key watcher didn't return a key, check the
         ## menu for an update anyway
         if msg is None:
-            if self.navigator.should_exit:
+            if self.confirming_exit:
+                msg = "Exit? Y/N"
+            elif self.navigator.should_exit:
                 self.menu_exit()
                 return None
-
-            msg = self.navigator.for_display()
-
-            ## A menu item may call set_done() from for_display() (e.g. a timed
-            ## flash). Process the Navigator back-transition here so it fires on
-            ## schedule without needing a keypress.
-            if self.navigator.node.is_done():
-                if not self.navigator.back():
-                    self.menu_exit()
-                    return None
+            else:
                 msg = self.navigator.for_display()
+
+                ## A menu item may call set_done() from for_display() (e.g. a timed
+                ## flash). Process the Navigator back-transition here so it fires on
+                ## schedule without needing a keypress.
+                if self.navigator.node.is_done():
+                    if not self.navigator.back():
+                        self.menu_exit()
+                        return None
+                    msg = self.navigator.for_display()
 
         ## Return now if this is an animation
         if isinstance(msg, Animation):
