@@ -40,6 +40,7 @@ _CALIB_LEAD_IN    = 3    ## extra beats at the start before measurement begins
 _CALIB_WARMUP     = 1    ## silent beats prepended so BT codec is streaming before clicks start
 _CALIB_CLICK_FREQ = 880
 _CALIB_CLICK_DUR  = 0.05 ## seconds per click burst
+_CALIB_DEBOUNCE   = 0.2  ## minimum seconds between accepted taps; blocks hold-repeat (~33ms)
 
 
 def _make_click_wav() -> bytes:
@@ -1045,6 +1046,7 @@ class TapRevolutionCalibrationItem(MenuItem):
         self._beat_secs  = 60.0 / _CALIB_BPM
         self._n_beats    = _CALIB_BEATS
         self._errors: List[float] = []
+        self._last_tap_when: Optional[float] = None
         self._result_ms  = 0
 
     def _cleanup(self):
@@ -1146,6 +1148,8 @@ class TapRevolutionCalibrationItem(MenuItem):
         if self._beat_times and elapsed < self._beat_times[0]:
             return
         when = self.watcher.last_pop_time if self.watcher is not None else time.time()
+        if self._last_tap_when is not None and when - self._last_tap_when < _CALIB_DEBOUNCE:
+            return
         ## Assign this tap to the next unrecorded beat in sequence.  Sequential
         ## assignment (not nearest-beat) is required when BT delay ≈ beat spacing:
         ## nearest-beat would match the tap to beat N+1 instead of beat N, giving
@@ -1153,6 +1157,7 @@ class TapRevolutionCalibrationItem(MenuItem):
         tap_idx = len(self._errors)
         if tap_idx < len(self._beat_times):
             self._errors.append(when - (self._play_start + self._beat_times[tap_idx]))
+            self._last_tap_when = when
 
     def _load_calibration(self):
         """Return (audio_path, beat_times) from the calibration track or generated WAV."""
