@@ -23,6 +23,7 @@ __pycache__/
 ## Tap Revolution runtime settings (defaults/example are tracked; persistent isn't)
 config/tap_revolution.yaml
 itl_online_charts/*
+audio/*
 
 ## Run-once signing: never commit a private key. Public keys (keys/runonce/*.pem)
 ## ARE tracked; private keys live outside the repo (~/.nixie_runonce/).

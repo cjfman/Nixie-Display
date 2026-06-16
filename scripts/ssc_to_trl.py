@@ -12,7 +12,10 @@ Usage:
 """
 
 import argparse
+import glob
+import os
 import re
+import shutil
 import sys
 from typing import Dict, List, Optional, Tuple
 
@@ -29,8 +32,14 @@ def make_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Convert a StepMania SSC file to Tap Revolution .trl format."
     )
-    p.add_argument('input', help="SSC file to read")
-    p.add_argument('-o', '--output', help="Output .trl file (default: stdout)")
+    p.add_argument('input', help="SSC file to read, or a directory containing a .ssc and .ogg")
+    p.add_argument('-o', '--output',
+                   help="Output .trl file or directory (required when input is a directory; "
+                        "if a directory, filename is inferred from the track name)")
+    p.add_argument('--audio-dir',
+                   help="Directory to copy the .ogg into (required when input is a directory)")
+    p.add_argument('--overwrite', action='store_true',
+                   help="Overwrite existing output files (default: error if any file exists)")
     p.add_argument(
         '-d', '--difficulty',
         help="Chart difficulty to convert (e.g. Challenge, Hard, Medium, Easy)",
@@ -150,8 +159,14 @@ def _clean_title(title) -> str:
     return re.sub(r'^\[\d+\]\s*', '', title).strip()
 
 
+def _title_to_filename(title) -> str:
+    """Convert a track title to a snake_case .trl filename."""
+    return re.sub(r'\s+', '_', title).lower() + '.trl'
+
+
 def write_trl(global_fields: Dict[str, str], bpm_segments: List[Tuple[float, float]],
-              offset, notes: List[Tuple[float, str]], scroll_time, force_time_mode, out):
+              offset, notes: List[Tuple[float, str]], scroll_time, force_time_mode, out,
+              audio=None):
     """Write .trl content to *out* (a writable file object)."""
     title = _clean_title(global_fields.get('TITLE', 'Unknown'))
     artist = global_fields.get('ARTIST', '')
@@ -172,6 +187,9 @@ def write_trl(global_fields: Dict[str, str], bpm_segments: List[Tuple[float, flo
             out.write(f"offset: {_fmt(offset)}\n")
     else:
         out.write(f"mode: time\n")
+
+    if audio:
+        out.write(f"audio: {audio}\n")
 
     out.write('\n')
 
@@ -244,8 +262,33 @@ def load_ssc(path) -> Tuple[Dict[str, str], List[Dict[str, str]]]:
         return parse_ssc(f.read())
 
 
+def find_dir_files(dir_path) -> Tuple[str, str]:
+    """Return (ssc_path, ogg_path) from a chart directory."""
+    ssc_files = glob.glob(os.path.join(dir_path, '*.ssc'))
+    ogg_files = glob.glob(os.path.join(dir_path, '*.ogg'))
+    if not ssc_files:
+        sys.exit(f"Error: no .ssc file found in {dir_path}")
+    if len(ssc_files) > 1:
+        sys.exit(f"Error: multiple .ssc files found in {dir_path}")
+    if not ogg_files:
+        sys.exit(f"Error: no .ogg file found in {dir_path}")
+    return ssc_files[0], ogg_files[0]
+
+
 def convert(args):
-    global_fields, charts = load_ssc(args.input)
+    ssc_path = args.input
+    ogg_path = None
+    audio_filename = None
+
+    if os.path.isdir(args.input):
+        if not args.output:
+            sys.exit("Error: --output is required when input is a directory")
+        if not args.audio_dir:
+            sys.exit("Error: --audio-dir is required when input is a directory")
+        ssc_path, ogg_path = find_dir_files(args.input)
+        audio_filename = os.path.basename(ogg_path)
+
+    global_fields, charts = load_ssc(ssc_path)
 
     if args.list:
         list_charts(charts)
@@ -262,16 +305,38 @@ def convert(args):
     offset = float(global_fields.get('OFFSET', 0.0))
     notes  = parse_notes(chart.get('NOTES', ''))
 
-    if args.output:
-        out = open(args.output, 'w')
+    output_path = args.output
+    if output_path and os.path.isdir(output_path):
+        title = _clean_title(global_fields.get('TITLE', 'Unknown'))
+        output_path = os.path.join(output_path, _title_to_filename(title))
+
+    if not args.overwrite:
+        conflicts = []
+        if output_path and os.path.exists(output_path):
+            conflicts.append(output_path)
+        if ogg_path is not None:
+            audio_dest = os.path.join(args.audio_dir, audio_filename)
+            if os.path.exists(audio_dest):
+                conflicts.append(audio_dest)
+        if conflicts:
+            for path in conflicts:
+                print(f"Error: file already exists: {path}", file=sys.stderr)
+            sys.exit(1)
+
+    if ogg_path is not None:
+        os.makedirs(args.audio_dir, exist_ok=True)
+        shutil.copy2(ogg_path, os.path.join(args.audio_dir, audio_filename))
+
+    if output_path:
+        out = open(output_path, 'w')
         try:
             write_trl(global_fields, bpm_segments, offset, notes,
-                      args.scroll_time, args.time_mode, out)
+                      args.scroll_time, args.time_mode, out, audio=audio_filename)
         finally:
             out.close()
     else:
         write_trl(global_fields, bpm_segments, offset, notes,
-                  args.scroll_time, args.time_mode, sys.stdout)
+                  args.scroll_time, args.time_mode, sys.stdout, audio=audio_filename)
 
 
 def main():
