@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 ## Calibration helpers                                                          ##
 ## ─────────────────────────────────────────────────────────────────────────── ##
 
-_CALIB_BPM        = 60
+_CALIB_BPM        = 30   ## 2s per beat; handles BT delays up to ~2s without beat-matching ambiguity
 _CALIB_BEATS      = 6    ## measurement beats (taps are recorded for these)
 _CALIB_LEAD_IN    = 3    ## extra beats at the start before measurement begins
 _CALIB_CLICK_FREQ = 880
@@ -1042,7 +1042,6 @@ class TapRevolutionCalibrationItem(MenuItem):
         self._beat_times: List[float] = []
         self._beat_secs  = 60.0 / _CALIB_BPM
         self._n_beats    = _CALIB_BEATS
-        self._tapped     = set()
         self._errors: List[float] = []
         self._result_ms  = 0
 
@@ -1077,10 +1076,12 @@ class TapRevolutionCalibrationItem(MenuItem):
         if elapsed < first_t:
             countdown = max(1, math.ceil((first_t - elapsed) / self._beat_secs))
             return f"{countdown} - Tap to beat"
-        beat_in_measure = sum(1 for t in self._beat_times if t <= elapsed)
-        if beat_in_measure <= self._n_beats and elapsed <= last_t + self._beat_secs:
-            return f"BEAT {beat_in_measure}/{self._n_beats}"
-        ## All measurement beats elapsed — wrap up.
+        taps_made = len(self._errors)
+        ## Wait for all taps or a 2-beat timeout after the last beat window — whichever
+        ## comes first.  The 2-beat window accommodates BT delays up to ~beat_secs.
+        if taps_made < self._n_beats and elapsed <= last_t + self._beat_secs * 2:
+            return f"BEAT {taps_made + 1}/{self._n_beats}"
+        ## All taps registered (or timed out) — wrap up.
         self._result_ms = round(sum(self._errors) / len(self._errors) * 1000) if self._errors else 0
         logger.info("Calibration measured audio_offset_ms=%d from %d/%d taps",
                     self._result_ms, len(self._errors), self._n_beats)
@@ -1143,18 +1144,13 @@ class TapRevolutionCalibrationItem(MenuItem):
         if self._beat_times and elapsed < self._beat_times[0]:
             return
         when = self.watcher.last_pop_time if self.watcher is not None else time.time()
-        ## Find the nearest un-tapped measurement beat.
-        best_i, best_abs = None, float('inf')
-        for i, t in enumerate(self._beat_times):
-            if i in self._tapped:
-                continue
-            err = when - (self._play_start + t)
-            if abs(err) < best_abs:
-                best_abs = abs(err)
-                best_i   = i
-        if best_i is not None and best_abs < 2.0:
-            self._tapped.add(best_i)
-            self._errors.append(when - (self._play_start + self._beat_times[best_i]))
+        ## Assign this tap to the next unrecorded beat in sequence.  Sequential
+        ## assignment (not nearest-beat) is required when BT delay ≈ beat spacing:
+        ## nearest-beat would match the tap to beat N+1 instead of beat N, giving
+        ## ~0ms error instead of the true delay.
+        tap_idx = len(self._errors)
+        if tap_idx < len(self._beat_times):
+            self._errors.append(when - (self._play_start + self._beat_times[tap_idx]))
 
     def _load_calibration(self):
         """Return (audio_path, beat_times) from the calibration track or generated WAV."""
