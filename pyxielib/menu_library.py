@@ -686,10 +686,8 @@ class WiFiAPItem(MenuItem):
         return "AP Err"
 
     def _status_text(self) -> str:
-        if self.ctrl.status():
-            return f"AP: ON {self.ctrl.ip_address() or ''}".strip()
-
-        return "AP: OFF"
+        status = "ON" if self.ctrl.status() else "OFF"
+        return f"AP: {status}"
 
     def reset(self):
         super().reset()
@@ -748,7 +746,7 @@ class SSHAccessMenu(Menu):
         if not os.path.exists(self._marker_file):
             return "Not available"
 
-        return _interface_ip("usb0") or "Connect USB cable"
+        return _interface_ip("usb0") or "Connect USB"
 
     def _wifi_status(self) -> str:
         return self.wifi.ip_address() or "Not connected"
@@ -1285,7 +1283,7 @@ class AudioDiagItem(TextBodyItem):
     from the display when Select Output is unexpectedly empty. Rebuilt on each
     activate() so it always reflects the current state."""
     def __init__(self, audio: AudioController, *, size=16, **kwargs):
-        super().__init__("Audio Diag", size=size, **kwargs)
+        super().__init__("Audio Diagnosis", size=size, **kwargs)
         self.audio = audio
 
     def activate(self):
