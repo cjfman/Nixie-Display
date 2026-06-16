@@ -642,7 +642,6 @@ class TapRevolutionSettingsItem(MenuItem):
         self._select_idx    = 0
         self._bucket_idx    = 0
         self._bucket_sub    = 0
-        self._bucket_orig   = None
         self._flash_msg     = ''
         self._flash_until   = 0.0
 
@@ -715,13 +714,13 @@ class TapRevolutionSettingsItem(MenuItem):
     def _display_bucket(self) -> str:
         bucket = self._current_bucket()
         if self._bucket_sub == 0:
-            return f"THRESH {round(float(bucket['threshold']) * 1000)}MS"
-        return f"POINTS {int(bucket['points'])}"
+            return f"POINTS {int(bucket['points'])}"
+        return f"THRESH {round(float(bucket['threshold']) * 1000)}MS"
 
     def _display_bucket_edit(self) -> str:
         if self._bucket_sub == 0:
-            return self._cursor(f"THRESH | {self._edit_buffer}")
-        return self._cursor(f"POINTS | {self._edit_buffer}")
+            return self._cursor(f"POINTS | {self._edit_buffer}")
+        return self._cursor(f"THRESH | {self._edit_buffer}")
 
     ## ------------------------------------------------------------------ ##
     ## Key dispatch                                                         ##
@@ -752,7 +751,12 @@ class TapRevolutionSettingsItem(MenuItem):
             self._edit_entry = None
             self.state = self._return_state
         elif self.state == 'sub_browse':
-            self.state = 'browse'
+            if (self._sub_tag == 'score_ranges'
+                    and not TapRevolutionConfig.validate_buckets(self._draft['score_buckets'])):
+                self._flash_msg   = "INVALID"
+                self._flash_until = time.time() + _SETTINGS_FLASH_SECS
+            else:
+                self.state = 'browse'
         elif self.state == 'bucket':
             self._bucket_exit()
         elif self.state == 'bucket_edit':
@@ -950,24 +954,16 @@ class TapRevolutionSettingsItem(MenuItem):
     def _current_bucket(self):
         return sorted(self._draft['score_buckets'], key=lambda b: float(b['threshold']))[self._bucket_idx]
 
-    def _current_bucket_global_idx(self) -> int:
-        target = self._current_bucket()
-        for i, b in enumerate(self._draft['score_buckets']):
-            if b is target:
-                return i
-        return 0
-
     def _enter_bucket(self):
         ## Bucket index is encoded in the tag (e.g. 'bucket_1' → 1)
-        self._bucket_idx  = int(self._sub_items[self._sub_idx].tag.split('_')[1])
-        self._bucket_sub  = 0
-        self._bucket_orig = copy.deepcopy(self._current_bucket())
+        self._bucket_idx = int(self._sub_items[self._sub_idx].tag.split('_')[1])
+        self._bucket_sub = 0
         self.state = 'bucket'
 
     def _bucket_enter(self):
         bucket = self._current_bucket()
-        self._edit_buffer = (str(round(float(bucket['threshold']) * 1000))
-                             if self._bucket_sub == 0 else str(int(bucket['points'])))
+        self._edit_buffer = (str(int(bucket['points']))
+                             if self._bucket_sub == 0 else str(round(float(bucket['threshold']) * 1000)))
         self.state = 'bucket_edit'
 
     def _bucket_edit_commit(self):
@@ -975,20 +971,14 @@ class TapRevolutionSettingsItem(MenuItem):
             bucket = self._current_bucket()
             raw = int(self._edit_buffer)
             if self._bucket_sub == 0:
-                bucket['threshold'] = raw / 1000.0
-            else:
                 bucket['points'] = raw
+            else:
+                bucket['threshold'] = raw / 1000.0
         self._edit_buffer = ''
         self.state = 'bucket'
 
     def _bucket_exit(self):
-        if not TapRevolutionConfig.validate_buckets(self._draft['score_buckets']):
-            gi = self._current_bucket_global_idx()
-            if self._bucket_orig is not None:
-                self._draft['score_buckets'][gi] = self._bucket_orig
-            self._flash_msg   = "INVALID"
-            self._flash_until = time.time() + _SETTINGS_FLASH_SECS
-        self.state = 'sub_browse'  ## return to Score Ranges sub-menu
+        self.state = 'sub_browse'
 
     ## ------------------------------------------------------------------ ##
     ## Save-confirm helpers                                                 ##
