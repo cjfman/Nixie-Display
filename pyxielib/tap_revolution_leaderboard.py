@@ -117,6 +117,10 @@ class Leaderboard:
             return True
         return int(score) > int(leaders[-1].get('score', 0))
 
+    def rank_for(self, level_file, score) -> int:
+        """1-based rank that ``score`` would achieve on this level's board."""
+        return 1 + sum(1 for _, s in self.top(level_file) if int(s) > int(score))
+
     ## ------------------------------------------------------------------ ##
     ## Mutation                                                             ##
     ## ------------------------------------------------------------------ ##

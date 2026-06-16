@@ -286,6 +286,7 @@ class TapRevolutionLevelsItem(ListItem):
         self._hs_done        = False
         self._hs_flash_start = 0.0
         self._hs_name        = ''
+        self._cur_rank       = 1
 
     def activate(self):
         self.cur_path  = self.levels_path
@@ -382,6 +383,7 @@ class TapRevolutionLevelsItem(ListItem):
                 self._hs_active      = True
                 self._hs_flash_start = time.time()
                 self._hs_name        = ''
+                self._cur_rank       = self.leaderboard.rank_for(self._cur_level_file, score)
             else:
                 self._hs_done = True
         if self._hs_active:
@@ -396,7 +398,7 @@ class TapRevolutionLevelsItem(ListItem):
         elapsed = time.time() - self._hs_flash_start
         if elapsed < _HS_FLASH_TOTAL:
             return "high score" if int(elapsed / _HS_FLASH_HALF) % 2 == 0 else ""
-        field = f"Name|{self._hs_name}"
+        field = f"{self._cur_rank},{self._hs_name},"
         if time.time() % 0.5 < _CURSOR_ON_SECS:
             return field + ' !'
         return field
