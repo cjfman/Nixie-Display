@@ -1,5 +1,4 @@
 import logging
-import math
 import re
 import time
 
@@ -10,30 +9,6 @@ from pyxielib import tube_manager as tm
 from pyxielib.pyxieutil import PyxieError, PyxieUnimplementedError, strToInt
 
 logger = logging.getLogger(__name__)
-
-
-def rgcd(nums):
-    """Recursive math.gcd"""
-    if not nums:
-        raise ValueError("rgcd cannot take an empty list")
-    if len(nums) == 1:
-        return nums[0]
-    if len(nums) == 2:
-        return math.gcd(nums[0], nums[1])
-
-    return math.gcd(nums[0], rgcd(nums[1:]))
-
-
-def mulAll(nums):
-    q = 1
-    for x in nums:
-        q *= x
-
-    return q
-
-
-def lcm(nums):
-    return mulAll(nums) // rgcd(nums)
 
 
 def escapeText(txt, overrides:Dict[str, str]=None, regex_rep:Dict[str, str]=None):
@@ -539,12 +514,6 @@ class TubeAnimation(Animation):
         self.tubes: Sequence[TubeSequence] = tubes
         self.current_frame_set: List[Frame] = [Frame()]*len(tubes)
 
-    @classmethod
-    def makeAndEqualize(cls, tubes: Sequence[TubeSequence], *, extend=1):
-        """Make a TubeAnimation and make all tube sequences the same length"""
-        max_len = max(map(lambda x: x.length(), tubes)) * extend
-        return cls([x*(max_len/x.length()) for x in tubes])
-
     def reset(self):
         """Reset the start time of the first frame"""
         for animation in self.tubes:
@@ -670,13 +639,6 @@ class LoopedTubeAnimation(TubeAnimation):
         TubeAnimation.__init__(self, animations)
         self.loops = loops
         self.loops_done = 0
-
-    @classmethod
-    def makeAndNormalize(cls, tubes: Sequence[TubeSequence]):
-        """Make a TubeAnimation and make all tube sequences loop at the same time"""
-        ## Normalize with a time precision of 100ms
-        coef = lcm(list(map(lambda x: int(x.length()*10), tubes)))/10
-        return cls([x*coef for x in tubes])
 
     def reset(self):
         TubeAnimation.reset(self)
@@ -960,35 +922,6 @@ class LoopedFullFrameAnimation(FullFrameAnimation):
 
     def clone(self):
         return LoopedFullFrameAnimation(self.frames[:], self.delay)
-
-
-class ComboAnimation(Animation):
-    """Animation made by concatinating the tubes of other animations"""
-    def __init__(self, animations: Sequence[Animation]):
-        Animation.__init__(self)
-        self.animations: Sequence[Animation] = list(animations)
-
-    def reset(self):
-        for ani in self.animations:
-            ani.reset()
-
-    def tubeCount(self):
-        total = 0
-        for ani in self.animations:
-            total += ani.tubeCount()
-
-    def getCode(self):
-        return ''.join(map(lambda ani: ani.getCode(), self.animations))
-
-    def updateFrameSet(self):
-        """
-        Update the frame set for every animation based upon the current time.
-        Return True if any animations are updated
-        """
-        return any(map(lambda ani: ani.updateFrameSet(), self.animations))
-
-    def done(self):
-        return all(map(lambda ani: ani.done(), self.animations))
 
 
 class MarqueeAnimation(Animation):

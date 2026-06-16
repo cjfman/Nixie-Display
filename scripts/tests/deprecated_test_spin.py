@@ -9,6 +9,7 @@ sys.path.append("/home/charles/Projects/nixie")
 
 from pyxielib import animation, assembler, controller, decoder, tube_manager
 from pyxielib import animation_library as animationlib
+from pyxielib import deprecated_animations
 
 
 c = controller.TerminalController(clear_screen=True)
@@ -20,8 +21,8 @@ a3 = animation.LoopedTubeAnimation([animationlib.makeDoubleSpinSequence(10, offs
 #aa = animation.TubeAnimation([animationlib.makeLoopSequence(5, length=2)*1.5])
 
 #aa = animation.LoopedTubeAnimation([
-#aa = animation.TubeAnimation.makeAndEqualize([
-#aa = animation.LoopedTubeAnimation.makeAndNormalize([
+#aa = deprecated_animations.makeAndEqualize([
+#aa = deprecated_animations.makeAndNormalize([
 #    animationlib.makeSpinTubeSequence(5),
 #    animationlib.makeSpinTubeSequence(10, reverse=True),
 #    animationlib.makeDoubleSpinSequence(2),
@@ -30,7 +31,7 @@ a3 = animation.LoopedTubeAnimation([animationlib.makeDoubleSpinSequence(10, offs
 #])
 #], loops=5)
 
-aa = animation.ComboAnimation([a1, a3])
+aa = deprecated_animations.ComboAnimation([a1, a3])
 
 asmlr = assembler.Assembler(controller=c)
 asmlr.start()
