@@ -39,7 +39,7 @@ class UserMenuProgram(Program):
             self.watcher = KeyWatcher(
                 self.event_path,
                 owner=self,
-                hold=False,
+                hold=True,
                 trigger={
                     'KEY_LEFTCTRL',
                     'KEY_LEFTALT',
@@ -61,19 +61,19 @@ class UserMenuProgram(Program):
             NixieShellItem(nixie_shell_config, size=self.size),
             menulib.AudioMenu(test_sound=test_sound, size=self.size),
             menulib.GitStatusItem(size=self.size),
+            menulib.SleepItem(self.controller),
+            menulib.ExitItem("Exit Program"),
+            menulib.WiFiMenu(wifi_ap_config=wifi_ap_config),
+            menulib.SSHAccessMenu(wifi_ap_config=wifi_ap_config),
+            menulib.SystemInfoItem(),
+            menulib.RebootItem() if not terminal_mode else DisabledItem("Reboot"),
+            menulib.ShutdownItem() if not terminal_mode else DisabledItem("Shutdown"),
             Menu("Logs", [
                 menulib.LogViewerItem(logfile, tail=log_tail, size=self.size, display_name="stdout"),
                 menulib.LogViewerItem(stderr_path, tail=log_tail, size=self.size, display_name="stderr"),
                 menulib.LogViewerItem(runonce_path, tail=log_tail, size=self.size, display_name="runonce"),
                 menulib.LogViewerItem(raspi_run_path, tail=log_tail, size=self.size, display_name="raspi_run"),
             ]),
-            menulib.SleepItem(self.controller),
-            menulib.ExitItem("Exit Program"),
-            menulib.SystemInfoItem(),
-            menulib.WiFiMenu(wifi_ap_config=wifi_ap_config),
-            menulib.SSHAccessMenu(wifi_ap_config=wifi_ap_config),
-            menulib.RebootItem() if not terminal_mode else DisabledItem("Reboot"),
-            menulib.ShutdownItem() if not terminal_mode else DisabledItem("Shutdown"),
         ]))
 
     def reset(self):
