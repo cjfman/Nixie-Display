@@ -238,9 +238,11 @@ def main(args):
             if git_period_secs is not None and time.monotonic() - last_git_check >= git_period_secs:
                 last_git_check = time.monotonic()
                 if git_behind_origin(args.git_origin):
-                    logger.info("Git update available; exiting for restart")
+                    logger.info("Git update available; waiting for user menu to close")
                     git_update = True
-                    break
+            if git_update and (user_prgm is None or not user_prgm.active):
+                logger.info("Git update: exiting for restart")
+                break
             time.sleep(0.1)
     except Exception as e:
         logger.error(f"Unhandled error: {e}")
