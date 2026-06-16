@@ -105,8 +105,9 @@ class UserMenuProgram(Program):
     def menu_exit(self):
         """Handle an exit request from the user"""
         logger.info("User requested exit from menu")
-        self.should_exit = True
-        self.active = False
+        self.should_exit      = True
+        self.active           = False
+        self.should_interrupt = False
         self.watcher.reset()
         self.navigator.reset()
 
