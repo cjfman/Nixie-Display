@@ -121,16 +121,24 @@ class Leaderboard:
     ## Mutation                                                             ##
     ## ------------------------------------------------------------------ ##
 
-    def add(self, level_file, level_name, player_name, score):
-        """Record a score, keeping the level's leaders sorted and capped at top_n."""
+    def add(self, level_file, level_name, player_name, score, results=None):
+        """Record a score, keeping the level's leaders sorted and capped at top_n.
+
+        ``results`` is the game's judgement tally (e.g. ``{'BEST': 5, 'OK': 1, ...}``);
+        its counts are stored alongside the entry (``SCORE`` is dropped as redundant
+        with ``score``). Nothing reads them back yet.
+        """
         record = self._find(level_file)
         if record is None:
             record = {'name': level_name, 'file': level_file, 'leaders': []}
             self._levels.append(record)
         else:
             record['name'] = level_name
+        entry = {'name': player_name, 'score': int(score)}
+        if results:
+            entry['results'] = {k: int(v) for k, v in results.items() if k != 'SCORE'}
         leaders = record.setdefault('leaders', [])
-        leaders.append({'name': player_name, 'score': int(score)})
+        leaders.append(entry)
         record['leaders'] = self._sorted_leaders(leaders)[:self.top_n]
         self._save()
         logger.info("Recorded score %d for '%s' on '%s'", int(score), player_name, level_name)

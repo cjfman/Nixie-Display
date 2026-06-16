@@ -400,8 +400,9 @@ class TapRevolutionLevelsItem(ListItem):
 
     def _hs_commit(self, name):
         """Record the score under ``name`` and fall through to the results scroll."""
-        score = self.animation.results().get('SCORE', 0)
-        self.leaderboard.add(self._cur_level_file, self._cur_level_name, name, score)
+        results = self.animation.results()
+        score   = results.get('SCORE', 0)
+        self.leaderboard.add(self._cur_level_file, self._cur_level_name, name, score, results)
         self._hs_active = False
         self._hs_done   = True
 

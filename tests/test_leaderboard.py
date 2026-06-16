@@ -66,6 +66,14 @@ class LeaderboardTest(unittest.TestCase):
         self._board().add('a.trl', 'A', 'C', 7)
         self.assertEqual(self._board().top('a.trl'), [('C', 7)])
 
+    def test_results_breakdown_stored(self):
+        self._board().add('a.trl', 'A', 'C', 16,
+                          results={'BEST': 5, 'OK': 1, 'MISS': 0, 'SCORE': 16})
+        ## SCORE is dropped (redundant with score); the rest persists to disk.
+        leaders = self._board()._find('a.trl')['leaders']
+        self.assertEqual(leaders[0]['results'], {'BEST': 5, 'OK': 1, 'MISS': 0})
+        self.assertEqual(leaders[0]['score'], 16)
+
     def test_reset_backs_up_and_blanks(self):
         lb = self._board()
         lb.add('a.trl', 'A', 'C', 7)
