@@ -37,20 +37,22 @@ logger = logging.getLogger(__name__)
 _CALIB_BPM        = 30   ## 2s per beat; handles BT delays up to ~2s without beat-matching ambiguity
 _CALIB_BEATS      = 6    ## measurement beats (taps are recorded for these)
 _CALIB_LEAD_IN    = 3    ## extra beats at the start before measurement begins
+_CALIB_WARMUP     = 1    ## silent beats prepended so BT codec is streaming before clicks start
 _CALIB_CLICK_FREQ = 880
 _CALIB_CLICK_DUR  = 0.05 ## seconds per click burst
 
 
 def _make_click_wav() -> bytes:
-    """WAV bytes: (_CALIB_LEAD_IN + _CALIB_BEATS) clicks at _CALIB_BPM."""
+    """WAV bytes: WARMUP silent beats, then LEAD_IN + BEATS clicks at _CALIB_BPM."""
     sample_rate = 44100
     beat_secs   = 60.0 / _CALIB_BPM
+    n_warmup    = _CALIB_WARMUP
     n_beats     = _CALIB_LEAD_IN + _CALIB_BEATS
-    n_total     = int(sample_rate * beat_secs * n_beats)
+    n_total     = int(sample_rate * beat_secs * (n_warmup + n_beats))
     n_click     = int(sample_rate * _CALIB_CLICK_DUR)
     samples     = array.array('h', bytes(2 * n_total))
     for i in range(n_beats):
-        start = int(i * beat_secs * sample_rate)
+        start = int((i + n_warmup) * beat_secs * sample_rate)
         for j in range(n_click):
             if start + j < n_total:
                 samples[start + j] = int(32767 * math.sin(
@@ -1043,7 +1045,6 @@ class TapRevolutionCalibrationItem(MenuItem):
         self._beat_secs  = 60.0 / _CALIB_BPM
         self._n_beats    = _CALIB_BEATS
         self._errors: List[float] = []
-        self._last_tap_when: Optional[float] = None
         self._result_ms  = 0
 
     def _cleanup(self):
@@ -1145,11 +1146,6 @@ class TapRevolutionCalibrationItem(MenuItem):
         if self._beat_times and elapsed < self._beat_times[0]:
             return
         when = self.watcher.last_pop_time if self.watcher is not None else time.time()
-        ## Drop kernel hold-repeat events and accidental double-taps.  With hold=True
-        ## the kernel fires a repeat ~250ms after a held key; sequential assignment
-        ## would consume the next beat slot and produce a large negative error.
-        if self._last_tap_when is not None and when - self._last_tap_when < self._beat_secs * 0.5:
-            return
         ## Assign this tap to the next unrecorded beat in sequence.  Sequential
         ## assignment (not nearest-beat) is required when BT delay ≈ beat spacing:
         ## nearest-beat would match the tap to beat N+1 instead of beat N, giving
@@ -1157,7 +1153,6 @@ class TapRevolutionCalibrationItem(MenuItem):
         tap_idx = len(self._errors)
         if tap_idx < len(self._beat_times):
             self._errors.append(when - (self._play_start + self._beat_times[tap_idx]))
-            self._last_tap_when = when
 
     def _load_calibration(self):
         """Return (audio_path, beat_times) from the calibration track or generated WAV."""
@@ -1173,14 +1168,16 @@ class TapRevolutionCalibrationItem(MenuItem):
                 return audio_path, [n.time for n in level.notes]
             except Exception as e:
                 logger.error("Failed to load calibration track '%s': %s", cal_path, e)
-        ## Fallback: generated click WAV with lead-in beats.
+        ## Fallback: generated click WAV with warmup silence + lead-in beats.
+        ## Use .pcm suffix so _make_cmd() skips paplay and routes through ffplay,
+        ## matching the OGG game-audio pipeline (both: ffplay → PulseAudio → BT).
         wav = _make_click_wav()
-        tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+        tmp = tempfile.NamedTemporaryFile(suffix='.pcm', delete=False)
         tmp.write(wav)
         tmp.flush()
         self._tmp_file = tmp
         beat_secs  = 60.0 / _CALIB_BPM
-        beat_times = [(i + _CALIB_LEAD_IN) * beat_secs for i in range(_CALIB_BEATS)]
+        beat_times = [(i + _CALIB_LEAD_IN + _CALIB_WARMUP) * beat_secs for i in range(_CALIB_BEATS)]
         return tmp.name, beat_times
 
     def _start_calibration(self):
