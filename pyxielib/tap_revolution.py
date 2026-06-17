@@ -43,6 +43,22 @@ class TapRevolutionError(PyxieError):
 LANE_GLYPH = {'L': '<', 'R': '>', 'U': '^', 'D': '{0x0140}'}
 
 
+def lane_glyphs(invert_v=True, invert_h=True) -> Dict[str, str]:
+    """Per-lane wire glyphs, optionally flipping the up/down and/or left/right pair.
+
+    The diagonals on a 14-segment tube point inward, so an arrow reads as pointing
+    the *opposite* way of how it's drawn — the default inverted mode leans into that.
+    Clearing ``invert_v`` swaps the up/down glyphs; clearing ``invert_h`` swaps
+    left/right.
+    """
+    glyphs = dict(LANE_GLYPH)
+    if not invert_v:
+        glyphs['U'], glyphs['D'] = glyphs['D'], glyphs['U']
+    if not invert_h:
+        glyphs['L'], glyphs['R'] = glyphs['R'], glyphs['L']
+    return glyphs
+
+
 ## Accepted spellings for a lane in files and programmatic charts.
 LANE_NAMES = {
     'left':  'L', 'l': 'L',
@@ -287,7 +303,8 @@ class TapRevolutionAnimation(Animation):
                  flash_secs=0.6, hit_windows=None, grace=DEFAULT_GRACE,
                  cooldown=DEFAULT_COOLDOWN, bad_penalty=DEFAULT_BAD_PENALTY, bad_enabled=True,
                  hit_flash_frames=HIT_FLASH_FRAMES, hit_flash_frame_secs=HIT_FLASH_FRAME_SECS,
-                 audio_path=None, audio_offset_secs=0.0, lead_in=None):
+                 audio_path=None, audio_offset_secs=0.0, lead_in=None,
+                 invert_v=True, invert_h=True):
         super().__init__()
         self.level = level
         self.size = size
@@ -309,6 +326,7 @@ class TapRevolutionAnimation(Animation):
         self.bad_enabled = bad_enabled
         self.hit_flash_frames = tuple(hit_flash_frames)
         self.hit_flash_frame_secs = hit_flash_frame_secs
+        self.lane_glyph = lane_glyphs(invert_v, invert_h)
         ## Shift every note so the earliest one scrolls in cleanly from the edge.
         self.lead_in = lead_in if lead_in is not None else self.scroll_time
         self._audio_path = audio_path
@@ -504,7 +522,7 @@ class TapRevolutionAnimation(Animation):
             if 0 <= tube < self.track_width and lanes_at[tube] is None:
                 lanes_at[tube] = ns.lane
 
-        return [LANE_GLYPH[lane] if lane is not None else ' ' for lane in lanes_at]
+        return [self.lane_glyph[lane] if lane is not None else ' ' for lane in lanes_at]
 
     def _render_score(self, now) -> str:
         """The score section: the judgement word while flashing, else the score."""

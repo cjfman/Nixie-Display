@@ -60,6 +60,13 @@ score_width: 4     # right-hand tubes reserved for the live score
 judge_flash: true  # flash the judgement word in the score section
 results_secs: 6    # freeze time for the end-of-game results (if it fits)
 
+# Arrow glyph orientation. The diagonals on a 14-segment tube point inward, so an
+# arrow reads as pointing the opposite way of how it's drawn (inverted mode).
+# invert_v: true keeps the default up/down glyphs; false swaps them.
+# invert_h: true keeps the default left/right glyphs; false swaps them.
+invert_v: true
+invert_h: true
+
 # The quick burst shown on the target tube when a note is hit.
 hit_flash:
   frames: [x, +, x]

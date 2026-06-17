@@ -10,7 +10,7 @@ from pyxielib.key_watcher import KeyWatcher, TerminalKeyWatcher
 from pyxielib.navigator import DisabledItem, Menu, Navigator
 from pyxielib.program import Program
 from pyxielib.tap_revolution_config import TapRevolutionConfig
-from pyxielib.tube_manager import cmdLen
+from pyxielib.frames import textToFrames
 
 logger = logging.getLogger(__name__)
 
@@ -182,8 +182,12 @@ class UserMenuProgram(Program):
         ## Process msg
         self.old_msg = msg
 
-        ## Make the actual animation
-        if self.navigator.crop and cmdLen(msg) > self.size:
-            msg = msg[-16:]
+        ## Build one frame per tube. textToFrames folds ':'/'!' onto the previous
+        ## tube (vs. fromText's one-frame-per-character), so trailing modifiers like
+        ## an underlined value don't count against the tube budget — and cropping by
+        ## whole frames can never leave a dangling ':'/'!' that textToFrames rejects.
+        frames = textToFrames(msg)
+        if self.navigator.crop and len(frames) > self.size:
+            frames = frames[-self.size:]
 
-        return animationlib.MarqueeAnimation.fromText(msg, self.size, freeze=True)
+        return animationlib.MarqueeAnimation(frames, self.size, freeze=True)
