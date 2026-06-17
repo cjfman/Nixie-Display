@@ -53,7 +53,9 @@ def lane_glyphs(invert_v=True, invert_h=True) -> Dict[str, str]:
     """
     glyphs = dict(LANE_GLYPH)
     if not invert_v:
-        glyphs['U'], glyphs['D'] = glyphs['D'], glyphs['U']
+        #glyphs['U'], glyphs['D'] = glyphs['D'], glyphs['U']
+        glyphs['U'] = "{0x0081}"
+        glyphs['D'] = "{0x0808}"
     if not invert_h:
         glyphs['L'], glyphs['R'] = glyphs['R'], glyphs['L']
     return glyphs
