@@ -13,7 +13,8 @@ from pyxielib.audio_controller import AudioController, BluetoothDevice
 from pyxielib.navigator import CycleItem, DelayedCommandItem, ListItem, Menu, MenuItem, MsgItem, SubcommandItem
 from pyxielib.wifi_controller import WiFiController
 from pyxielib.wifi_ap_controller import WiFiAPConfig, WiFiAPController
-from pyxielib.animation import Animation, FullFrame, HexFrame, LoopedFullFrameAnimation, MarqueeAnimation, TextFrame
+from pyxielib.animation import Animation, LoopedFullFrameAnimation, MarqueeAnimation
+from pyxielib.frames import FullFrame, HexFrame, TextFrame
 from pyxielib.decoder import isPrintable
 from pyxielib.animation_file import FileAnimation
 from pyxielib.animation_library import ProgressSpinner

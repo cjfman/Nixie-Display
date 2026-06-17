@@ -5,10 +5,9 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from pyxielib.animation import (
-    Frame, FullFrame, HexFrame, FullFrameAnimation,
-    PixieAnimationError, TimeFullFrame,
-    textToFrames,
+from pyxielib.animation import FullFrameAnimation
+from pyxielib.frames import (
+    Frame, FullFrame, HexFrame, PixieAnimationError, TimeFullFrame, textToFrames,
 )
 from pyxielib.pyxieutil import PyxieError, strToInt
 

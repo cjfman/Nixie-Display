@@ -21,10 +21,8 @@ import time
 from collections import deque
 from typing import List, Optional, Tuple
 
-from pyxielib.animation import (
-    Animation, Frame, FullFrame, FullFrameAnimation, HexFrame,
-    LoopedFullFrameAnimation, TextFrame,
-)
+from pyxielib.animation import Animation, FullFrameAnimation, LoopedFullFrameAnimation
+from pyxielib.frames import Frame, FullFrame, HexFrame, TextFrame
 from pyxielib.decoder import isPrintable
 from pyxielib.menu_library import TextBodyItem
 from pyxielib.navigator import MenuItem

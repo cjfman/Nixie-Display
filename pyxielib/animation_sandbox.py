@@ -20,11 +20,9 @@ from typing import Any, Dict, List, Tuple
 
 from pyxielib import animation as animation_module
 from pyxielib import animation_library
-from pyxielib.animation import (
-    Animation, Frame, FullFrame, FullFrameAnimation,
-    TimeFullFrame, TubeAnimation, TubeSequence,
-    concatFullFrameRows, textToFrames,
-)
+from pyxielib import frames as frames_module
+from pyxielib.animation import Animation, FullFrameAnimation, TubeAnimation, TubeSequence
+from pyxielib.frames import Frame, FullFrame, TimeFullFrame, concatFullFrameRows, textToFrames
 from pyxielib.animation_file import FileAnimationError
 
 
@@ -43,19 +41,20 @@ _TYPE_KEYWORDS = {
     'string', 'int', 'list', 'tuple', 'str', 'true', 'false', 'none',
 }
 
-## Every class defined in animation.py is reserved as well
-_ANIMATION_CLASS_NAMES = {
-    name for name, cls in inspect.getmembers(animation_module, inspect.isclass)
-    if cls.__module__ == animation_module.__name__
-}
+def _classes_defined_in(module):
+    """Class objects actually defined in `module` (not merely imported into it)"""
+    return [cls for _, cls in inspect.getmembers(module, inspect.isclass)
+            if cls.__module__ == module.__name__]
+
+
+## Every class defined in frames.py / animation.py is reserved as well
+_ANIMATION_CLASS_OBJECTS = _classes_defined_in(frames_module) + _classes_defined_in(animation_module)
+_ANIMATION_CLASS_NAMES = { cls.__name__ for cls in _ANIMATION_CLASS_OBJECTS }
 
 _RESERVED_NAMES = { x.lower() for x in (_FILE_KEYWORDS | _ANIMATION_CLASS_NAMES | _TYPE_KEYWORDS) }
 
 ## Values assigned to variables must be instances of one of these classes
-_ANIMATION_CLASSES: Tuple[type, ...] = tuple(
-    cls for _, cls in inspect.getmembers(animation_module, inspect.isclass)
-    if cls.__module__ == animation_module.__name__
-)
+_ANIMATION_CLASSES: Tuple[type, ...] = tuple(_ANIMATION_CLASS_OBJECTS)
 
 _VAR_NAME_RE = re.compile(r'[A-Za-z]\w+$')
 _KEYWORD_RE  = re.compile(r'^(set|print)\b')

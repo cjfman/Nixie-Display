@@ -9,7 +9,8 @@ import feedparser
 import pyxielib.animation_library as animationlib
 
 logger = logging.getLogger(__name__)
-from pyxielib.animation import Animation, EmtpyAnimation, MarqueeAnimation, escapeText
+from pyxielib.animation import Animation, EmtpyAnimation, MarqueeAnimation
+from pyxielib.frames import escapeText
 from pyxielib.pyxieutil import PyxieUnimplementedError, flattenHTML
 
 

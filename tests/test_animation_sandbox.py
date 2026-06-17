@@ -14,9 +14,8 @@ import unittest
 ## Make the repo root importable when run directly
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from pyxielib.animation import (
-    FullFrame, FullFrameAnimation, TubeAnimation, TubeSequence,
-)
+from pyxielib.animation import FullFrameAnimation, TubeAnimation, TubeSequence
+from pyxielib.frames import FullFrame
 from pyxielib.animation_file import FileAnimation
 from pyxielib.animation_sandbox import SandboxError, SandboxParser
 
@@ -112,7 +111,7 @@ class ConcatOperatorTest(unittest.TestCase):
         self.p = SandboxParser()
 
     def test_frame_or_frame_makes_fullframe(self):
-        from pyxielib.animation import HexFrame
+        from pyxielib.frames import HexFrame
         result = self.p._applyOp('|', HexFrame(0x1), HexFrame(0x2))
         self.assertIsInstance(result, FullFrame)
         self.assertEqual(result.tubeCount(), 2)
@@ -399,7 +398,7 @@ class MultiplyFixTest(unittest.TestCase):
     """Regression tests for the __mul__ fixes in animation.py"""
 
     def test_tube_sequence_int_multiply(self):
-        from pyxielib.animation import HexFrame
+        from pyxielib.frames import HexFrame
         base = TubeSequence.makeTimed([HexFrame(0x1), HexFrame(0x2)], rate=1)
         result = base * 3
         self.assertIsInstance(result, TubeSequence)
@@ -412,7 +411,7 @@ class MultiplyFixTest(unittest.TestCase):
         self.assertEqual(len(result.frames), 4)
 
     def test_tube_animation_int_multiply(self):
-        from pyxielib.animation import HexFrame
+        from pyxielib.frames import HexFrame
         tube = TubeSequence.makeTimed([HexFrame(0x1), HexFrame(0x2)], rate=1)
         anim = TubeAnimation([tube, tube.clone()])
         result = anim * 3
@@ -425,7 +424,7 @@ class OrOperatorNativeTest(unittest.TestCase):
     """The '|' tube-concatenation operators defined directly on animation.py classes"""
 
     def setUp(self):
-        from pyxielib.animation import HexFrame
+        from pyxielib.frames import HexFrame
         self.HexFrame = HexFrame
 
     def test_frame_or_frame(self):
@@ -434,7 +433,7 @@ class OrOperatorNativeTest(unittest.TestCase):
         self.assertEqual(result.tubeCount(), 2)
 
     def test_fullframe_or_frame_and_fullframe(self):
-        from pyxielib.animation import textToFrames
+        from pyxielib.frames import textToFrames
         ff = FullFrame(textToFrames("AB"))
         self.assertEqual((ff | FullFrame(textToFrames("CD"))).tubeCount(), 4)
         self.assertEqual((ff | self.HexFrame(0x4)).tubeCount(), 3)
@@ -455,7 +454,7 @@ class OrOperatorNativeTest(unittest.TestCase):
         self.assertEqual(result.tubeCount(), 3)
 
     def test_full_frame_animation_or_tube_animation(self):
-        from pyxielib.animation import textToFrames
+        from pyxielib.frames import textToFrames
         ts = TubeSequence.makeTimed([self.HexFrame(0x1), self.HexFrame(0x2)], rate=1)
         ffa = FullFrameAnimation.makeTimed([FullFrame(textToFrames("XY"))], rate=1)
         result = ffa | TubeAnimation([ts])

@@ -1,6 +1,7 @@
 ## pylint: disable=unused-import,wildcard-import,unused-wildcard-import,wildcard-import
 from typing import List, Sequence, Tuple
 
+from pyxielib.frames import *
 from pyxielib.animation import *
 
 
