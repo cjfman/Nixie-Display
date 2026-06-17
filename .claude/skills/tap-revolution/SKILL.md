@@ -163,9 +163,17 @@ grace: 0.12
 flash_secs: 0.6
 score_width: 4      ## read-only in settings UI
 judge_flash: true
+invert_v: true      ## bool; false swaps the up/down arrow glyphs
+invert_h: true      ## bool; false swaps the left/right arrow glyphs
 hit_flash:     {frames: [x, +, x], frame_secs: 0.05}   ## read-only in settings UI
 results_secs: 6
 ```
+
+Arrow glyphs come from `tap_revolution.lane_glyphs(invert_v, invert_h)` (a
+per-instance map built in `TapRevolutionAnimation.__init__`, used by
+`_render_track`). The 14-segment diagonals point inward, so arrows read inverted
+by default (both `true` = current behavior); clearing a flag swaps that axis'
+pair.
 
 Difficulty levers (applied in `TapRevolutionLevelsItem.key_enter` via
 `config.difficulty_settings()` → a `Difficulty(gap, scroll_time, window_scale)`):
