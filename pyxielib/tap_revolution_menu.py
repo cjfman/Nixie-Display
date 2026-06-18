@@ -91,6 +91,8 @@ _HS_FLASH_HALF  = 0.5
 _HS_FLASH_TOTAL = _HS_FLASH_HALF * 6
 ## Longest player name accepted in the high-score entry field.
 _HS_NAME_MAX = 8
+## Seconds the 'Accuracy <A>%' banner holds steady before the results scroll.
+_ACC_HOLD_SECS = 2.0
 ## Seconds to count down before a leaderboard reset commits.
 _RESET_COUNTDOWN = 3
 
@@ -167,6 +169,13 @@ def _build_items(draft):
         _s_entry('results_secs', 'int',
                  lambda d: f"RESULTS {int(d['results_secs'])}S", "RESULTS",
                  lambda d: d['results_secs'], lambda d, v: d.__setitem__('results_secs', v)),
+        ## 'select' with prefix=None: browse shows just the name, edit shows just
+        ## the value, since "ACCURACY METRIC | WEIGHTED" won't fit 16 tubes.
+        _s_entry('accuracy_metric', 'select',
+                 lambda d: "ACCURACY METRIC", None,
+                 lambda d: d.get('accuracy_metric', 'weighted'),
+                 lambda d, v: d.__setitem__('accuracy_metric', v),
+                 options=lambda d: [('weighted', 'WEIGHTED'), ('binary', 'BINARY')]),
         _s_entry('score_width', 'readonly',
                  lambda d: f"SCORE WIDTH {int(d['score_width'])}", None, lambda d: d['score_width']),
         _s_entry('hit_flash', 'readonly',
@@ -295,6 +304,8 @@ class TapRevolutionLevelsItem(ListItem):
         self._hs_flash_start = 0.0
         self._hs_name        = ''
         self._cur_rank       = 1
+        self._acc_done       = False
+        self._acc_hold_start = 0.0
 
     def activate(self):
         self.cur_path  = self.levels_path
@@ -384,7 +395,7 @@ class TapRevolutionLevelsItem(ListItem):
         return self._browse_display()
 
     def _complete(self):
-        """On game end: run high-score entry if the score qualifies, else results."""
+        """On game end: high-score entry (if qualifying), then accuracy flash, then results."""
         if not self._hs_active and not self._hs_done:
             score = self.animation.results().get('SCORE', 0)
             if self.leaderboard is not None and self.leaderboard.qualifies(self._cur_level_file, score):
@@ -396,10 +407,20 @@ class TapRevolutionLevelsItem(ListItem):
                 self._hs_done = True
         if self._hs_active:
             return self._hs_display()
+        if not self._acc_done:
+            if self._acc_hold_start == 0.0:
+                self._acc_hold_start = time.time()
+            if time.time() - self._acc_hold_start < _ACC_HOLD_SECS:
+                return f"Accuracy {self.animation.accuracy():.1f}%"
+            self._acc_done = True
         return self._finish()
 
     def _hs_in_flash(self) -> bool:
         return time.time() - self._hs_flash_start < _HS_FLASH_TOTAL
+
+    def _acc_in_hold(self) -> bool:
+        """True while the post-game accuracy banner is held (keys ignored)."""
+        return self._hs_done and not self._acc_done and self._playing()
 
     def _hs_display(self) -> str:
         """Flash 'high score' three times, then show the blinking name-entry field."""
@@ -482,11 +503,12 @@ class TapRevolutionLevelsItem(ListItem):
 
         While the quit prompt is pending the game keeps running, but taps are
         swallowed (consumed without scoring, so the note auto-misses) rather than
-        passed through to menu navigation.
+        passed through to menu navigation. The post-game accuracy banner swallows
+        them the same way so they don't navigate the level list underneath.
         """
         if self._hs_active or not self._playing():
             return False
-        if self._quit_confirm:
+        if self._quit_confirm or self._acc_in_hold():
             return True
         lane = self.key_lane.get(token)
         if lane is None:
@@ -571,6 +593,8 @@ class TapRevolutionLevelsItem(ListItem):
             self._play_key(c)
 
     def key_esc(self):
+        if self._acc_in_hold():
+            return
         if self._hs_active:
             if not self._hs_in_flash():
                 self._hs_commit('')

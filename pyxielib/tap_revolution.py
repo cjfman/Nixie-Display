@@ -306,7 +306,7 @@ class TapRevolutionAnimation(Animation):
                  cooldown=DEFAULT_COOLDOWN, bad_penalty=DEFAULT_BAD_PENALTY, bad_enabled=True,
                  hit_flash_frames=HIT_FLASH_FRAMES, hit_flash_frame_secs=HIT_FLASH_FRAME_SECS,
                  audio_path=None, audio_offset_secs=0.0, lead_in=None,
-                 invert_v=True, invert_h=True):
+                 invert_v=True, invert_h=True, accuracy_metric='weighted'):
         super().__init__()
         self.level = level
         self.size = size
@@ -329,6 +329,7 @@ class TapRevolutionAnimation(Animation):
         self.hit_flash_frames = tuple(hit_flash_frames)
         self.hit_flash_frame_secs = hit_flash_frame_secs
         self.lane_glyph = lane_glyphs(invert_v, invert_h)
+        self.accuracy_metric = accuracy_metric
         ## Shift every note so the earliest one scrolls in cleanly from the edge.
         self.lead_in = lead_in if lead_in is not None else self.scroll_time
         self._audio_path = audio_path
@@ -567,6 +568,26 @@ class TapRevolutionAnimation(Animation):
             parts.append(f"{BAD_WORD} {counts.get(BAD_WORD, 0)}")
         parts.append(f"SCORE {counts['SCORE']}")
         return '  '.join(parts)
+
+    def accuracy(self) -> float:
+        """Percent accuracy by the configured ``accuracy_metric``.
+
+        ``binary``: fraction of notes hit (any judgement but MISS counts), so a
+        full clear is 100% regardless of timing. ``weighted`` (default): fraction
+        of the maximum judgement points earned, so all-BEST = 100%, all-OK < 100%.
+        """
+        if not self.note_states:
+            return 0.0
+        total = len(self.note_states)
+        if self.accuracy_metric == 'binary':
+            hits = sum(1 for ns in self.note_states if ns.judged not in (None, MISS_WORD))
+            return 100.0 * hits / total
+        points = {word: pts for word, _, pts in self.hit_windows}
+        best = max(points.values())
+        if best <= 0:
+            return 0.0
+        earned = sum(points.get(ns.judged, 0) for ns in self.note_states)
+        return 100.0 * earned / (total * best)
 
     def __eq__(self, other) -> bool:
         return self is other

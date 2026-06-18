@@ -48,6 +48,7 @@ CODE_DEFAULTS: Dict[str, Any] = {
     'judge_flash': True,
     'invert_v': True,
     'invert_h': True,
+    'accuracy_metric': 'weighted',
     'hit_flash': {'frames': list(tr.HIT_FLASH_FRAMES), 'frame_secs': tr.HIT_FLASH_FRAME_SECS},
     'results_secs': 6,
     'difficulties': [
@@ -189,6 +190,7 @@ class TapRevolutionConfig:
             'hit_flash_frame_secs': float(s['hit_flash']['frame_secs']),
             'invert_v':             bool(s.get('invert_v', True)),
             'invert_h':             bool(s.get('invert_h', True)),
+            'accuracy_metric':      str(s.get('accuracy_metric', 'weighted')),
             'audio_offset_secs':    float(s.get('audio_offset_ms', 0)) / 1000.0,
         }
 

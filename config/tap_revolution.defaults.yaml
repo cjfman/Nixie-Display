@@ -67,6 +67,11 @@ results_secs: 6    # freeze time for the end-of-game results (if it fits)
 invert_v: true
 invert_h: true
 
+# How the post-game "Accuracy <A>%" banner is computed.
+#   weighted — fraction of the max judgement points (all BEST = 100%, all OK < 100%)
+#   binary   — fraction of notes hit (any judgement but a miss counts; full clear = 100%)
+accuracy_metric: weighted
+
 # The quick burst shown on the target tube when a note is hit.
 hit_flash:
   frames: [x, +, x]
