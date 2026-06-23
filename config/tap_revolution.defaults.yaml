@@ -51,7 +51,9 @@ difficulties:
     scroll_time: 3.0
     window_scale: 1.8
 
-# Active difficulty — references the name field of an entry in difficulties above.
+# Active difficulty — references the name field of an entry in difficulties above,
+# or the special value 'ask' to prompt the player to choose a difficulty each time
+# a song is selected.
 difficulty: hard
 
 grace: 0.12        # seconds past the widest window before a note auto-misses

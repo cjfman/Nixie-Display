@@ -145,7 +145,7 @@ def _build_items(draft):
                  lambda d: d.get('difficulty', ''),
                  lambda d, v: d.__setitem__('difficulty', v),
                  options=lambda d: [(str(x['name']), str(x.get('display_name', x['name'])))
-                                    for x in d.get('difficulties', [])]),
+                                    for x in d.get('difficulties', [])] + [('ask', 'Ask')]),
         _s_entry('key_mappings',  'submenu', lambda d: "KEY MAPPINGS",  None, None),
         _s_entry('score_ranges',  'submenu', lambda d: "SCORE RANGES",  None, None),
         _s_entry('bad_submenu',   'submenu', lambda d: "BAD/GHOST HIT", None, None),
@@ -240,7 +240,7 @@ class TapRevolutionMenu(Menu):
         options_fn = lambda: [
             (d['name'], d.get('display_name', d['name']))
             for d in config.settings.get('difficulties', [])
-        ]
+        ] + [('ask', 'Ask')]
         difficulty_item = CycleItem(
             "Difficulty",
             options_fn,
@@ -294,6 +294,10 @@ class TapRevolutionLevelsItem(ListItem):
         self.results       = None
         self.key_lane      = {}
         self._quit_confirm = False
+        self._pending_level      = None
+        self._pending_level_path = ''
+        self._ask_diff_options   = []
+        self._ask_diff_idx       = 0
         self._reset_hiscore()
 
     def _reset_hiscore(self):
@@ -366,13 +370,20 @@ class TapRevolutionLevelsItem(ListItem):
         self.results       = None
         self.key_lane      = {}
         self._quit_confirm = False
+        self._pending_level      = None
+        self._pending_level_path = ''
+        self._ask_diff_options   = []
+        self._ask_diff_idx       = 0
         self._reset_hiscore()
 
     def _playing(self) -> bool:
         return self.animation is not None and self.results is None
 
+    def _asking(self) -> bool:
+        return self._pending_level is not None
+
     def _browsing(self) -> bool:
-        return self.animation is None and self.results is None
+        return self.animation is None and self.results is None and not self._asking()
 
     def for_display(self):
         if self.results is not None:
@@ -392,7 +403,15 @@ class TapRevolutionLevelsItem(ListItem):
             self.animation.set_prompt("QUIT Y/N" if self._quit_confirm else None)
             return self.animation
 
+        if self._asking():
+            return self._ask_display()
         return self._browse_display()
+
+    def _ask_display(self) -> str:
+        if not self._ask_diff_options:
+            return "No Difficulties"
+        d = self._ask_diff_options[self._ask_diff_idx]
+        return str(d.get('display_name', d.get('name', '?')))
 
     def _complete(self):
         """On game end: high-score entry (if qualifying), then accuracy flash, then results."""
@@ -521,10 +540,52 @@ class TapRevolutionLevelsItem(ListItem):
         if not self._hs_in_flash() and len(self._hs_name) < _HS_NAME_MAX:
             self._hs_name += c
 
+    def _launch_game(self, level, diff, level_path):
+        """Apply difficulty settings to level and start the animation."""
+        if diff.gap > 0:
+            level = level.thinned(diff.gap)
+        if diff.scroll_time is not None:
+            level = dataclasses.replace(level, scroll_time=diff.scroll_time)
+        self.key_lane = self.config.key_lane_map()
+        self._reset_hiscore()
+        self._cur_level_name = level.name
+        self._cur_level_file = os.path.basename(level_path) or level.name
+        resolved_audio = (
+            self.config.resolve_audio(level.audio, level_path)
+            if level.audio and level_path else None
+        )
+        self.animation = taplib.TapRevolutionAnimation(
+            level,
+            audio_path=resolved_audio,
+            size=self.size,
+            **self.config.animation_kwargs(window_scale=diff.window_scale))
+        logger.info(
+            "Starting level '%s' (notes=%d, difficulty=%s, audio=%s)",
+            level.name, len(level.notes),
+            self.config.settings.get('difficulty'), resolved_audio or '(none)')
+
+    def _cancel_ask(self):
+        self._pending_level      = None
+        self._pending_level_path = ''
+        self._ask_diff_options   = []
+        self._ask_diff_idx       = 0
+
+    def _ask_confirm(self):
+        if not self._ask_diff_options:
+            return
+        diff = TapRevolutionConfig._difficulty(self._ask_diff_options[self._ask_diff_idx])
+        level      = self._pending_level
+        level_path = self._pending_level_path
+        self._cancel_ask()
+        self._launch_game(level, diff, level_path)
+
     def key_enter(self):
         if self._hs_active:
             if not self._hs_in_flash() and len(self._hs_name) >= 1:
                 self._hs_commit(self._hs_name)
+            return
+        if self._asking():
+            self._ask_confirm()
             return
         if self.animation is not None or self.results is not None:
             return
@@ -534,32 +595,20 @@ class TapRevolutionLevelsItem(ListItem):
             return
         level = self._load_level(name)
         if level is not None:
-            diff = self.config.difficulty_settings()
-            if diff.gap > 0:
-                level = level.thinned(diff.gap)
-            if diff.scroll_time is not None:
-                level = dataclasses.replace(level, scroll_time=diff.scroll_time)
-            self.key_lane = self.config.key_lane_map()
-            level_path    = self.level_files.get(name, '')
-            self._reset_hiscore()
-            self._cur_level_name = level.name
-            self._cur_level_file = os.path.basename(level_path) or level.name
-            resolved_audio = (
-                self.config.resolve_audio(level.audio, level_path)
-                if level.audio and level_path else None
-            )
-            self.animation = taplib.TapRevolutionAnimation(
-                level,
-                audio_path=resolved_audio,
-                size=self.size,
-                **self.config.animation_kwargs(window_scale=diff.window_scale))
-            logger.info(
-                "Starting level '%s' (notes=%d, difficulty=%s, audio=%s)",
-                level.name, len(level.notes),
-                self.config.settings.get('difficulty'), resolved_audio or '(none)')
+            level_path = self.level_files.get(name, '')
+            if str(self.config.settings.get('difficulty', '')).lower() == 'ask':
+                self._pending_level      = level
+                self._pending_level_path = level_path
+                self._ask_diff_options   = list(self.config.settings.get('difficulties', []))
+                self._ask_diff_idx       = 0
+            else:
+                self._launch_game(level, self.config.difficulty_settings(), level_path)
 
     def key_up(self):
         if self._hs_active:
+            return
+        if self._asking():
+            self._ask_diff_idx = max(0, self._ask_diff_idx - 1)
             return
         if not self._play_key('UP'):
             super().key_up()
@@ -567,11 +616,16 @@ class TapRevolutionLevelsItem(ListItem):
     def key_down(self):
         if self._hs_active:
             return
+        if self._asking():
+            self._ask_diff_idx = min(len(self._ask_diff_options) - 1, self._ask_diff_idx + 1)
+            return
         if not self._play_key('DOWN'):
             super().key_down()
 
     def key_left(self):
-        if not self._play_key('LEFT') and self._browsing():
+        if self._asking():
+            self._cancel_ask()
+        elif not self._play_key('LEFT') and self._browsing():
             self._go_back()
 
     def key_right(self):
@@ -600,6 +654,8 @@ class TapRevolutionLevelsItem(ListItem):
                 self._hs_commit('')
         elif self._quit_confirm:
             self._quit_confirm = False
+        elif self._asking():
+            self._cancel_ask()
         elif self._playing():
             self._quit_confirm = True
         elif self.results is not None:
