@@ -260,6 +260,7 @@ class TapRevolutionMenu(Menu):
         ], **kwargs)
 
     def activate(self):
+        self.config._load()
         super().activate()
         logger.info("Tap Revolution menu opened (difficulty=%s)",
                     self.config.settings.get('difficulty'))
