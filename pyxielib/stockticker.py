@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 YAHOO_CHART_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/{}'
 YAHOO_CRUMB_URL = 'https://query2.finance.yahoo.com/v1/test/getcrumb'
 YAHOO_COOKIE_URL = 'https://fc.yahoo.com/'
+_REQUEST_TIMEOUT = 10  ## seconds; guards against hung network (e.g. WiFi AP mode kills client access)
 YAHOO_HEADERS = {'User-Agent': 'Mozilla/5.0 (compatible; nixie-display/1.0)'}
 
 DEFAULT_SYMBOLS = ['AAPL', 'MGM']
@@ -44,7 +45,7 @@ class Stock:
 def getSp500Symbols():
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (compatible; nixie-display/1.0)'}
-        resp = requests.get('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies', headers=headers)
+        resp = requests.get('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies', headers=headers, timeout=_REQUEST_TIMEOUT)
         soup = bs.BeautifulSoup(resp.text, 'html.parser')
         table = soup.find('table', {'id': 'constituents'})
         rows = table.findAll('tr') or []
@@ -73,7 +74,7 @@ def fetchStock(symbol, session, crumb, *, extended_hours=False) -> Stock:
     url = YAHOO_CHART_URL.format(symbol)
     if extended_hours and not isMarketOpen():
         params = {'interval': '1m', 'range': '1d', 'includePrePost': 'true', 'crumb': crumb}
-        resp = session.get(url, params=params)
+        resp = session.get(url, params=params, timeout=_REQUEST_TIMEOUT)
         resp.raise_for_status()
         result = resp.json()['chart']['result'][0]
         meta = result['meta']
@@ -84,7 +85,7 @@ def fetchStock(symbol, session, crumb, *, extended_hours=False) -> Stock:
         return Stock(symbol, current, ref, ref)
     else:
         params = {'interval': '1d', 'range': '1d', 'crumb': crumb}
-        resp = session.get(url, params=params)
+        resp = session.get(url, params=params, timeout=_REQUEST_TIMEOUT)
         resp.raise_for_status()
         result = resp.json()['chart']['result'][0]
         meta = result['meta']
@@ -155,8 +156,8 @@ class StockTicker(Program):
         logger.info("Refreshing Yahoo Finance session")
         session = requests.Session()
         session.headers.update(YAHOO_HEADERS)
-        session.get(YAHOO_COOKIE_URL)
-        resp = session.get(YAHOO_CRUMB_URL)
+        session.get(YAHOO_COOKIE_URL, timeout=_REQUEST_TIMEOUT)
+        resp = session.get(YAHOO_CRUMB_URL, timeout=_REQUEST_TIMEOUT)
         resp.raise_for_status()
         self.session = session
         self.crumb = resp.text.strip()
@@ -187,7 +188,7 @@ class StockTicker(Program):
         self.cv.acquire()
         self.cv.notify_all()
         self.cv.release()
-        self.thread.join()
+        self.thread.join(timeout=_REQUEST_TIMEOUT + 5)
         self.shutdown = True
 
     def ready(self):
